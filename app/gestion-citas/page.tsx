@@ -1,32 +1,67 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/app/components/layout';
 import { AdminListView } from '@/app/components/admin';
 import { IngenieroCalendarView } from '@/app/components/ingeniero';
 import { EmpresarioCalendarView } from '@/app/components/empresario';
 import { UserRole, Appointment, AppointmentType, AppointmentStatus, TimeSlot, CreateAppointmentDTO } from '@/app/types';
+import { mapBackendRoleToFrontend } from '@/app/types/auth';
 
-// TODO: Replace with real auth context when backend is ready
-interface MockUser {
+interface AuthUser {
   id: string;
   email: string;
-  firstName: string;
-  lastName: string;
-  role: UserRole;
-  empresaId?: string;
-  ingenieroAsignadoId?: string;
+  first_name: string;
+  last_name: string;
+  role: 'admin' | 'engineer' | 'company';
 }
 
 export default function GestionCitasPage() {
-  // Mock user - CHANGE THIS TO TEST DIFFERENT ROLES
-  const [currentUser] = useState<MockUser>({
-    id: 'admin_1',
-    email: 'admin@bpm.com',
-    firstName: 'Admin',
-    lastName: 'User',
-    role: UserRole.ADMIN // Change to INGENIERO or EMPRESARIO to test
-  });
+  const router = useRouter();
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Read user from localStorage on mount
+  useEffect(() => {
+    const userStr = localStorage.getItem('user');
+    const token = localStorage.getItem('token');
+    
+    if (!userStr || !token) {
+      // No auth, redirect to login
+      router.push('/login');
+      return;
+    }
+
+    try {
+      const user: AuthUser = JSON.parse(userStr);
+      setCurrentUser(user);
+    } catch (error) {
+      console.error('Error parsing user:', error);
+      router.push('/login');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [router]);
+
+  // Map backend role to frontend UserRole enum
+  const getFrontendRole = (): UserRole => {
+    if (!currentUser) return UserRole.ADMIN; // fallback
+    
+    const mappedRole = mapBackendRoleToFrontend(currentUser.role);
+    
+    // Convert to UserRole enum
+    switch (mappedRole) {
+      case 'admin':
+        return UserRole.ADMIN;
+      case 'ingeniero':
+        return UserRole.INGENIERO;
+      case 'empresario':
+        return UserRole.EMPRESARIO;
+      default:
+        return UserRole.ADMIN;
+    }
+  };
 
   // Mock data for testing
   const [appointments, setAppointments] = useState<Appointment[]>([
@@ -105,6 +140,9 @@ export default function GestionCitasPage() {
 
   const handleCreateAppointment = (data: CreateAppointmentDTO) => {
     console.log('Create appointment:', data);
+    
+    if (!currentUser) return;
+
     const newAppointment: Appointment = {
       id: `apt_${Date.now()}`,
       empresaId: data.empresaId,
@@ -126,7 +164,20 @@ export default function GestionCitasPage() {
 
   // Render view based on role
   const renderView = () => {
-    switch (currentUser.role) {
+    if (isLoading || !currentUser) {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Cargando...</p>
+          </div>
+        </div>
+      );
+    }
+
+    const role = getFrontendRole();
+
+    switch (role) {
       case UserRole.ADMIN:
         return (
           <AdminListView
@@ -147,8 +198,8 @@ export default function GestionCitasPage() {
       case UserRole.EMPRESARIO:
         return (
           <EmpresarioCalendarView
-            empresaId={currentUser.empresaId || currentUser.id}
-            ingenieroAsignadoId={currentUser.ingenieroAsignadoId || 'ing_1'}
+            empresaId={currentUser.id}
+            ingenieroAsignadoId={'ing_1'} // TODO: Get from backend
             appointments={appointments}
             availableSlots={availableSlots}
             onCreateAppointment={handleCreateAppointment}
