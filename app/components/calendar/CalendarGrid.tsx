@@ -10,7 +10,8 @@ export default function CalendarGrid({
   currentDate,
   slots = [],
   onDayClick,
-  onSlotClick
+  onSlotClick,
+  renderDayContent
 }: CalendarGridProps) {
   const dayNames = getDayNames(true);
   
@@ -54,6 +55,7 @@ export default function CalendarGrid({
               slots={daySlots}
               onClick={() => onDayClick && onDayClick(day)}
               onSlotClick={onSlotClick}
+              renderCustomContent={renderDayContent ? () => renderDayContent(day, daySlots) : undefined}
             />
           );
         })}

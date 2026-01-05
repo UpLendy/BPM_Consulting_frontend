@@ -10,7 +10,8 @@ export default function CalendarDay({
   isPast,
   slots = [],
   onClick,
-  onSlotClick
+  onSlotClick,
+  renderCustomContent
 }: CalendarDayProps) {
   const dayNumber = date.getDate();
   
@@ -49,27 +50,31 @@ export default function CalendarDay({
         </span>
       </div>
       
-      {/* Slots Container */}
-      <div className="space-y-1">
-        {slots.map((slot, index) => (
-          <button
-            key={index}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (onSlotClick) {
-                onSlotClick(slot);
-              }
-            }}
-            className="w-full text-left px-1.5 py-0.5 text-xs rounded truncate"
-            style={{
-              backgroundColor: slot.isAvailable ? '#10b981' : '#6b7280',
-              color: 'white'
-            }}
-          >
-            {slot.startTime}
-          </button>
-        ))}
-      </div>
+      {/* Custom Content or Default Slots */}
+      {renderCustomContent ? (
+        renderCustomContent()
+      ) : (
+        <div className="space-y-1">
+          {slots.map((slot, index) => (
+            <button
+              key={index}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onSlotClick) {
+                  onSlotClick(slot);
+                }
+              }}
+              className="w-full text-left px-1.5 py-0.5 text-xs rounded truncate"
+              style={{
+                backgroundColor: slot.isAvailable ? '#10b981' : '#6b7280',
+                color: 'white'
+              }}
+            >
+              {slot.startTime}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
