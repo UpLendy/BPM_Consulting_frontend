@@ -9,6 +9,7 @@ export interface CalendarProps {
     slots?: TimeSlot[];
     onSlotClick?: (slot: TimeSlot) => void;
     onDayClick?: (date: Date) => void;
+    renderDayContent?: (date: Date, slots: TimeSlot[]) => React.ReactNode;
     className?: string;
 }
 
@@ -32,6 +33,7 @@ export interface CalendarGridProps {
     slots?: TimeSlot[];
     onDayClick?: (date: Date) => void;
     onSlotClick?: (slot: TimeSlot) => void;
+    renderDayContent?: (date: Date, slots: TimeSlot[]) => React.ReactNode;
 }
 
 /**
@@ -45,4 +47,5 @@ export interface CalendarDayProps {
     slots?: TimeSlot[];
     onClick?: () => void;
     onSlotClick?: (slot: TimeSlot) => void;
+    renderCustomContent?: () => React.ReactNode;
 }

@@ -12,6 +12,7 @@ export default function Calendar({
   slots = [],
   onSlotClick,
   onDayClick,
+  renderDayContent,
   className = ''
 }: CalendarProps) {
   const [currentDate, setCurrentDate] = useState(selectedDate);
@@ -59,6 +60,7 @@ export default function Calendar({
         slots={slots}
         onDayClick={handleDayClick}
         onSlotClick={onSlotClick}
+        renderDayContent={renderDayContent}
       />
     </div>
   );
