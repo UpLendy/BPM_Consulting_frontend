@@ -23,14 +23,14 @@ export default function CreateAppointmentModal({
   empresarioId,
   ingenieroId
 }: CreateAppointmentModalProps) {
-  const [formData, setFormData] = useState<CreateAppointmentDTO>({
-    empresaId: empresarioId || '',
-    ingenieroId: ingenieroId || '',
-    fecha: prefilledDate || new Date(),
-    horaInicio: prefilledTime || '09:00',
-    horaFin: '',
-    descripcion: '',
-    tipo: AppointmentType.ASESORIA
+  // Internal state for form handling (separate from DTO structure slightly for easier input handling)
+  const [formState, setFormState] = useState({
+    date: prefilledDate || new Date(),
+    startTime: prefilledTime || '09:00',
+    endTime: '',
+    description: '',
+    appointmentType: AppointmentType.ASESORIA,
+    location: ''
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -38,16 +38,15 @@ export default function CreateAppointmentModal({
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.empresaId) newErrors.empresaId = 'Empresa es requerida';
-    if (!formData.ingenieroId) newErrors.ingenieroId = 'Ingeniero es requerido';
-    if (!formData.horaInicio) newErrors.horaInicio = 'Hora de inicio es requerida';
-    if (!formData.horaFin) newErrors.horaFin = 'Hora de fin es requerida';
-    if (!formData.descripcion) newErrors.descripcion = 'Descripción es requerida';
+    if (!formState.startTime) newErrors.startTime = 'Hora de inicio es requerida';
+    if (!formState.endTime) newErrors.endTime = 'Hora de fin es requerida';
+    if (!formState.description) newErrors.description = 'Descripción es requerida';
+    if (!formState.location) newErrors.location = 'Ubicación es requerida';
 
     // Validate time range
-    if (formData.horaInicio && formData.horaFin) {
-      if (formData.horaInicio >= formData.horaFin) {
-        newErrors.horaFin = 'La hora de fin debe ser posterior a la hora de inicio';
+    if (formState.startTime && formState.endTime) {
+      if (formState.startTime >= formState.endTime) {
+        newErrors.endTime = 'La hora de fin debe ser posterior a la hora de inicio';
       }
     }
 
@@ -59,20 +58,38 @@ export default function CreateAppointmentModal({
     e.preventDefault();
     
     if (validate()) {
-      onSubmit(formData);
+      // Convert to DTO format
+      const dateStr = formState.date.toISOString().split('T')[0]; // YYYY-MM-DD
+      
+      // Construct ISO strings for start and end time
+      // Assuming formState.date is the day, combining with time strings
+      const startDateTime = new Date(`${dateStr}T${formState.startTime}:00`);
+      const endDateTime = new Date(`${dateStr}T${formState.endTime}:00`);
+
+      const dto: CreateAppointmentDTO = {
+        description: formState.description,
+        appointmentType: formState.appointmentType,
+        date: dateStr,
+        startTime: startDateTime.toISOString(),
+        endTime: endDateTime.toISOString(),
+        location: formState.location,
+        empresaId: empresarioId,
+        ingenieroId: ingenieroId
+      };
+
+      onSubmit(dto);
       handleClose();
     }
   };
 
   const handleClose = () => {
-    setFormData({
-      empresaId: empresarioId || '',
-      ingenieroId: ingenieroId || '',
-      fecha: prefilledDate || new Date(),
-      horaInicio: prefilledTime || '09:00',
-      horaFin: '',
-      descripcion: '',
-      tipo: AppointmentType.ASESORIA
+    setFormState({
+      date: prefilledDate || new Date(),
+      startTime: prefilledTime || '09:00',
+      endTime: '',
+      description: '',
+      appointmentType: AppointmentType.ASESORIA,
+      location: ''
     });
     setErrors({});
     onClose();
@@ -94,9 +111,9 @@ export default function CreateAppointmentModal({
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={() => setFormData({ ...formData, tipo: AppointmentType.ASESORIA })}
+              onClick={() => setFormState({ ...formState, appointmentType: AppointmentType.ASESORIA })}
               className={`p-3 border-2 rounded-lg transition-colors ${
-                formData.tipo === AppointmentType.ASESORIA
+                formState.appointmentType === AppointmentType.ASESORIA
                   ? 'border-blue-500 bg-blue-50'
                   : 'border-gray-200 hover:border-gray-300'
               }`}
@@ -105,9 +122,9 @@ export default function CreateAppointmentModal({
             </button>
             <button
               type="button"
-              onClick={() => setFormData({ ...formData, tipo: AppointmentType.AUDITORIA })}
+              onClick={() => setFormState({ ...formState, appointmentType: AppointmentType.AUDITORIA })}
               className={`p-3 border-2 rounded-lg transition-colors ${
-                formData.tipo === AppointmentType.AUDITORIA
+                formState.appointmentType === AppointmentType.AUDITORIA
                   ? 'border-purple-500 bg-purple-50'
                   : 'border-gray-200 hover:border-gray-300'
               }`}
@@ -124,8 +141,8 @@ export default function CreateAppointmentModal({
           </label>
           <input
             type="date"
-            value={formData.fecha.toISOString().split('T')[0]}
-            onChange={(e) => setFormData({ ...formData, fecha: new Date(e.target.value) })}
+            value={formState.date.toISOString().split('T')[0]}
+            onChange={(e) => setFormState({ ...formState, date: new Date(e.target.value) })}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             required
           />
@@ -139,15 +156,15 @@ export default function CreateAppointmentModal({
             </label>
             <input
               type="time"
-              value={formData.horaInicio}
-              onChange={(e) => setFormData({ ...formData, horaInicio: e.target.value })}
+              value={formState.startTime}
+              onChange={(e) => setFormState({ ...formState, startTime: e.target.value })}
               className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                errors.horaInicio ? 'border-red-500' : 'border-gray-300'
+                errors.startTime ? 'border-red-500' : 'border-gray-300'
               }`}
               required
             />
-            {errors.horaInicio && (
-              <p className="mt-1 text-xs text-red-600">{errors.horaInicio}</p>
+            {errors.startTime && (
+              <p className="mt-1 text-xs text-red-600">{errors.startTime}</p>
             )}
           </div>
           <div>
@@ -156,17 +173,37 @@ export default function CreateAppointmentModal({
             </label>
             <input
               type="time"
-              value={formData.horaFin}
-              onChange={(e) => setFormData({ ...formData, horaFin: e.target.value })}
+              value={formState.endTime}
+              onChange={(e) => setFormState({ ...formState, endTime: e.target.value })}
               className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                errors.horaFin ? 'border-red-500' : 'border-gray-300'
+                errors.endTime ? 'border-red-500' : 'border-gray-300'
               }`}
               required
             />
-            {errors.horaFin && (
-              <p className="mt-1 text-xs text-red-600">{errors.horaFin}</p>
+            {errors.endTime && (
+              <p className="mt-1 text-xs text-red-600">{errors.endTime}</p>
             )}
           </div>
+        </div>
+
+        {/* Ubicación */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Ubicación *
+          </label>
+          <input
+            type="text"
+            value={formState.location}
+            onChange={(e) => setFormState({ ...formState, location: e.target.value })}
+            placeholder="Ej: Planta principal, Sala de juntas, etc."
+            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+              errors.location ? 'border-red-500' : 'border-gray-300'
+            }`}
+            required
+          />
+          {errors.location && (
+            <p className="mt-1 text-xs text-red-600">{errors.location}</p>
+          )}
         </div>
 
         {/* Descripción */}
@@ -175,17 +212,17 @@ export default function CreateAppointmentModal({
             Descripción *
           </label>
           <textarea
-            value={formData.descripcion}
-            onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
+            value={formState.description}
+            onChange={(e) => setFormState({ ...formState, description: e.target.value })}
             rows={3}
             className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-              errors.descripcion ? 'border-red-500' : 'border-gray-300'
+              errors.description ? 'border-red-500' : 'border-gray-300'
             }`}
             placeholder="Describe el motivo de la cita..."
             required
           />
-          {errors.descripcion && (
-            <p className="mt-1 text-xs text-red-600">{errors.descripcion}</p>
+          {errors.description && (
+            <p className="mt-1 text-xs text-red-600">{errors.description}</p>
           )}
         </div>
 
