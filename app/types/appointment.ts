@@ -21,16 +21,18 @@ export interface Appointment {
 
 /**
  * Create Appointment DTO (Data Transfer Object)
- * Used when creating a new appointment
+ * Used for creating a new appointment
  */
 export interface CreateAppointmentDTO {
-    empresaId: string;
-    ingenieroId: string;
-    fecha: Date;
-    horaInicio: string;
-    horaFin: string;
-    descripcion: string;
-    tipo: AppointmentType;
+    description: string;
+    appointmentType: AppointmentType;
+    date: string; // YYYY-MM-DD
+    startTime: string; // ISO String
+    endTime: string; // ISO String
+    location: string;
+    // Optional fields for internal logic if needed, but backend payload is strictly the above
+    empresaId?: string;
+    ingenieroId?: string;
 }
 
 /**

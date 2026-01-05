@@ -8,6 +8,7 @@ import { IngenieroCalendarView } from '@/app/components/ingeniero';
 import { EmpresarioCalendarView } from '@/app/components/empresario';
 import { UserRole, Appointment, AppointmentType, AppointmentStatus, TimeSlot, CreateAppointmentDTO } from '@/app/types';
 import { mapBackendRoleToFrontend } from '@/app/types/auth';
+import { appointmentService } from '@/app/services/appointments';
 
 interface AuthUser {
   id: string;
@@ -138,28 +139,25 @@ export default function GestionCitasPage() {
     setAppointments(appointments.filter((apt) => apt.id !== appointmentId));
   };
 
-  const handleCreateAppointment = (data: CreateAppointmentDTO) => {
-    console.log('Create appointment:', data);
-    
+  const handleCreateAppointment = async (data: CreateAppointmentDTO) => {
     if (!currentUser) return;
 
-    const newAppointment: Appointment = {
-      id: `apt_${Date.now()}`,
-      empresaId: data.empresaId,
-      empresaName: 'Nueva Empresa', // Would come from backend
-      ingenieroId: data.ingenieroId,
-      ingenieroName: 'Ingeniero Asignado', // Would come from backend
-      fecha: data.fecha,
-      horaInicio: data.horaInicio,
-      horaFin: data.horaFin,
-      descripcion: data.descripcion,
-      tipo: data.tipo,
-      estado: AppointmentStatus.PENDIENTE,
-      createdBy: currentUser.id,
-      createdAt: new Date()
-    };
-    setAppointments([...appointments, newAppointment]);
-    alert('Cita creada exitosamente!');
+    try {
+      // NOTE: location and other fields are sent to backend in DTO.
+      // Backend returns the created appointment.
+      const newAppointment = await appointmentService.createAppointment({
+        ...data,
+        // Ensure backend required fields are present if DTO optionality differs
+        empresaId: currentUser.id,
+        // ingenieroId might be assigned by backend or passed from UI
+      });
+
+      setAppointments([...appointments, newAppointment]);
+      alert('Cita creada exitosamente!');
+    } catch (error) {
+      console.error('Error creating appointment:', error);
+      alert('Error al crear la cita. Por favor intente nuevamente.');
+    }
   };
 
   // Render view based on role
