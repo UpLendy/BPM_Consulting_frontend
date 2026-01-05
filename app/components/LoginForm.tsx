@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { authService } from '@/app/services/authService';
 
 export default function LoginForm() {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -14,13 +14,19 @@ export default function LoginForm() {
     setIsLoading(true);
     setError('');
 
-    //Modificar logica segun el rol del usuario que se ingrese
     try {
-      const response = await authService.login({ username, password });
+      const response = await authService.login({ email, password });
+      
+      // Guardar token
       localStorage.setItem('token', response.token);
-      window.location.href = '/dashboard';
+      
+      // Guardar user data
+      localStorage.setItem('user', JSON.stringify(response.user));
+      
+      // Redirect a gestión de citas
+      window.location.href = '/gestion-citas';
     } catch (err) {
-      setError('Usuario o contraseña incorrectos');
+      setError('Email o contraseña incorrectos');
     } finally {
       setIsLoading(false);
     }
@@ -40,10 +46,10 @@ export default function LoginForm() {
           {/* Campo Usuario */}
           <div className="relative">
             <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Usuario"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Email"
               className="w-full px-4 py-3 pl-10 rounded bg-white text-gray-900 placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
