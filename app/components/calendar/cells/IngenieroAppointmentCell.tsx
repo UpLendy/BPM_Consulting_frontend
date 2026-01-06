@@ -12,9 +12,11 @@ import { getDisplayTime } from '@/app/components/calendar/utils';
 export default function IngenieroAppointmentCell({
   appointment,
   onClick,
-  className = ''
+  className = '',
+  isOwn = false
 }: IngenieroAppointmentCellProps) {
-  const colorClass = getAppointmentColor(appointment.appointmentType);
+  // If isOwn is true, use a distinct color (e.g., Emerald/Green), otherwise use type color
+  const colorClass = isOwn ? 'bg-emerald-600 hover:bg-emerald-700 ring-2 ring-emerald-400' : getAppointmentColor(appointment.appointmentType);
   
   return (
     <button

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Calendar from '@/app/components/calendar/Calendar';
 import { getDisplayTime } from '@/app/components/calendar/utils';
+import { appointmentService } from '@/app/services/appointments';
 import {
   EmpresarioAvailableCell,
   EmpresarioOccupiedCell,
@@ -39,43 +40,53 @@ export default function EmpresarioCalendarView({
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
 
+  /* State for Owned Appointments (API Check) */
+  const [ownedAppointmentIds, setOwnedAppointmentIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const fetchMyAppointments = async () => {
+        try {
+            // Fetch appointments where I am the representative
+            const myApts = await appointmentService.getMyAppointments();
+            if (myApts && myApts.length > 0) {
+                const ids = new Set(myApts.map(a => a.id));
+                console.log('--- API My Appointments Fetched (Empresario View) ---');
+                console.log('Owned IDs:', Array.from(ids));
+                setOwnedAppointmentIds(ids);
+            }
+        } catch (e) {
+            console.error('Error fetching my appointments for verification', e);
+        }
+    };
+    
+    fetchMyAppointments();
+  }, []);
+
   // Filter appointments of assigned engineer
   const engineerAppointments = useMemo(() => {
-    // Note: If backend doesn't return ingenieroId in nested object, this filter might fail if we rely on it.
-    // However, the endpoint "appointments/my-company/engineer-appointments" returns appointments FOR the assigned engineer.
-    // So all appointments returned SHOULD be for that engineer.
-    // We can probably skip this filter or use "engineerName" if id is missing.
-    // But let's assume `id` check is fine if we used standard fetching.
-    // Wait, the new endpoint returns specific list. We might not need to filter by ID if the list is already filtered.
     return appointments; 
   }, [appointments]);
 
-  // Identify MY appointments (this empresa)
+  // Identify MY appointments (this empresa) - DEPRECATED via prop check, now relying on API Check or both?
+  // Let's keep this memo but use the Set for the slot flag if available.
   const myAppointments = useMemo(() => {
-    // Backend returns companyName. We might check companyName or empresaId if available.
-    // Or if the backend returns "my company's appointments" differently?
-    // Actually, `getCompanyEngineerAppointments` returns ALL appointments of the engineer.
-    // We need to identify which ones are MINE to show them differently (blue).
-    // Uses `empresaId`. If DTO/Appointment has `empresaId` (optional), check it.
-    // If backend doesn't return it, we might need another way.
-    // Assuming backend populates `empresaId` or `companyName`. `companyName` is in JSON.
-    // Ideally we match by ID. If not available, maybe `companyName`? (Unsafe)
-    // Let's rely on `empresaId` being present or added to backend response. OR checking if WE created it?
-    // Using `companyName` as fallback matching might be necessary if IDs missing.
-    // BUT current JSON (user provided) has `companyName`. Not `empresaId`.
-    // We don't have local `companyName` in `currentUser`.
-    // Wait, if `empresaId` is missing, we can't strict match.
-    // Let's assume for now `empresaId` is present OR match `companyName` if valid.
-    
+    // Return appointments that match our owned Set
+    if (ownedAppointmentIds.size > 0) {
+        return engineerAppointments.filter(apt => ownedAppointmentIds.has(apt.id));
+    }
+    // Fallback if API hasn't loaded or returned nothing yet (or empty)
     return engineerAppointments.filter((apt) => apt.empresaId === empresaId); 
-  }, [engineerAppointments, empresaId]);
+  }, [engineerAppointments, empresaId, ownedAppointmentIds]);
 
   // Create slots for calendar display (ONLY appointments are shown on grid now)
   const allSlots = useMemo(() => {
     const slots: TimeSlot[] = [];
 
     engineerAppointments.forEach((apt) => {
-      const isMyAppointment = apt.empresaId === empresaId;
+      // Check ownership via API List if populated, else fallback to empresaId
+      const isMyAppointment = ownedAppointmentIds.size > 0 
+          ? ownedAppointmentIds.has(apt.id) 
+          : apt.empresaId === empresaId;
       
       // Parse date manually to avoid UTC shift
       const rawDate = apt.date as unknown as string | Date;
@@ -85,10 +96,6 @@ export default function EmpresarioCalendarView({
 
       slots.push({
         date: localDate,
-        // Convert ISO start/end time to "HH:mm" for internal slot logic if needed, OR store ISO.
-        // Calendar logic might expect "HH:mm" strings for sorting/display?
-        // Let's store "HH:mm" derived from the ISO time.
-        // Using strict getDisplayTime to extract HH:mm from UTC string
         startTime: getDisplayTime(apt.startTime),
         endTime: getDisplayTime(apt.endTime),
         isAvailable: false,
@@ -98,7 +105,7 @@ export default function EmpresarioCalendarView({
     });
 
     return slots;
-  }, [engineerAppointments, empresaId]);
+  }, [engineerAppointments, empresaId, ownedAppointmentIds]);
 
   // Handlers
   const handleDayClick = (date: Date) => {

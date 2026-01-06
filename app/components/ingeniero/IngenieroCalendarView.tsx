@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Calendar from '@/app/components/calendar/Calendar';
 import { getDisplayTime } from '@/app/components/calendar/utils';
+import { appointmentService } from '@/app/services/appointments';
 import { IngenieroAppointmentCell } from '@/app/components/calendar/cells';
 import { ViewAppointmentModal } from '@/app/components/modals';
 import { Appointment, TimeSlot } from '@/app/types';
@@ -19,6 +20,30 @@ export default function IngenieroCalendarView({
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  
+  /* State for Owned Appointments (API Check) */
+  const [ownedAppointmentIds, setOwnedAppointmentIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const fetchMyAppointments = async () => {
+        try {
+            // Fetch appointments where I am the representative
+            const myApts = await appointmentService.getMyAppointments();
+            if (myApts && myApts.length > 0) {
+                const ids = new Set(myApts.map(a => a.id));
+                console.log('--- API My Appointments Fetched ---');
+                console.log('Owned IDs:', Array.from(ids));
+                setOwnedAppointmentIds(ids);
+            } else {
+                console.log('--- No Owned Appointments Found via API ---');
+            }
+        } catch (e) {
+            console.error('Error fetching my appointments for verification', e);
+        }
+    };
+    
+    fetchMyAppointments();
+  }, []);
 
   // Filter appointments: ONLY for this engineer
   const myAppointments = useMemo(() => {
@@ -59,12 +84,19 @@ export default function IngenieroCalendarView({
         {daySlots.map((slot, idx) => {
           const appointment = myAppointments.find((apt) => apt.id === slot.appointmentId);
           if (!appointment) return null;
+          
+          const isOwn = ownedAppointmentIds.has(appointment.id);
+          
+          if (isOwn) {
+              console.log(`Appointment ${appointment.id} is OWNED (matched via API list)`);
+          }
 
           return (
             <IngenieroAppointmentCell
               key={idx}
               appointment={appointment}
               onClick={() => handleAppointmentClick(slot)}
+              isOwn={isOwn}
             />
           );
         })}
