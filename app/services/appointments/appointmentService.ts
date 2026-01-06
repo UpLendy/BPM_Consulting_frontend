@@ -35,5 +35,47 @@ export const appointmentService = {
         }
 
         return response.json();
+    },
+
+    /**
+     * Get appointments for a specific engineer
+     * GET /api/v1/appointments/engineer/{engineerId}
+     */
+    async getAppointmentsByEngineer(engineerId: string): Promise<Appointment[]> {
+        const token = localStorage.getItem('token');
+
+        const response = await fetch(`${API_URL}/appointments/engineer/${engineerId}`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('Error al obtener las citas');
+        }
+
+        return response.json();
+    },
+
+    /**
+     * Get appointments for the assigned engineer of the logged-in company
+     * GET /api/v1/appointments/my-company/engineer-appointments
+     */
+    async getCompanyEngineerAppointments(): Promise<Appointment[]> {
+        const token = localStorage.getItem('token');
+
+        const response = await fetch(`${API_URL}/appointments/my-company/engineer-appointments`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('Error al obtener las citas del ingeniero asignado');
+        }
+
+        return response.json();
     }
 };

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import BaseModal from './BaseModal';
 import { CreateAppointmentDTO, AppointmentType } from '@/app/types';
 
@@ -34,6 +34,21 @@ export default function CreateAppointmentModal({
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  // Reset form state when modal opens with new prefilled data
+  useEffect(() => {
+    if (isOpen) {
+      setFormState({
+        date: prefilledDate || new Date(),
+        startTime: prefilledTime || '09:00',
+        endTime: '',
+        description: '',
+        appointmentType: AppointmentType.ASESORIA,
+        location: ''
+      });
+      setErrors({});
+    }
+  }, [isOpen, prefilledDate, prefilledTime]);
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -58,20 +73,26 @@ export default function CreateAppointmentModal({
     e.preventDefault();
     
     if (validate()) {
-      // Convert to DTO format
-      const dateStr = formState.date.toISOString().split('T')[0]; // YYYY-MM-DD
-      
-      // Construct ISO strings for start and end time
-      // Assuming formState.date is the day, combining with time strings
-      const startDateTime = new Date(`${dateStr}T${formState.startTime}:00`);
-      const endDateTime = new Date(`${dateStr}T${formState.endTime}:00`);
+      // 1. Get YYYY-MM-DD from formState.date
+      // formState.date is likely a Date object. If created via new Date("YYYY-MM-DD"), it's UTC midnight.
+      // But let's rely on the local interpretation or ensure we extract just the YYYY-MM-DD part reliably.
+      const dateStr = formState.date instanceof Date 
+        ? formState.date.toISOString().split('T')[0] 
+        : new Date(formState.date).toISOString().split('T')[0];
+
+      // 3. Construct ISO strings strictly as UTC (Z) matching the local time face-value.
+      // User selects 09:00. We send 09:00Z.
+      // Backend stores 09:00Z.
+      // Frontend displays 09:00 (ignoring timezone).
+      const startTimeISO = `${dateStr}T${formState.startTime}:00.000Z`;
+      const endTimeISO = `${dateStr}T${formState.endTime}:00.000Z`;
 
       const dto: CreateAppointmentDTO = {
         description: formState.description,
         appointmentType: formState.appointmentType,
         date: dateStr,
-        startTime: startDateTime.toISOString(),
-        endTime: endDateTime.toISOString(),
+        startTime: startTimeISO,
+        endTime: endTimeISO,
         location: formState.location,
         empresaId: empresarioId,
         ingenieroId: ingenieroId
@@ -143,7 +164,7 @@ export default function CreateAppointmentModal({
             type="date"
             value={formState.date.toISOString().split('T')[0]}
             onChange={(e) => setFormState({ ...formState, date: new Date(e.target.value) })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
             required
           />
         </div>
@@ -158,7 +179,7 @@ export default function CreateAppointmentModal({
               type="time"
               value={formState.startTime}
               onChange={(e) => setFormState({ ...formState, startTime: e.target.value })}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 ${
                 errors.startTime ? 'border-red-500' : 'border-gray-300'
               }`}
               required
@@ -175,7 +196,7 @@ export default function CreateAppointmentModal({
               type="time"
               value={formState.endTime}
               onChange={(e) => setFormState({ ...formState, endTime: e.target.value })}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 ${
                 errors.endTime ? 'border-red-500' : 'border-gray-300'
               }`}
               required
@@ -196,7 +217,7 @@ export default function CreateAppointmentModal({
             value={formState.location}
             onChange={(e) => setFormState({ ...formState, location: e.target.value })}
             placeholder="Ej: Planta principal, Sala de juntas, etc."
-            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500 ${
               errors.location ? 'border-red-500' : 'border-gray-300'
             }`}
             required
@@ -215,7 +236,7 @@ export default function CreateAppointmentModal({
             value={formState.description}
             onChange={(e) => setFormState({ ...formState, description: e.target.value })}
             rows={3}
-            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500 ${
               errors.description ? 'border-red-500' : 'border-gray-300'
             }`}
             placeholder="Describe el motivo de la cita..."

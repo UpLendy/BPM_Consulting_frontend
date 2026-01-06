@@ -1,6 +1,7 @@
 'use client';
 
 import BaseModal from './BaseModal';
+import { getDisplayTime } from '@/app/components/calendar/utils';
 import { Appointment } from '@/app/types';
 import { AppointmentBadge, AppointmentTypeIcon } from '@/app/components/appointments';
 
@@ -36,8 +37,8 @@ export default function ViewAppointmentModal({
       <div className="space-y-6">
         {/* Header with Type and Status */}
         <div className="flex items-center justify-between">
-          <AppointmentTypeIcon type={appointment.tipo} />
-          <AppointmentBadge status={appointment.estado} />
+          <AppointmentTypeIcon type={appointment.appointmentType} />
+          <AppointmentBadge status={appointment.status} />
         </div>
 
         {/* Empresa */}
@@ -45,7 +46,7 @@ export default function ViewAppointmentModal({
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Empresa
           </label>
-          <p className="text-base text-gray-900">{appointment.empresaName}</p>
+          <p className="text-base text-gray-900">{appointment.companyName || '-'}</p>
         </div>
 
         {/* Ingeniero */}
@@ -53,7 +54,7 @@ export default function ViewAppointmentModal({
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Ingeniero Asignado
           </label>
-          <p className="text-base text-gray-900">{appointment.ingenieroName}</p>
+          <p className="text-base text-gray-900">{appointment.engineerName || '-'}</p>
         </div>
 
         {/* Fecha */}
@@ -61,7 +62,7 @@ export default function ViewAppointmentModal({
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Fecha
           </label>
-          <p className="text-base text-gray-900 capitalize">{formatDate(appointment.fecha)}</p>
+          <p className="text-base text-gray-900 capitalize">{formatDate(appointment.date)}</p>
         </div>
 
         {/* Hora */}
@@ -70,13 +71,17 @@ export default function ViewAppointmentModal({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Hora de Inicio
             </label>
-            <p className="text-base text-gray-900">{appointment.horaInicio}</p>
+            <p className="text-base text-gray-900">
+                {getDisplayTime(appointment.startTime)}
+            </p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Hora de Fin
             </label>
-            <p className="text-base text-gray-900">{appointment.horaFin}</p>
+            <p className="text-base text-gray-900">
+                {getDisplayTime(appointment.endTime)}
+            </p>
           </div>
         </div>
 
@@ -85,14 +90,7 @@ export default function ViewAppointmentModal({
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Descripción
           </label>
-          <p className="text-base text-gray-900">{appointment.descripcion}</p>
-        </div>
-
-        {/* Creado por */}
-        <div className="pt-4 border-t border-gray-200">
-          <p className="text-sm text-gray-500">
-            Creado el: {new Date(appointment.createdAt).toLocaleDateString('es-ES')}
-          </p>
+          <p className="text-base text-gray-900">{appointment.description}</p>
         </div>
 
         {/* Actions */}

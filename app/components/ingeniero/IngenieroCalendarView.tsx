@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import Calendar from '@/app/components/calendar/Calendar';
+import { getDisplayTime } from '@/app/components/calendar/utils';
 import { IngenieroAppointmentCell } from '@/app/components/calendar/cells';
 import { ViewAppointmentModal } from '@/app/components/modals';
 import { Appointment, TimeSlot } from '@/app/types';
@@ -21,15 +22,17 @@ export default function IngenieroCalendarView({
 
   // Filter appointments: ONLY for this engineer
   const myAppointments = useMemo(() => {
-    return appointments.filter((apt) => apt.ingenieroId === ingenieroId);
+    // If ingenieroId not present in appointment object, assume all passed appointments are for this engineer (if fetch was specific)
+    return appointments.filter((apt) => !apt.ingenieroId || apt.ingenieroId === ingenieroId);
   }, [appointments, ingenieroId]);
 
   // Convert appointments to TimeSlots for calendar
+  // Convert appointments to TimeSlots for calendar
   const slots = useMemo(() => {
     return myAppointments.map((apt): TimeSlot => ({
-      date: new Date(apt.fecha),
-      startTime: apt.horaInicio,
-      endTime: apt.horaFin,
+      date: new Date(apt.date),
+      startTime: getDisplayTime(apt.startTime),
+      endTime: getDisplayTime(apt.endTime),
       isAvailable: false,
       appointmentId: apt.id,
       isMyAppointment: true // Always true for engineer viewing their own
