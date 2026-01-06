@@ -130,8 +130,9 @@ export default function IngenieroCalendarView({
 
       {/* Calendar */}
       <div className="flex-1 overflow-hidden p-6">
-        <div className="h-full bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="h-full flex flex-col bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden p-4">
           <Calendar
+            className="h-full w-full shadow-none"
             selectedDate={selectedDate}
             onDateChange={setSelectedDate}
             slots={slots}

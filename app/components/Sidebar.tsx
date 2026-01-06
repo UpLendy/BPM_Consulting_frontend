@@ -2,7 +2,11 @@
 
 import { useState } from 'react';
 
-export default function Sidebar() {
+interface SidebarProps {
+  isOpen?: boolean;
+}
+
+export default function Sidebar({ isOpen = true }: SidebarProps) {
   const [activeItem, setActiveItem] = useState<string>('');
 
   // Handle menu item click - Add navigation logic here
@@ -13,14 +17,18 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="w-64 h-screen bg-[#3f4771] flex flex-col justify-between text-white">
+    <aside className={`${isOpen ? 'w-64' : 'w-20'} h-screen bg-[#3f4771] flex flex-col justify-between text-white transition-all duration-300 overflow-hidden`}>
       {/* Top Section */}
       <div>
         {/* Logo Header */}
-        <div className="p-6 border-b border-[#4a5180]">
-          <h1 className="text-2xl font-bold text-[#1e3a8a]">
-            BPM<span className="font-light">Consulting</span>
-          </h1>
+        <div className="p-6 border-b border-[#4a5180] min-h-[81px] flex items-center">
+          {isOpen ? (
+            <h1 className="text-2xl font-bold text-[#1e3a8a] truncate">
+              BPM<span className="font-light">Consulting</span>
+            </h1>
+          ) : (
+            <span className="text-xl font-bold text-[#1e3a8a] w-full text-center">BPM</span>
+          )}
         </div>
 
         {/* Menu Items */}
@@ -32,8 +40,8 @@ export default function Sidebar() {
               activeItem === 'gestion-citas' ? 'bg-[#4a5180]' : ''
             }`}
           >
-            <span className="text-2xl">📅</span>
-            <span className="text-sm font-medium">Gestión de citas</span>
+            <span className="text-2xl shrink-0">📅</span>
+            {isOpen && <span className="text-sm font-medium truncate">Gestión de citas</span>}
           </button>
 
           {/* Documentos empresa */}
@@ -43,8 +51,8 @@ export default function Sidebar() {
               activeItem === 'documentos-empresa' ? 'bg-[#4a5180]' : ''
             }`}
           >
-            <span className="text-2xl">📄</span>
-            <span className="text-sm font-medium">Documentos empresa</span>
+            <span className="text-2xl shrink-0">📄</span>
+            {isOpen && <span className="text-sm font-medium truncate">Documentos empresa</span>}
           </button>
 
           {/* Registro de visita */}
@@ -54,8 +62,8 @@ export default function Sidebar() {
               activeItem === 'registro-visita' ? 'bg-[#4a5180]' : ''
             }`}
           >
-            <span className="text-2xl">📋</span>
-            <span className="text-sm font-medium">Registro de visita</span>
+            <span className="text-2xl shrink-0">📋</span>
+            {isOpen && <span className="text-sm font-medium truncate">Registro de visita</span>}
           </button>
 
           {/* Generar acta */}
@@ -65,8 +73,8 @@ export default function Sidebar() {
               activeItem === 'generar-acta' ? 'bg-[#4a5180]' : ''
             }`}
           >
-            <span className="text-2xl">📋</span>
-            <span className="text-sm font-medium">Generar acta</span>
+            <span className="text-2xl shrink-0">📋</span>
+            {isOpen && <span className="text-sm font-medium truncate">Generar acta</span>}
           </button>
 
           {/* Dashboard */}
@@ -76,8 +84,8 @@ export default function Sidebar() {
               activeItem === 'dashboard' ? 'bg-[#4a5180]' : ''
             }`}
           >
-            <span className="text-2xl">📊</span>
-            <span className="text-sm font-medium">Dashboard</span>
+            <span className="text-2xl shrink-0">📊</span>
+            {isOpen && <span className="text-sm font-medium truncate">Dashboard</span>}
           </button>
 
           {/* Gestión de usuarios */}
@@ -87,8 +95,8 @@ export default function Sidebar() {
               activeItem === 'gestion-usuarios' ? 'bg-[#4a5180]' : ''
             }`}
           >
-            <span className="text-2xl">👥</span>
-            <span className="text-sm font-medium">Gestión de usuarios</span>
+            <span className="text-2xl shrink-0">👥</span>
+            {isOpen && <span className="text-sm font-medium truncate">Gestión de usuarios</span>}
           </button>
 
           {/* Reportes/Estadísticas */}
@@ -98,12 +106,12 @@ export default function Sidebar() {
               activeItem === 'reportes' ? 'bg-[#4a5180]' : ''
             }`}
           >
-            <span className="text-2xl">📈</span>
-            <span className="text-sm font-medium">
-              Reportes/
-              <br />
-              Estadísticas
-            </span>
+            <span className="text-2xl shrink-0">📈</span>
+            {isOpen && (
+              <span className="text-sm font-medium truncate text-left">
+                Reportes/Estadísticas
+              </span>
+            )}
           </button>
 
           {/* Registrar usuarios */}
@@ -113,8 +121,8 @@ export default function Sidebar() {
               activeItem === 'registrar-usuarios' ? 'bg-[#4a5180]' : ''
             }`}
           >
-            <span className="text-2xl">👤</span>
-            <span className="text-sm font-medium">Registrar usuarios</span>
+            <span className="text-2xl shrink-0">👤</span>
+            {isOpen && <span className="text-sm font-medium truncate">Registrar usuarios</span>}
           </button>
 
           {/* Visualizar documentos */}
@@ -124,8 +132,8 @@ export default function Sidebar() {
               activeItem === 'visualizar-documentos' ? 'bg-[#4a5180]' : ''
             }`}
           >
-            <span className="text-2xl">📑</span>
-            <span className="text-sm font-medium">Visualizar documentos</span>
+            <span className="text-2xl shrink-0">📑</span>
+            {isOpen && <span className="text-sm font-medium truncate">Visualizar documentos</span>}
           </button>
         </nav>
       </div>
@@ -139,8 +147,8 @@ export default function Sidebar() {
             activeItem === 'ajustes' ? 'bg-[#4a5180]' : ''
           }`}
         >
-          <span className="text-2xl">⚙️</span>
-          <span className="text-sm font-medium">Ajustes</span>
+          <span className="text-2xl shrink-0">⚙️</span>
+          {isOpen && <span className="text-sm font-medium truncate">Ajustes</span>}
         </button>
 
         {/* Cerrar Sesión */}
@@ -148,8 +156,8 @@ export default function Sidebar() {
           onClick={() => handleMenuClick('cerrar-sesion')}
           className="w-full flex items-center gap-4 px-4 py-3 rounded-lg transition-colors hover:bg-red-600"
         >
-          <span className="text-2xl">🚪</span>
-          <span className="text-sm font-medium">Cerrar Sesión</span>
+          <span className="text-2xl shrink-0">🚪</span>
+          {isOpen && <span className="text-sm font-medium truncate">Cerrar Sesión</span>}
         </button>
         {/* TODO: Add logout logic here */}
       </div>

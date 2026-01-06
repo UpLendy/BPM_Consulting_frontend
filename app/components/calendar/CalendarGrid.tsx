@@ -26,9 +26,9 @@ export default function CalendarGrid({
   }, {} as Record<string, typeof slots>);
   
   return (
-    <div className="flex-1">
+    <div className="flex-1 flex flex-col h-full">
       {/* Day Names Header */}
-      <div className="grid grid-cols-7 border-b border-gray-300 bg-gray-50">
+      <div className="grid grid-cols-7 border-b border-gray-300 bg-gray-50 shrink-0">
         {dayNames.map((dayName, index) => (
           <div
             key={index}
@@ -40,7 +40,7 @@ export default function CalendarGrid({
       </div>
       
       {/* Calendar Grid */}
-      <div className="grid grid-cols-7">
+      <div className="flex-1 grid grid-cols-7 grid-rows-6">
         {days.map((day, index) => {
           const dateKey = day.toDateString();
           const daySlots = slotsByDate[dateKey] || [];
