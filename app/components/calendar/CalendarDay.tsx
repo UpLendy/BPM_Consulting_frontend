@@ -16,7 +16,7 @@ export default function CalendarDay({
   const dayNumber = date.getDate();
   
   // Base classes
-  let dayClasses = 'h-24 p-2 border border-gray-200 transition-colors ';
+  let dayClasses = 'h-full p-2 border border-gray-200 transition-colors flex flex-col ';
   
   // Styling based on state
   if (!isCurrentMonth) {

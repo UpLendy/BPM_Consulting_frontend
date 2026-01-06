@@ -208,10 +208,10 @@ export default function EmpresarioCalendarView({
         </div>
       </div>
 
-      {/* Calendar */}
-      <div className="flex-1 overflow-hidden p-6">
-        <div className="h-full bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <div className="flex-1 overflow-hidden p-4">
+        <div className="h-full flex flex-col bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden p-4">
           <Calendar
+            className="h-full w-full shadow-none"
             selectedDate={selectedDate}
             onDateChange={setSelectedDate}
             // Add onDayClick handler
@@ -222,19 +222,8 @@ export default function EmpresarioCalendarView({
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="bg-white border-t border-gray-200 px-6 py-3">
-        <div className="flex items-center gap-6 text-sm">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-blue-600 rounded"></div>
-            <span className="text-gray-700">Mi cita</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-gray-400 rounded"></div>
-            <span className="text-gray-700">Ocupado</span>
-          </div>
-        </div>
-      </div>
+      {/* Legend removed via User Request */}
+      {/* <div className="bg-white border-t border-gray-200 px-6 py-3">...</div> */}
 
       {/* Modals */}
       <ViewAppointmentModal

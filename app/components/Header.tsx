@@ -1,20 +1,48 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { mapBackendRoleToFrontend, BackendRole } from '@/app/types/auth';
 
 interface HeaderProps {
   userName?: string;
   userRole?: string;
   userAvatar?: string;
+  onMenuToggle?: () => void;
 }
 
 export default function Header({ 
-  userName = 'John Smith', 
-  userRole = 'Ingeniero',
-  userAvatar = '' 
+  userName: propUserName, 
+  userRole: propUserRole,
+  userAvatar = '',
+  onMenuToggle
 }: HeaderProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
+  const [userData, setUserData] = useState<{ name: string; role: string } | null>(null);
+
+  useEffect(() => {
+    try {
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email;
+        const mappedRole = mapBackendRoleToFrontend(user.role as BackendRole);
+        
+        // Capitalize role for display
+        const displayRole = mappedRole.charAt(0).toUpperCase() + mappedRole.slice(1);
+        
+        setUserData({
+          name: fullName,
+          role: displayRole
+        });
+      }
+    } catch (e) {
+      console.error('Error loading user data in Header', e);
+    }
+  }, []);
+
+  const userName = propUserName || userData?.name || 'Cargando...';
+  const userRole = propUserRole || userData?.role || '...';
 
   // Handle search input - Add search logic here
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -30,7 +58,9 @@ export default function Header({
 
   // Handle menu toggle - Add sidebar toggle logic here
   const handleMenuToggle = () => {
-    // TODO: Implement sidebar toggle functionality
+    if (onMenuToggle) {
+      onMenuToggle();
+    }
     console.log('Menu toggle clicked');
   };
 
