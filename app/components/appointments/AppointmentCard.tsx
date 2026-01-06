@@ -3,6 +3,7 @@
 import { Appointment } from '@/app/types';
 import AppointmentBadge from './AppointmentBadge';
 import AppointmentTypeIcon from './AppointmentTypeIcon';
+import { getDisplayTime } from '@/app/components/calendar/utils';
 
 interface AppointmentCardProps {
   appointment: Appointment;
@@ -33,13 +34,13 @@ export default function AppointmentCard({
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-2">
-            <AppointmentTypeIcon type={appointment.tipo} />
+            <AppointmentTypeIcon type={appointment.appointmentType} />
           </div>
           <h3 className="text-lg font-semibold text-gray-900">
-            Cita para {appointment.empresaName}
+            Cita para {appointment.companyName || 'Empresa'}
           </h3>
         </div>
-        <AppointmentBadge status={appointment.estado} />
+        <AppointmentBadge status={appointment.status} />
       </div>
       
       {/* Content: Details */}
@@ -54,7 +55,7 @@ export default function AppointmentCard({
               d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
             />
           </svg>
-          <span><strong>Ingeniero:</strong> {appointment.ingenieroName}</span>
+          <span><strong>Ingeniero:</strong> {appointment.engineerName || 'No asignado'}</span>
         </div>
         
         {/* Fecha */}
@@ -67,7 +68,7 @@ export default function AppointmentCard({
               d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
             />
           </svg>
-          <span><strong>Fecha:</strong> {formatDate(appointment.fecha)}</span>
+          <span><strong>Fecha:</strong> {formatDate(appointment.date)}</span>
         </div>
         
         {/* Hora */}
@@ -76,11 +77,10 @@ export default function AppointmentCard({
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
-              strokeWidth={2}
               d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
             />
           </svg>
-          <span><strong>Hora:</strong> {appointment.horaInicio} - {appointment.horaFin}</span>
+          <span><strong>Hora:</strong> {getDisplayTime(appointment.startTime)} - {getDisplayTime(appointment.endTime)}</span>
         </div>
         
         {/* Descripción */}
@@ -93,7 +93,7 @@ export default function AppointmentCard({
               d="M4 6h16M4 12h16M4 18h7"
             />
           </svg>
-          <span><strong>Descripción:</strong> {appointment.descripcion}</span>
+          <span><strong>Descripción:</strong> {appointment.description}</span>
         </div>
       </div>
       

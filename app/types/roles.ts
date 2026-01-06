@@ -20,8 +20,8 @@ export enum AppointmentStatus {
  * Appointment type enumeration
  */
 export enum AppointmentType {
-    ASESORIA = 'asesoria',
-    AUDITORIA = 'auditoria'
+    ASESORIA = 'ASESORIA',
+    AUDITORIA = 'AUDITORIA'
 }
 
 /**

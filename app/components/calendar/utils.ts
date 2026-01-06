@@ -146,3 +146,21 @@ export function getDayNames(short: boolean = true): string[] {
     }
     return ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 }
+
+/**
+ * Get display time (HH:mm) from a proper ISO string (e.g. 2026-01-09T09:00:00.000Z)
+ * treating the UTC time face-value as the desired local display time.
+ * "2026-01-09T09:00:00.000Z" -> "09:00"
+ */
+export function getDisplayTime(isoString: string): string {
+    if (!isoString) return '';
+    try {
+        // We want strict "HH:mm" from the string itself, ignoring browser timezone.
+        // Assumes format YYYY-MM-DDTHH:mm:ss.sssZ or similar
+        const timePart = isoString.split('T')[1];
+        if (!timePart) return '';
+        return timePart.substring(0, 5);
+    } catch (e) {
+        return '';
+    }
+}

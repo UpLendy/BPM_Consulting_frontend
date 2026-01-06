@@ -5,18 +5,23 @@ import { AppointmentStatus, AppointmentType } from './roles';
  */
 export interface Appointment {
     id: string;
-    empresaId: string;
-    empresaName: string;
-    ingenieroId: string;
-    ingenieroName: string;
-    fecha: Date;
-    horaInicio: string;  // Format: "09:00"
-    horaFin: string;     // Format: "11:00"
-    descripcion: string;
-    tipo: AppointmentType;
-    estado: AppointmentStatus;
-    createdBy: string;
-    createdAt: Date;
+    description: string;
+    appointmentType: AppointmentType;
+    date: Date; // Keep as Date or string? Backend likely sends ISO string. Ideally generic type, but Date is safer for logic if parsed.
+    // However, fetch returns JSON strings. We will need to assume strings or parse them.
+    // Let's use string for startTime/endTime (ISO) and Date for date if parsed manually, or string if raw.
+    // Given the previous code assumed Date for `fecha`, we should probably parse it at fetch time OR handle string.
+    // To minimize refactor, let's stick to string for time, Date for date (if we parse it).
+    // BUT the backend returns `startTime` as full ISO.
+    startTime: string; // ISO String or "HH:mm" if we transform it. Let's use string and parse ISO.
+    endTime: string;   // ISO String
+    location: string;
+    status: AppointmentStatus;
+    companyName?: string;
+    engineerName?: string;
+    // Keeping internal IDs if backend provides them or mapping needed
+    empresaId?: string; // Optional if not returned directly but inferred
+    ingenieroId?: string;
 }
 
 /**

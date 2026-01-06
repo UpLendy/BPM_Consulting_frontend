@@ -16,12 +16,18 @@ interface AuthUser {
   first_name: string;
   last_name: string;
   role: 'admin' | 'engineer' | 'company';
+  engineerId?: string; // Assigned engineer ID for company users
 }
 
 export default function GestionCitasPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  // We don't use availableSlots directly anymore for Empresario view (implicit 8-5)
+  // But keeping it empty to satisfy prop type if needed or removing it. 
+  // EmpresarioCalendarView uses availableSlots prop? Yes.
+  const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
 
   // Read user from localStorage on mount
   useEffect(() => {
@@ -29,7 +35,6 @@ export default function GestionCitasPage() {
     const token = localStorage.getItem('token');
     
     if (!userStr || !token) {
-      // No auth, redirect to login
       router.push('/login');
       return;
     }
@@ -44,6 +49,29 @@ export default function GestionCitasPage() {
       setIsLoading(false);
     }
   }, [router]);
+
+  // Fetch appointments when user is loaded
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const fetchAppointments = async () => {
+      try {
+        if (currentUser.role === 'company') {
+             // Use the specific endpoint for companies to get their assigned engineer's appointments
+             const data = await appointmentService.getCompanyEngineerAppointments();
+             setAppointments(data);
+        } else if (currentUser.role === 'engineer') {
+             // For engineers, fetch their own appointments (using their ID)
+             const data = await appointmentService.getAppointmentsByEngineer(currentUser.id);
+             setAppointments(data);
+        }
+      } catch (error) {
+        console.error('Error fetching appointments:', error);
+      }
+    };
+
+    fetchAppointments();
+  }, [currentUser]);
 
   // Map backend role to frontend UserRole enum
   const getFrontendRole = (): UserRole => {
@@ -64,75 +92,10 @@ export default function GestionCitasPage() {
     }
   };
 
-  // Mock data for testing
-  const [appointments, setAppointments] = useState<Appointment[]>([
-    {
-      id: '1',
-      empresaId: 'emp_1',
-      empresaName: 'Café del Valle S.A.',
-      ingenieroId: 'ing_1',
-      ingenieroName: 'Ernesto Ballesteros',
-      fecha: new Date('2026-02-05'),
-      horaInicio: '09:00',
-      horaFin: '11:00',
-      descripcion: 'Asesoría inicial sobre procesos',
-      tipo: AppointmentType.ASESORIA,
-      estado: AppointmentStatus.PENDIENTE,
-      createdBy: 'admin',
-      createdAt: new Date()
-    },
-    {
-      id: '2',
-      empresaId: 'emp_2',
-      empresaName: 'Procesadora del Eje',
-      ingenieroId: 'ing_1',
-      ingenieroName: 'Ernesto Ballesteros',
-      fecha: new Date('2026-02-10'),
-      horaInicio: '14:00',
-      horaFin: '16:00',
-      descripcion: 'Auditoría de calidad',
-      tipo: AppointmentType.AUDITORIA,
-      estado: AppointmentStatus.COMPLETADA,
-      createdBy: 'admin',
-      createdAt: new Date()
-    },
-    {
-      id: '3',
-      empresaId: 'emp_1',
-      empresaName: 'Café del Valle S.A.',
-      ingenieroId: 'ing_2',
-      ingenieroName: 'Carlos Morales',
-      fecha: new Date('2026-02-15'),
-      horaInicio: '10:00',
-      horaFin: '12:00',
-      descripcion: 'Revisión de mejoras',
-      tipo: AppointmentType.ASESORIA,
-      estado: AppointmentStatus.PENDIENTE,
-      createdBy: 'admin',
-      createdAt: new Date()
-    }
-  ]);
-
-  // Mock available slots for Empresario
-  const availableSlots: TimeSlot[] = [
-    {
-      date: new Date('2026-02-07'),
-      startTime: '09:00',
-      endTime: '11:00',
-      isAvailable: true
-    },
-    {
-      date: new Date('2026-02-12'),
-      startTime: '15:00',
-      endTime: '17:00',
-      isAvailable: true
-    }
-  ];
-
   // Handlers
   const handleEditAppointment = (appointment: Appointment) => {
     console.log('Edit appointment:', appointment);
-    alert(`Función de edición pendiente de implementar para: ${appointment.empresaName}`);
+    alert(`Función de edición pendiente de implementar para: ${appointment.companyName}`);
   };
 
   const handleDeleteAppointment = (appointmentId: string) => {
@@ -197,7 +160,7 @@ export default function GestionCitasPage() {
         return (
           <EmpresarioCalendarView
             empresaId={currentUser.id}
-            ingenieroAsignadoId={'ing_1'} // TODO: Get from backend
+            ingenieroAsignadoId={currentUser.engineerId || ''}
             appointments={appointments}
             availableSlots={availableSlots}
             onCreateAppointment={handleCreateAppointment}
