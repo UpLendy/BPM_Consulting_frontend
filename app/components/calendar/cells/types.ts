@@ -20,6 +20,7 @@ export interface IngenieroAppointmentCellProps {
     appointment: Appointment;
     onClick: (appointment: Appointment) => void;
     className?: string;
+    isOwn?: boolean;
 }
 
 /**

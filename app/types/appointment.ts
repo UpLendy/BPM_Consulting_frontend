@@ -22,6 +22,7 @@ export interface Appointment {
     // Keeping internal IDs if backend provides them or mapping needed
     empresaId?: string; // Optional if not returned directly but inferred
     ingenieroId?: string;
+    representativeId?: string; // ID of the representative (user causing the appointment or owning it contextually)
 }
 
 /**

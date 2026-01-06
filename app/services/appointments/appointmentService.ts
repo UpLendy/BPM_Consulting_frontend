@@ -77,5 +77,27 @@ export const appointmentService = {
         }
 
         return response.json();
+    },
+
+    /**
+     * Get appointments where the logged-in user is the representative
+     * GET /api/v1/appointments/my-appointments
+     */
+    async getMyAppointments(): Promise<Appointment[]> {
+        const token = localStorage.getItem('token');
+
+        const response = await fetch(`${API_URL}/appointments/my-appointments`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            console.error('Failed to fetch my appointments');
+            return [];
+        }
+
+        return response.json();
     }
 };
