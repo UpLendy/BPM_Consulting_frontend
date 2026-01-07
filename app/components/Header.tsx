@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { mapBackendRoleToFrontend, BackendRole } from '@/app/types/auth';
+import { authService } from '@/app/services/authService';
 
 interface HeaderProps {
   userName?: string;
@@ -195,7 +196,10 @@ export default function Header({
                 Configuración
               </button>
               <hr className="my-1 border-gray-200" />
-              <button className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">
+              <button 
+                onClick={() => authService.logout()}
+                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+              >
                 Cerrar Sesión
               </button>
             </div>

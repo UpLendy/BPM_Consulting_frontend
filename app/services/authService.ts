@@ -14,4 +14,19 @@ export const authService = {
     }
     return response.json();
   },
+
+  logout() {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.href = '/login';
+  },
+
+  isAuthenticated(): boolean {
+    if (typeof window === 'undefined') return false;
+    return !!localStorage.getItem('token');
+  },
+
+  handleUnauthorized() {
+    this.logout();
+  }
 };

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { authService } from '@/app/services/authService';
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -12,6 +13,12 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
   // Handle menu item click - Add navigation logic here
   const handleMenuClick = (itemName: string) => {
     setActiveItem(itemName);
+    
+    if (itemName === 'cerrar-sesion') {
+        authService.logout();
+        return;
+    }
+    
     // TODO: Add navigation logic here
     console.log(`Clicked on: ${itemName}`);
   };

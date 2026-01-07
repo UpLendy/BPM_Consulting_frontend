@@ -1,8 +1,9 @@
 'use client';
 
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import Header from '@/app/components/Header';
 import Sidebar from '@/app/components/Sidebar';
+import { authService } from '@/app/services/authService';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -10,6 +11,12 @@ interface DashboardLayoutProps {
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  useEffect(() => {
+    if (!authService.isAuthenticated()) {
+        window.location.href = '/login';
+    }
+  }, []);
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
