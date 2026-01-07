@@ -1,4 +1,5 @@
 import { CreateAppointmentDTO, Appointment } from '@/app/types';
+import { authService } from '@/app/services/authService';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -30,6 +31,9 @@ export const appointmentService = {
         });
 
         if (!response.ok) {
+            if (response.status === 401) {
+                authService.handleUnauthorized();
+            }
             const errorData = await response.json().catch(() => ({}));
             throw new Error(errorData.message || 'Error al crear la cita');
         }
@@ -52,6 +56,9 @@ export const appointmentService = {
         });
 
         if (!response.ok) {
+            if (response.status === 401) {
+                authService.handleUnauthorized();
+            }
             throw new Error('Error al obtener las citas');
         }
 
@@ -73,6 +80,9 @@ export const appointmentService = {
         });
 
         if (!response.ok) {
+            if (response.status === 401) {
+                authService.handleUnauthorized();
+            }
             throw new Error('Error al obtener las citas del ingeniero asignado');
         }
 
@@ -94,6 +104,9 @@ export const appointmentService = {
         });
 
         if (!response.ok) {
+            if (response.status === 401) {
+                authService.handleUnauthorized();
+            }
             console.error('Failed to fetch my appointments');
             return [];
         }
