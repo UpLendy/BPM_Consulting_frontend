@@ -21,37 +21,11 @@ export default function IngenieroCalendarView({
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   
-  /* State for Owned Appointments (API Check) */
-  const [ownedAppointmentIds, setOwnedAppointmentIds] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    const fetchMyAppointments = async () => {
-        try {
-            // Fetch appointments where I am the representative
-            const myApts = await appointmentService.getMyAppointments();
-            if (myApts && myApts.length > 0) {
-                const ids = new Set(myApts.map(a => a.id));
-                console.log('--- API My Appointments Fetched ---');
-                console.log('Owned IDs:', Array.from(ids));
-                setOwnedAppointmentIds(ids);
-            } else {
-                console.log('--- No Owned Appointments Found via API ---');
-            }
-        } catch (e) {
-            console.error('Error fetching my appointments for verification', e);
-        }
-    };
-    
-    fetchMyAppointments();
-  }, []);
-
-  // Filter appointments: ONLY for this engineer
+  // No need for separate OWN check if parent filters for us
   const myAppointments = useMemo(() => {
-    // If ingenieroId not present in appointment object, assume all passed appointments are for this engineer (if fetch was specific)
     return appointments.filter((apt) => !apt.ingenieroId || apt.ingenieroId === ingenieroId);
   }, [appointments, ingenieroId]);
 
-  // Convert appointments to TimeSlots for calendar
   // Convert appointments to TimeSlots for calendar
   const slots = useMemo(() => {
     return myAppointments.map((apt): TimeSlot => ({
@@ -60,7 +34,7 @@ export default function IngenieroCalendarView({
       endTime: getDisplayTime(apt.endTime),
       isAvailable: false,
       appointmentId: apt.id,
-      isMyAppointment: true // Always true for engineer viewing their own
+      isMyAppointment: true 
     }));
   }, [myAppointments]);
 
@@ -85,18 +59,12 @@ export default function IngenieroCalendarView({
           const appointment = myAppointments.find((apt) => apt.id === slot.appointmentId);
           if (!appointment) return null;
           
-          const isOwn = ownedAppointmentIds.has(appointment.id);
-          
-          if (isOwn) {
-              console.log(`Appointment ${appointment.id} is OWNED (matched via API list)`);
-          }
-
           return (
             <IngenieroAppointmentCell
               key={idx}
               appointment={appointment}
               onClick={() => handleAppointmentClick(slot)}
-              isOwn={isOwn}
+              isOwn={true} // In this view, they are all yours
             />
           );
         })}
@@ -139,23 +107,6 @@ export default function IngenieroCalendarView({
             onSlotClick={handleAppointmentClick}
             renderDayContent={renderDayContent}
           />
-        </div>
-      </div>
-
-      {/* Legend */}
-      <div className="bg-white border-t border-gray-200 px-6 py-3">
-        <div className="flex items-center gap-6 text-sm">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-blue-500 rounded"></div>
-            <span className="text-gray-700">Asesoría</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-purple-500 rounded"></div>
-            <span className="text-gray-700">Auditoría</span>
-          </div>
-          <div className="ml-auto text-gray-500">
-            Click en una cita para ver detalles
-          </div>
         </div>
       </div>
 
