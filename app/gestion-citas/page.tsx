@@ -9,6 +9,7 @@ import { EmpresarioCalendarView } from '@/app/components/empresario';
 import { UserRole, Appointment, AppointmentType, AppointmentStatus, TimeSlot, CreateAppointmentDTO } from '@/app/types';
 import { mapBackendRoleToFrontend } from '@/app/types/auth';
 import { appointmentService } from '@/app/services/appointments';
+import { authService } from '@/app/services/authService';
 
 interface AuthUser {
   id: string;
@@ -24,9 +25,7 @@ export default function GestionCitasPage() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  // We don't use availableSlots directly anymore for Empresario view (implicit 8-5)
-  // But keeping it empty to satisfy prop type if needed or removing it. 
-  // EmpresarioCalendarView uses availableSlots prop? Yes.
+  const [engineerId, setEngineerId] = useState<string | null>(null);
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
 
   // Read user from localStorage on mount
@@ -56,13 +55,25 @@ export default function GestionCitasPage() {
 
     const fetchAppointments = async () => {
       try {
+        const profile = await authService.getProfile();
+        let engineerIdToUse = currentUser.id;
+        const discoveredId = profile?.user?.engineerId;
+        
+        if (discoveredId) {
+            engineerIdToUse = discoveredId;
+            setEngineerId(discoveredId);
+        }
+
         if (currentUser.role === 'company') {
-             // Use the specific endpoint for companies to get their assigned engineer's appointments
              const data = await appointmentService.getCompanyEngineerAppointments();
              setAppointments(data);
         } else if (currentUser.role === 'engineer') {
-             // For engineers, fetch their own appointments (using their ID)
-             const data = await appointmentService.getAppointmentsByEngineer(currentUser.id);
+             const data = await appointmentService.getAppointmentsByEngineer(engineerIdToUse);
+             setAppointments(data);
+        } else if (currentUser.role === 'admin') {
+             // For now, Admin view shows appointments of the first available engineer or similar logic
+             const juanPerezId = "cmk221d4n0003q4xxezyoprzp"; // Optional sample for testing
+             const data = await appointmentService.getAppointmentsByEngineer(juanPerezId);
              setAppointments(data);
         }
       } catch (error) {
@@ -151,7 +162,7 @@ export default function GestionCitasPage() {
       case UserRole.INGENIERO:
         return (
           <IngenieroCalendarView
-            ingenieroId={currentUser.id}
+            ingenieroId={engineerId || currentUser.id}
             appointments={appointments}
           />
         );

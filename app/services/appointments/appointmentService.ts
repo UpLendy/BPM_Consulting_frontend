@@ -44,13 +44,16 @@ export const appointmentService = {
     /**
      * Get appointments for a specific engineer
      * GET /api/v1/appointments/engineer/{engineerId}
+     * (Admin or the Engineer themselves)
      */
     async getAppointmentsByEngineer(engineerId: string): Promise<Appointment[]> {
         const token = localStorage.getItem('token');
+        const url = `${API_URL}/appointments/engineer/${engineerId}`;
 
-        const response = await fetch(`${API_URL}/appointments/engineer/${engineerId}`, {
+        const response = await fetch(url, {
             method: 'GET',
             headers: {
+                'Accept': 'application/json',
                 'Authorization': `Bearer ${token}`
             }
         });
@@ -59,7 +62,7 @@ export const appointmentService = {
             if (response.status === 401) {
                 authService.handleUnauthorized();
             }
-            throw new Error('Error al obtener las citas');
+            return [];
         }
 
         return response.json();
@@ -68,13 +71,16 @@ export const appointmentService = {
     /**
      * Get appointments for the assigned engineer of the logged-in company
      * GET /api/v1/appointments/my-company/engineer-appointments
+     * (Admin or Company)
      */
     async getCompanyEngineerAppointments(): Promise<Appointment[]> {
         const token = localStorage.getItem('token');
+        const url = `${API_URL}/appointments/my-company/engineer-appointments`;
 
-        const response = await fetch(`${API_URL}/appointments/my-company/engineer-appointments`, {
+        const response = await fetch(url, {
             method: 'GET',
             headers: {
+                'Accept': 'application/json',
                 'Authorization': `Bearer ${token}`
             }
         });
@@ -90,15 +96,17 @@ export const appointmentService = {
     },
 
     /**
-     * Get appointments where the logged-in user is the representative
+     * Get my appointments as representative (Solo Companies)
      * GET /api/v1/appointments/my-appointments
      */
     async getMyAppointments(): Promise<Appointment[]> {
         const token = localStorage.getItem('token');
+        const url = `${API_URL}/appointments/my-appointments`;
 
-        const response = await fetch(`${API_URL}/appointments/my-appointments`, {
+        const response = await fetch(url, {
             method: 'GET',
             headers: {
+                'Accept': 'application/json',
                 'Authorization': `Bearer ${token}`
             }
         });
@@ -107,7 +115,6 @@ export const appointmentService = {
             if (response.status === 401) {
                 authService.handleUnauthorized();
             }
-            console.error('Failed to fetch my appointments');
             return [];
         }
 
