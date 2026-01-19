@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { authService } from '@/app/services/authService';
 
 interface SidebarProps {
@@ -8,19 +8,29 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ isOpen = true }: SidebarProps) {
-  const [activeItem, setActiveItem] = useState<string>('');
+  const pathname = usePathname();
 
   // Handle menu item click - Add navigation logic here
   const handleMenuClick = (itemName: string) => {
-    setActiveItem(itemName);
-    
     if (itemName === 'cerrar-sesion') {
         authService.logout();
         return;
     }
     
-    // TODO: Add navigation logic here
-    console.log(`Clicked on: ${itemName}`);
+    // Navigation logic
+    if (itemName === 'gestion-citas') {
+        window.location.href = '/gestion-citas';
+    } else if (itemName === 'documentos-empresa') {
+        window.location.href = '/documentos-empresa';
+    } else {
+        console.log(`Clicked on: ${itemName}`);
+    }
+  };
+
+  const isActive = (item: string) => {
+    if (item === 'gestion-citas' && pathname === '/gestion-citas') return true;
+    if (item === 'documentos-empresa' && pathname === '/documentos-empresa') return true;
+    return false;
   };
 
   return (
@@ -44,7 +54,7 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
           <button
             onClick={() => handleMenuClick('gestion-citas')}
             className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
-              activeItem === 'gestion-citas' ? 'bg-[#4a5180]' : ''
+              isActive('gestion-citas') ? 'bg-[#4a5180]' : ''
             }`}
           >
             <span className="text-2xl shrink-0">📅</span>
@@ -55,7 +65,7 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
           <button
             onClick={() => handleMenuClick('documentos-empresa')}
             className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
-              activeItem === 'documentos-empresa' ? 'bg-[#4a5180]' : ''
+              isActive('documentos-empresa') ? 'bg-[#4a5180]' : ''
             }`}
           >
             <span className="text-2xl shrink-0">📄</span>
@@ -66,7 +76,7 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
           <button
             onClick={() => handleMenuClick('registro-visita')}
             className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
-              activeItem === 'registro-visita' ? 'bg-[#4a5180]' : ''
+              isActive('registro-visita') ? 'bg-[#4a5180]' : ''
             }`}
           >
             <span className="text-2xl shrink-0">📋</span>
@@ -77,7 +87,7 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
           <button
             onClick={() => handleMenuClick('generar-acta')}
             className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
-              activeItem === 'generar-acta' ? 'bg-[#4a5180]' : ''
+              isActive('generar-acta') ? 'bg-[#4a5180]' : ''
             }`}
           >
             <span className="text-2xl shrink-0">📋</span>
@@ -88,7 +98,7 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
           <button
             onClick={() => handleMenuClick('dashboard')}
             className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
-              activeItem === 'dashboard' ? 'bg-[#4a5180]' : ''
+              isActive('dashboard') ? 'bg-[#4a5180]' : ''
             }`}
           >
             <span className="text-2xl shrink-0">📊</span>
@@ -99,7 +109,7 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
           <button
             onClick={() => handleMenuClick('gestion-usuarios')}
             className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
-              activeItem === 'gestion-usuarios' ? 'bg-[#4a5180]' : ''
+              isActive('gestion-usuarios') ? 'bg-[#4a5180]' : ''
             }`}
           >
             <span className="text-2xl shrink-0">👥</span>
@@ -110,7 +120,7 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
           <button
             onClick={() => handleMenuClick('reportes')}
             className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
-              activeItem === 'reportes' ? 'bg-[#4a5180]' : ''
+              isActive('reportes') ? 'bg-[#4a5180]' : ''
             }`}
           >
             <span className="text-2xl shrink-0">📈</span>
@@ -125,7 +135,7 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
           <button
             onClick={() => handleMenuClick('registrar-usuarios')}
             className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
-              activeItem === 'registrar-usuarios' ? 'bg-[#4a5180]' : ''
+              isActive('registrar-usuarios') ? 'bg-[#4a5180]' : ''
             }`}
           >
             <span className="text-2xl shrink-0">👤</span>
@@ -136,7 +146,7 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
           <button
             onClick={() => handleMenuClick('visualizar-documentos')}
             className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
-              activeItem === 'visualizar-documentos' ? 'bg-[#4a5180]' : ''
+              isActive('visualizar-documentos') ? 'bg-[#4a5180]' : ''
             }`}
           >
             <span className="text-2xl shrink-0">📑</span>
@@ -151,7 +161,7 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
         <button
           onClick={() => handleMenuClick('ajustes')}
           className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
-            activeItem === 'ajustes' ? 'bg-[#4a5180]' : ''
+            isActive('ajustes') ? 'bg-[#4a5180]' : ''
           }`}
         >
           <span className="text-2xl shrink-0">⚙️</span>
