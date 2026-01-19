@@ -42,3 +42,10 @@ export type {
     Company,
     CreateCompanyDTO
 } from './company';
+
+// Engineer types
+export type {
+    Engineer,
+    CreateEngineerDTO,
+    AssignCompanyDTO
+} from './engineer';
