@@ -26,6 +26,8 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
         window.location.href = '/registrar-usuarios';
     } else if (itemName === 'registrar-empresa') {
         window.location.href = '/registrar-empresa';
+    } else if (itemName === 'gestion-usuarios') {
+        window.location.href = '/gestion-usuarios';
     } else {
         console.log(`Clicked on: ${itemName}`);
     }
@@ -36,6 +38,7 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
     if (item === 'documentos-empresa' && pathname === '/documentos-empresa') return true;
     if (item === 'registrar-usuarios' && pathname === '/registrar-usuarios') return true;
     if (item === 'registrar-empresa' && pathname === '/registrar-empresa') return true;
+    if (item === 'gestion-usuarios' && pathname === '/gestion-usuarios') return true;
     return false;
   };
 

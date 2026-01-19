@@ -31,6 +31,30 @@ export const userService = {
     },
 
     /**
+     * Get all users (Admin only)
+     * GET /api/v1/users
+     */
+    async getAllUsers(): Promise<any[]> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/users`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                authService.handleUnauthorized();
+            }
+            return [];
+        }
+
+        return response.json();
+    },
+
+    /**
      * Get all roles (Used for the registration form)
      * GET /api/v1/roles
      */

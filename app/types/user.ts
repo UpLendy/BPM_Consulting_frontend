@@ -6,16 +6,17 @@ import { UserRole } from './roles';
 export interface UserBackend {
     id: string;
     email: string;
-    firstName: string;
-    lastName: string;
-    password: string;
-    idNumber: string;
-    isActive: boolean;
-    roleId: string;
+    first_name: string;
+    last_name: string;
+    id_number: string;
+    is_active: boolean;
+    role: {
+        id: string;
+        name: string;
+    };
     createdBy?: string;
-    updatedBy?: string;
-    createdAt: Date;
-    updatedAt: Date;
+    createdAt: string;
+    updatedAt: string;
 }
 
 /**
@@ -41,12 +42,12 @@ export function mapBackendUserToUser(backendUser: UserBackend, role: UserRole, e
     return {
         id: backendUser.id,
         email: backendUser.email,
-        firstName: backendUser.firstName,
-        lastName: backendUser.lastName,
-        fullName: `${backendUser.firstName} ${backendUser.lastName}`,
-        roleId: backendUser.roleId,
+        firstName: backendUser.first_name,
+        lastName: backendUser.last_name,
+        fullName: `${backendUser.first_name} ${backendUser.last_name}`,
+        roleId: backendUser.role.id,
         role,
-        isActive: backendUser.isActive,
+        isActive: backendUser.is_active,
         empresaId,
         ingenieroAsignado
     };
