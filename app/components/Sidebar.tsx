@@ -24,6 +24,8 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
         window.location.href = '/documentos-empresa';
     } else if (itemName === 'registrar-usuarios') {
         window.location.href = '/registrar-usuarios';
+    } else if (itemName === 'registrar-empresa') {
+        window.location.href = '/registrar-empresa';
     } else {
         console.log(`Clicked on: ${itemName}`);
     }
@@ -33,6 +35,7 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
     if (item === 'gestion-citas' && pathname === '/gestion-citas') return true;
     if (item === 'documentos-empresa' && pathname === '/documentos-empresa') return true;
     if (item === 'registrar-usuarios' && pathname === '/registrar-usuarios') return true;
+    if (item === 'registrar-empresa' && pathname === '/registrar-empresa') return true;
     return false;
   };
 
@@ -143,6 +146,17 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
           >
             <span className="text-2xl shrink-0">👤</span>
             {isOpen && <span className="text-sm font-medium truncate">Registrar usuarios</span>}
+          </button>
+
+          {/* Registrar empresa */}
+          <button
+            onClick={() => handleMenuClick('registrar-empresa')}
+            className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
+              isActive('registrar-empresa') ? 'bg-[#4a5180]' : ''
+            }`}
+          >
+            <span className="text-2xl shrink-0">🏢</span>
+            {isOpen && <span className="text-sm font-medium truncate">Registrar empresa</span>}
           </button>
 
           {/* Visualizar documentos */}

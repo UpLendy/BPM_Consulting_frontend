@@ -36,3 +36,9 @@ export type {
     EngineerAvailability
 } from './timeSlot';
 export { CalendarViewMode } from './timeSlot';
+
+// Company types
+export type {
+    Company,
+    CreateCompanyDTO
+} from './company';
