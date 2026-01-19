@@ -22,6 +22,8 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
         window.location.href = '/gestion-citas';
     } else if (itemName === 'documentos-empresa') {
         window.location.href = '/documentos-empresa';
+    } else if (itemName === 'registrar-usuarios') {
+        window.location.href = '/registrar-usuarios';
     } else {
         console.log(`Clicked on: ${itemName}`);
     }
@@ -30,6 +32,7 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
   const isActive = (item: string) => {
     if (item === 'gestion-citas' && pathname === '/gestion-citas') return true;
     if (item === 'documentos-empresa' && pathname === '/documentos-empresa') return true;
+    if (item === 'registrar-usuarios' && pathname === '/registrar-usuarios') return true;
     return false;
   };
 
