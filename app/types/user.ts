@@ -51,3 +51,15 @@ export function mapBackendUserToUser(backendUser: UserBackend, role: UserRole, e
         ingenieroAsignado
     };
 }
+
+/**
+ * DTO for creating a new user
+ */
+export interface CreateUserDTO {
+    email: string;
+    first_name: string;
+    last_name: string;
+    password: string;
+    id_number: string;
+    roleId: string;
+}

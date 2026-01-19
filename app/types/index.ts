@@ -16,7 +16,8 @@ export {
 // User types
 export type {
     User,
-    UserBackend
+    UserBackend,
+    CreateUserDTO
 } from './user';
 export { mapBackendUserToUser } from './user';
 
