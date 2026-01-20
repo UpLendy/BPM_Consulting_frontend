@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/app/components/layout';
 import { companyService } from '@/app/services/companies/companyService';
 import { CreateCompanyDTO } from '@/app/types';
+import RoleGuard from '@/app/components/auth/RoleGuard';
+
 
 export default function RegistrarEmpresaPage() {
   const router = useRouter();
@@ -73,7 +75,8 @@ export default function RegistrarEmpresaPage() {
   };
 
   return (
-    <DashboardLayout>
+    <RoleGuard allowedRoles={['admin', 'administrador']}>
+      <DashboardLayout>
       <div className="p-8 max-w-4xl mx-auto">
         <div className="mb-8 font-inter">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Registrar Empresa</h1>
@@ -154,5 +157,6 @@ export default function RegistrarEmpresaPage() {
         </div>
       </div>
     </DashboardLayout>
+    </RoleGuard>
   );
 }

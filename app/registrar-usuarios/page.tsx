@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/app/components/layout';
 import { userService } from '@/app/services/users/userService';
+import RoleGuard from '@/app/components/auth/RoleGuard';
+
 
 export default function RegistrarUsuariosPage() {
   const router = useRouter();
@@ -99,7 +101,8 @@ export default function RegistrarUsuariosPage() {
   };
 
   return (
-    <DashboardLayout>
+    <RoleGuard allowedRoles={['admin', 'administrador']}>
+      <DashboardLayout>
       <div className="p-8 max-w-4xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2 font-inter">Registrar Nuevo Usuario</h1>
@@ -229,5 +232,6 @@ export default function RegistrarUsuariosPage() {
         </div>
       </div>
     </DashboardLayout>
+    </RoleGuard>
   );
 }

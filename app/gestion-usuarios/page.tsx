@@ -8,6 +8,7 @@ import { companyService } from '@/app/services/companies/companyService';
 import { engineerService } from '@/app/services/engineers/engineerService';
 import { representativeService } from '@/app/services/representatives/representativeService';
 import { Company } from '@/app/types';
+import RoleGuard from '@/app/components/auth/RoleGuard';
 
 // Define a local interface for the user data from the API (matching backend snake_case)
 interface UserListData {
@@ -33,6 +34,7 @@ export default function GestionUsuariosPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+
 
   // Assignment Modal State
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
@@ -202,7 +204,8 @@ export default function GestionUsuariosPage() {
   );
 
   return (
-    <DashboardLayout>
+    <RoleGuard allowedRoles={['admin', 'administrador']}>
+      <DashboardLayout>
       <div className="p-8 max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
           <div className="font-inter">
@@ -451,6 +454,7 @@ export default function GestionUsuariosPage() {
           </div>
         </div>
       )}
-    </DashboardLayout>
+      </DashboardLayout>
+    </RoleGuard>
   );
 }
