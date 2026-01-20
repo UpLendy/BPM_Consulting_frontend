@@ -107,5 +107,27 @@ export const engineerService = {
 
         // Step 2: Assign the company using the engineer's id
         return await this.assignCompany(engineerId, { companyId });
+    },
+
+    /**
+     * Get all active engineers
+     * GET /api/v1/engineers/?is_active=true
+     */
+    async getAllEngineers(): Promise<Engineer[]> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/engineers/?is_active=true`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            return [];
+        }
+
+        const data = await response.json();
+        return Array.isArray(data) ? data : [];
     }
 };

@@ -49,3 +49,9 @@ export type {
     CreateEngineerDTO,
     AssignCompanyDTO
 } from './engineer';
+
+// Representative types
+export type {
+    Representative,
+    CreateRepresentativeDTO
+} from './representative';
