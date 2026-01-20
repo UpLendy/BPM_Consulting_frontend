@@ -10,20 +10,37 @@ interface DashboardLayoutProps {
 }
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
+  // Initialize state from localStorage if available, default to true
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   useEffect(() => {
+    // Check auth
     if (!authService.isAuthenticated()) {
         window.location.href = '/login';
     }
+    
+    // Restore sidebar state
+    const storedState = localStorage.getItem('sidebarOpen');
+    if (storedState !== null) {
+      setIsSidebarOpen(storedState === 'true');
+    }
   }, []);
 
-  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+  const toggleSidebar = () => {
+    const newState = !isSidebarOpen;
+    setIsSidebarOpen(newState);
+    localStorage.setItem('sidebarOpen', String(newState));
+  };
+
+  const handleCloseSidebar = () => {
+    setIsSidebarOpen(false);
+    localStorage.setItem('sidebarOpen', 'false');
+  };
 
   return (
     <div className="h-screen flex bg-gray-50">
       {/* Sidebar */}
-      <Sidebar isOpen={isSidebarOpen} />
+      <Sidebar isOpen={isSidebarOpen} onClose={handleCloseSidebar} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}

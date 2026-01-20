@@ -1,11 +1,12 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { authService } from '@/app/services/authService';
 import { useEffect, useState } from 'react';
 
 interface SidebarProps {
   isOpen?: boolean;
+  onClose?: () => void;
 }
 
 // Menu Items Configuration
@@ -94,8 +95,9 @@ const MENU_ITEMS = [
   }
 ];
 
-export default function Sidebar({ isOpen = true }: SidebarProps) {
+export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter(); // Initialize router
   const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
@@ -115,7 +117,8 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
 
   // Handle menu item click
   const handleMenuClick = (path: string) => {
-    window.location.href = path;
+    if (onClose) onClose();
+    router.push(path); // Use Next.js client-side navigation
   };
 
   const handleLogout = () => {
