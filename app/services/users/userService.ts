@@ -1,4 +1,4 @@
-import { CreateUserDTO, User } from '@/app/types';
+import { CreateUserDTO, UpdateUserDTO } from '@/app/types';
 import { authService } from '@/app/services/authService';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -61,6 +61,36 @@ export const userService = {
         // Invalidate users cache on creation
         clearCacheKey(USERS_CACHE_KEY);
         console.log('🗑️ [CACHE] Caché de usuarios limpiado (nuevo usuario creado)');
+
+        return response.json();
+    },
+
+    /**
+     * Update a user (Admin only)
+     * PATCH /api/v1/users/{id}
+     */
+    async updateUser(userId: string, data: UpdateUserDTO): Promise<any> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/users/${userId}`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                authService.handleUnauthorized();
+            }
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || 'Error al actualizar el usuario');
+        }
+
+        // Invalidate users cache on update
+        clearCacheKey(USERS_CACHE_KEY);
+        console.log('🗑️ [CACHE] Caché de usuarios limpiado (usuario actualizado)');
 
         return response.json();
     },

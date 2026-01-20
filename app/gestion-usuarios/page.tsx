@@ -7,8 +7,9 @@ import { userService } from '@/app/services/users/userService';
 import { companyService } from '@/app/services/companies/companyService';
 import { engineerService } from '@/app/services/engineers/engineerService';
 import { representativeService } from '@/app/services/representatives/representativeService';
-import { Company } from '@/app/types';
+import { Company, UserBackend } from '@/app/types';
 import RoleGuard from '@/app/components/auth/RoleGuard';
+import { EditUserModal } from '@/app/components/modals';
 
 // Define a local interface for the user data from the API (matching backend snake_case)
 interface UserListData {
@@ -49,6 +50,10 @@ export default function GestionUsuariosPage() {
   
   // Track users who already have representative assignments
   const [usersWithAssignments, setUsersWithAssignments] = useState<Set<string>>(new Set());
+  
+  // Edit User Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedUserForEdit, setSelectedUserForEdit] = useState<UserListData | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -152,6 +157,26 @@ export default function GestionUsuariosPage() {
     setIsAssignModalOpen(false);
     setSelectedUser(null);
     setAssignForm({ companyId: '', phoneNumber: '' });
+  };
+  
+  const openEditModal = (user: UserListData) => {
+    setSelectedUserForEdit(user);
+    setIsEditModalOpen(true);
+  };
+  
+  const closeEditModal = () => {
+    setIsEditModalOpen(false);
+    setSelectedUserForEdit(null);
+  };
+  
+  const handleEditSuccess = async () => {
+    // Refresh user list
+    try {
+      const usersData = await userService.getAllUsers();
+      setUsers(usersData);
+    } catch (err) {
+      console.error('Error refreshing users:', err);
+    }
   };
 
   const handleAssignSubmit = async (e: React.FormEvent) => {
@@ -329,7 +354,10 @@ export default function GestionUsuariosPage() {
                         )}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <button className="p-2 text-gray-400 hover:text-blue-600 transition-colors hover:bg-blue-50 rounded-lg">
+                        <button 
+                          onClick={() => openEditModal(user)}
+                          className="p-2 text-gray-400 hover:text-blue-600 transition-colors hover:bg-blue-50 rounded-lg"
+                        >
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                           </svg>
@@ -454,6 +482,21 @@ export default function GestionUsuariosPage() {
           </div>
         </div>
       )}
+      
+      {/* Edit User Modal */}
+      <EditUserModal
+        isOpen={isEditModalOpen}
+        onClose={closeEditModal}
+        onSuccess={handleEditSuccess}
+        userId={selectedUserForEdit?.id || ''}
+        currentData={selectedUserForEdit ? {
+          email: selectedUserForEdit.email,
+          first_name: selectedUserForEdit.first_name,
+          last_name: selectedUserForEdit.last_name,
+          id_number: selectedUserForEdit.id_number,
+          role: selectedUserForEdit.role
+        } : undefined}
+      />
       </DashboardLayout>
     </RoleGuard>
   );
