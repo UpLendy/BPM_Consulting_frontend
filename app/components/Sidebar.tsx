@@ -2,45 +2,135 @@
 
 import { usePathname } from 'next/navigation';
 import { authService } from '@/app/services/authService';
+import { useEffect, useState } from 'react';
 
 interface SidebarProps {
   isOpen?: boolean;
 }
 
+// Menu Items Configuration
+const MENU_ITEMS = [
+  // Admin Routes
+  {
+    key: 'dashboard',
+    label: 'Dashboard',
+    icon: '📊',
+    path: '/admin-dashboard', // Assuming specific dashboard paths
+    roles: ['admin', 'administrador']
+  },
+  {
+    key: 'gestion-usuarios',
+    label: 'Gestión de usuarios',
+    icon: '👥',
+    path: '/gestion-usuarios',
+    roles: ['admin', 'administrador']
+  },
+  {
+    key: 'registrar-usuarios',
+    label: 'Registrar usuarios',
+    icon: '👤',
+    path: '/registrar-usuarios',
+    roles: ['admin', 'administrador']
+  },
+  {
+    key: 'registrar-empresa',
+    label: 'Registrar empresa',
+    icon: '🏢',
+    path: '/registrar-empresa',
+    roles: ['admin', 'administrador']
+  },
+  {
+    key: 'reportes',
+    label: 'Reportes/Estadísticas',
+    icon: '📈',
+    path: '/reportes',
+    roles: ['admin', 'administrador']
+  },
+
+  // Shared Routes (Admin & Engineer & Company potentially different views but same menu name concept)
+  // Adjusted per request specifics:
+  
+  // "Gestión de citas" -> Admin, Engineer, Company
+  {
+    key: 'gestion-citas',
+    label: 'Gestión de citas',
+    icon: '📅',
+    path: '/gestion-citas',
+    roles: ['admin', 'administrador', 'engineer', 'ingeniero', 'company', 'empresa', 'empresario']
+  },
+
+  // "Documentos empresa" -> Admin, Engineer
+  {
+    key: 'documentos-empresa',
+    label: 'Documentos empresa',
+    icon: '📄',
+    path: '/documentos-empresa',
+    roles: ['admin', 'administrador', 'engineer', 'ingeniero']
+  },
+
+  // Engineer specific
+  {
+    key: 'registro-visita',
+    label: 'Registro de visita',
+    icon: '📋',
+    path: '/registro-visita',
+    roles: ['engineer', 'ingeniero']
+  },
+  {
+    key: 'generar-acta',
+    label: 'Generar acta',
+    icon: '📋',
+    path: '/generar-acta',
+    roles: ['engineer', 'ingeniero']
+  },
+
+  // Company specific
+  {
+    key: 'visualizar-documentos',
+    label: 'Visualizar documentos',
+    icon: '📑',
+    path: '/visualizar-documentos',
+    roles: ['company', 'empresa', 'empresario']
+  }
+];
+
 export default function Sidebar({ isOpen = true }: SidebarProps) {
   const pathname = usePathname();
+  const [userRole, setUserRole] = useState<string | null>(null);
 
-  // Handle menu item click - Add navigation logic here
-  const handleMenuClick = (itemName: string) => {
-    if (itemName === 'cerrar-sesion') {
-        authService.logout();
-        return;
+  useEffect(() => {
+    // Get user role from localStorage
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        // Supports both scalar role string or object role { name: 'admin' }
+        const roleName = user.role?.name || user.role || '';
+        setUserRole(roleName.toLowerCase());
+      } catch (e) {
+        console.error('Error parsing user data', e);
+      }
     }
-    
-    // Navigation logic
-    if (itemName === 'gestion-citas') {
-        window.location.href = '/gestion-citas';
-    } else if (itemName === 'documentos-empresa') {
-        window.location.href = '/documentos-empresa';
-    } else if (itemName === 'registrar-usuarios') {
-        window.location.href = '/registrar-usuarios';
-    } else if (itemName === 'registrar-empresa') {
-        window.location.href = '/registrar-empresa';
-    } else if (itemName === 'gestion-usuarios') {
-        window.location.href = '/gestion-usuarios';
-    } else {
-        console.log(`Clicked on: ${itemName}`);
-    }
+  }, []);
+
+  // Handle menu item click
+  const handleMenuClick = (path: string) => {
+    window.location.href = path;
   };
 
-  const isActive = (item: string) => {
-    if (item === 'gestion-citas' && pathname === '/gestion-citas') return true;
-    if (item === 'documentos-empresa' && pathname === '/documentos-empresa') return true;
-    if (item === 'registrar-usuarios' && pathname === '/registrar-usuarios') return true;
-    if (item === 'registrar-empresa' && pathname === '/registrar-empresa') return true;
-    if (item === 'gestion-usuarios' && pathname === '/gestion-usuarios') return true;
-    return false;
+  const handleLogout = () => {
+    authService.logout();
   };
+
+  const isActive = (path: string) => {
+    return pathname === path;
+  };
+
+  // Filter menu items based on role
+  const allowedMenuItems = MENU_ITEMS.filter(item => {
+    if (!userRole) return false;
+    return item.roles.includes(userRole);
+  });
 
   return (
     <aside className={`${isOpen ? 'w-64' : 'w-20'} h-screen bg-[#3f4771] flex flex-col justify-between text-white transition-all duration-300 overflow-hidden`}>
@@ -59,129 +149,28 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
 
         {/* Menu Items */}
         <nav className="mt-6 px-3">
-          {/* Gestión de citas */}
-          <button
-            onClick={() => handleMenuClick('gestion-citas')}
-            className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
-              isActive('gestion-citas') ? 'bg-[#4a5180]' : ''
-            }`}
-          >
-            <span className="text-2xl shrink-0">📅</span>
-            {isOpen && <span className="text-sm font-medium truncate">Gestión de citas</span>}
-          </button>
-
-          {/* Documentos empresa */}
-          <button
-            onClick={() => handleMenuClick('documentos-empresa')}
-            className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
-              isActive('documentos-empresa') ? 'bg-[#4a5180]' : ''
-            }`}
-          >
-            <span className="text-2xl shrink-0">📄</span>
-            {isOpen && <span className="text-sm font-medium truncate">Documentos empresa</span>}
-          </button>
-
-          {/* Registro de visita */}
-          <button
-            onClick={() => handleMenuClick('registro-visita')}
-            className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
-              isActive('registro-visita') ? 'bg-[#4a5180]' : ''
-            }`}
-          >
-            <span className="text-2xl shrink-0">📋</span>
-            {isOpen && <span className="text-sm font-medium truncate">Registro de visita</span>}
-          </button>
-
-          {/* Generar acta */}
-          <button
-            onClick={() => handleMenuClick('generar-acta')}
-            className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
-              isActive('generar-acta') ? 'bg-[#4a5180]' : ''
-            }`}
-          >
-            <span className="text-2xl shrink-0">📋</span>
-            {isOpen && <span className="text-sm font-medium truncate">Generar acta</span>}
-          </button>
-
-          {/* Dashboard */}
-          <button
-            onClick={() => handleMenuClick('dashboard')}
-            className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
-              isActive('dashboard') ? 'bg-[#4a5180]' : ''
-            }`}
-          >
-            <span className="text-2xl shrink-0">📊</span>
-            {isOpen && <span className="text-sm font-medium truncate">Dashboard</span>}
-          </button>
-
-          {/* Gestión de usuarios */}
-          <button
-            onClick={() => handleMenuClick('gestion-usuarios')}
-            className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
-              isActive('gestion-usuarios') ? 'bg-[#4a5180]' : ''
-            }`}
-          >
-            <span className="text-2xl shrink-0">👥</span>
-            {isOpen && <span className="text-sm font-medium truncate">Gestión de usuarios</span>}
-          </button>
-
-          {/* Reportes/Estadísticas */}
-          <button
-            onClick={() => handleMenuClick('reportes')}
-            className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
-              isActive('reportes') ? 'bg-[#4a5180]' : ''
-            }`}
-          >
-            <span className="text-2xl shrink-0">📈</span>
-            {isOpen && (
-              <span className="text-sm font-medium truncate text-left">
-                Reportes/Estadísticas
-              </span>
-            )}
-          </button>
-
-          {/* Registrar usuarios */}
-          <button
-            onClick={() => handleMenuClick('registrar-usuarios')}
-            className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
-              isActive('registrar-usuarios') ? 'bg-[#4a5180]' : ''
-            }`}
-          >
-            <span className="text-2xl shrink-0">👤</span>
-            {isOpen && <span className="text-sm font-medium truncate">Registrar usuarios</span>}
-          </button>
-
-          {/* Registrar empresa */}
-          <button
-            onClick={() => handleMenuClick('registrar-empresa')}
-            className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
-              isActive('registrar-empresa') ? 'bg-[#4a5180]' : ''
-            }`}
-          >
-            <span className="text-2xl shrink-0">🏢</span>
-            {isOpen && <span className="text-sm font-medium truncate">Registrar empresa</span>}
-          </button>
-
-          {/* Visualizar documentos */}
-          <button
-            onClick={() => handleMenuClick('visualizar-documentos')}
-            className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
-              isActive('visualizar-documentos') ? 'bg-[#4a5180]' : ''
-            }`}
-          >
-            <span className="text-2xl shrink-0">📑</span>
-            {isOpen && <span className="text-sm font-medium truncate">Visualizar documentos</span>}
-          </button>
+          {allowedMenuItems.map((item) => (
+            <button
+              key={item.key}
+              onClick={() => handleMenuClick(item.path)}
+              className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
+                isActive(item.path) ? 'bg-[#4a5180]' : ''
+              }`}
+            >
+              <span className="text-2xl shrink-0">{item.icon}</span>
+              {isOpen && <span className="text-sm font-medium truncate">{item.label}</span>}
+            </button>
+          ))}
         </nav>
       </div>
 
       {/* Bottom Section */}
       <div className="p-3 border-t border-[#4a5180]">
-        {/* Ajustes */}
+        {/* Ajustes (Available for everyone for now, or restrict if needed) */}
         <button
-          onClick={() => handleMenuClick('ajustes')}
+          onClick={() => handleMenuClick('/ajustes')}
           className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
-            isActive('ajustes') ? 'bg-[#4a5180]' : ''
+            isActive('/ajustes') ? 'bg-[#4a5180]' : ''
           }`}
         >
           <span className="text-2xl shrink-0">⚙️</span>
@@ -190,13 +179,12 @@ export default function Sidebar({ isOpen = true }: SidebarProps) {
 
         {/* Cerrar Sesión */}
         <button
-          onClick={() => handleMenuClick('cerrar-sesion')}
+          onClick={handleLogout}
           className="w-full flex items-center gap-4 px-4 py-3 rounded-lg transition-colors hover:bg-red-600"
         >
           <span className="text-2xl shrink-0">🚪</span>
           {isOpen && <span className="text-sm font-medium truncate">Cerrar Sesión</span>}
         </button>
-        {/* TODO: Add logout logic here */}
       </div>
     </aside>
   );
