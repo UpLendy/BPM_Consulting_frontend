@@ -96,6 +96,34 @@ export const userService = {
     },
 
     /**
+     * Delete a user (Admin only) - Soft delete
+     * DELETE /api/v1/users/{id}
+     */
+    async deleteUser(userId: string): Promise<any> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/users/${userId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                authService.handleUnauthorized();
+            }
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || 'Error al eliminar el usuario');
+        }
+
+        // Invalidate users cache on delete
+        clearCacheKey(USERS_CACHE_KEY);
+        console.log('🗑️ [CACHE] Caché de usuarios limpiado (usuario eliminado)');
+
+        return response.json();
+    },
+
+    /**
      * Get all users (Admin only)
      * GET /api/v1/users
      */

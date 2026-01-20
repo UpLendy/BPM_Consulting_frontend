@@ -54,6 +54,11 @@ export default function GestionUsuariosPage() {
   // Edit User Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<UserListData | null>(null);
+  
+  // Delete User Modal State
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [selectedUserForDelete, setSelectedUserForDelete] = useState<UserListData | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -176,6 +181,66 @@ export default function GestionUsuariosPage() {
       setUsers(usersData);
     } catch (err) {
       console.error('Error refreshing users:', err);
+    }
+  };
+  
+  const openDeleteModal = (user: UserListData) => {
+    setSelectedUserForDelete(user);
+    setIsDeleteModalOpen(true);
+  };
+  
+  const closeDeleteModal = () => {
+    setIsDeleteModalOpen(false);
+    setSelectedUserForDelete(null);
+  };
+  
+  const handleDeleteUser = async () => {
+    if (!selectedUserForDelete) return;
+    
+    setIsDeleting(true);
+    setError(null);
+    setSuccess(null);
+    
+    try {
+      const isEngineer = selectedUserForDelete.role?.name?.toLowerCase() === 'engineer' || 
+                        selectedUserForDelete.role?.name?.toLowerCase() === 'ingeniero';
+      
+      // If user is an engineer, delete engineer record first
+      if (isEngineer) {
+        try {
+          // Get the engineer record by userId
+          const engineer = await engineerService.getEngineerByUserId(selectedUserForDelete.id);
+          
+          if (engineer) {
+            // Delete engineer record
+            await engineerService.deleteEngineer(engineer.id);
+            console.log('✅ Ingeniero eliminado:', engineer.id);
+          }
+        } catch (engineerError) {
+          console.error('Error eliminando ingeniero:', engineerError);
+          // Continue with user deletion even if engineer deletion fails
+        }
+      }
+      
+      // Delete user
+      await userService.deleteUser(selectedUserForDelete.id);
+      
+      setSuccess(`Usuario ${selectedUserForDelete.first_name} ${selectedUserForDelete.last_name} eliminado correctamente.`);
+      
+      // Refresh user list
+      const usersData = await userService.getAllUsers();
+      setUsers(usersData);
+      
+      // Close modal after short delay
+      setTimeout(() => {
+        closeDeleteModal();
+        setSuccess(null);
+      }, 2000);
+    } catch (err: any) {
+      console.error('Error deleting user:', err);
+      setError(err.message || 'Error al eliminar el usuario');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -362,7 +427,10 @@ export default function GestionUsuariosPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                           </svg>
                         </button>
-                        <button className="p-2 text-gray-400 hover:text-rose-600 transition-colors hover:bg-rose-50 rounded-lg ml-2">
+                        <button 
+                          onClick={() => openDeleteModal(user)}
+                          className="p-2 text-gray-400 hover:text-rose-600 transition-colors hover:bg-rose-50 rounded-lg ml-2"
+                        >
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
@@ -497,6 +565,65 @@ export default function GestionUsuariosPage() {
           role: selectedUserForEdit.role
         } : undefined}
       />
+
+      {/* Delete User Confirmation Modal */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-6 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 font-inter">Eliminar Usuario</h3>
+                  <p className="text-sm text-gray-500 font-inter">Esta acción no se puede deshacer</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {error && (
+                <div className="p-3 bg-red-50 text-red-600 text-xs rounded-lg font-inter">
+                  {error}
+                </div>
+              )}
+              {success && (
+                <div className="p-3 bg-green-50 text-green-600 text-xs rounded-lg font-inter">
+                  {success}
+                </div>
+              )}
+
+              <p className="text-sm text-gray-600 font-inter">
+                ¿Estás seguro de que deseas eliminar al usuario{' '}
+                <span className="font-bold text-gray-900">
+                  {selectedUserForDelete?.first_name} {selectedUserForDelete?.last_name}
+                </span>?
+              </p>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={closeDeleteModal}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-3 border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-50 transition-all font-inter disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleDeleteUser}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-all shadow-lg shadow-red-100 disabled:opacity-50 font-inter"
+                >
+                  {isDeleting ? 'Eliminando...' : 'Eliminar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       </DashboardLayout>
     </RoleGuard>
   );

@@ -129,5 +129,29 @@ export const engineerService = {
 
         const data = await response.json();
         return Array.isArray(data) ? data : [];
+    },
+
+    /**
+     * Delete an engineer (Admin only) - Soft delete
+     * DELETE /api/v1/engineers/{id}
+     */
+    async deleteEngineer(engineerId: string): Promise<any> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/engineers/${engineerId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                authService.handleUnauthorized();
+            }
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || 'Error al eliminar el ingeniero');
+        }
+
+        return response.json();
     }
 };
