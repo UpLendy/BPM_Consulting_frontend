@@ -6,7 +6,7 @@ import { DashboardLayout } from '@/app/components/layout';
 import { AdminListView } from '@/app/components/admin';
 import { IngenieroCalendarView } from '@/app/components/ingeniero';
 import { EmpresarioCalendarView } from '@/app/components/empresario';
-import { UserRole, Appointment, AppointmentType, AppointmentStatus, TimeSlot, CreateAppointmentDTO } from '@/app/types';
+import { UserRole, Appointment, AppointmentType, AppointmentStatus, TimeSlot, CreateAppointmentDTO, AppointmentFilters } from '@/app/types';
 import { mapBackendRoleToFrontend } from '@/app/types/auth';
 import { appointmentService } from '@/app/services/appointments';
 import { authService } from '@/app/services/authService';
@@ -25,8 +25,15 @@ export default function GestionCitasPage() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [allAppointments, setAllAppointments] = useState<Appointment[]>([]); // For counts
   const [engineerId, setEngineerId] = useState<string | null>(null);
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
+  
+  // Admin Filters
+  const [adminFilters, setAdminFilters] = useState<{
+    status: AppointmentStatus | 'all';
+    type: AppointmentType | 'all';
+  }>({ status: 'all', type: 'all' });
 
   // Read user from localStorage on mount
   useEffect(() => {
@@ -71,10 +78,43 @@ export default function GestionCitasPage() {
              const data = await appointmentService.getAppointmentsByEngineer(engineerIdToUse);
              setAppointments(data);
         } else if (currentUser.role === 'admin') {
-             // For now, Admin view shows appointments of the first available engineer or similar logic
-             const juanPerezId = "cmk221d4n0003q4xxezyoprzp"; // Optional sample for testing
-             const data = await appointmentService.getAppointmentsByEngineer(juanPerezId);
-             setAppointments(data);
+             // Admin sees all active appointments with filters
+             // Fetch ALL appointments first to get correct counts (if not already done or just always refresh to be safe)
+             // Optimization: Could fetch "stats" separately? 
+             // Simplest fix: Fetch all first. Then filter locally?
+             // User requested: "esos datos... no deberian de cambiar... el filtro debe mostrar cuantas de ese tipo hay en todo momento"
+             // This implies the COUNTS should be based on the TOTAL dataset, regardless of current filter.
+             
+             // Strategy: 
+             // 1. Fetch ALL appointments (base set)
+             // 2. Derive filtered list from base set locally? 
+             // Wait, user explicitly asked for backend filtering "endpoint de admin... para crear filtros de busqueda".
+             // If we use backend filtering, we only get filtered results. We can't count the others.
+             // UNLESS we make two calls: one for stats (or all), one for list.
+             // OR we just fetch ALL and filter Client-Side. 
+             // But user pushed for Backend params.
+             
+             // Compromise: 
+             // - Fetch ALL appointments initially (or in parallel) to get the "Counts".
+             // - Fetch FILTERED appointments for the list.
+             
+             // Let's do parallel fetch if filters are active.
+             // Actually, if we want counts based on "Status", we need the global counts.
+             
+             const filters: AppointmentFilters = {};
+             if (adminFilters.status !== 'all') filters.estado = adminFilters.status;
+             if (adminFilters.type !== 'all') filters.tipo = adminFilters.type;
+             
+             // Fetch filtered list
+             const filteredDataPromise = appointmentService.getAllAppointments(filters);
+             
+             // Fetch all for counts (unfiltered) - only if we haven't or want to refresh
+             const allDataPromise = appointmentService.getAllAppointments({}); // Empty filters = all
+             
+             const [filteredData, allData] = await Promise.all([filteredDataPromise, allDataPromise]);
+             
+             setAppointments(filteredData);
+             setAllAppointments(allData);
         }
       } catch (error) {
         console.error('Error fetching appointments:', error);
@@ -82,7 +122,7 @@ export default function GestionCitasPage() {
     };
 
     fetchAppointments();
-  }, [currentUser]);
+  }, [currentUser, adminFilters]);
 
   // Map backend role to frontend UserRole enum
   const getFrontendRole = (): UserRole => {
@@ -111,6 +151,7 @@ export default function GestionCitasPage() {
 
   const handleDeleteAppointment = (appointmentId: string) => {
     setAppointments(appointments.filter((apt) => apt.id !== appointmentId));
+    setAllAppointments(allAppointments.filter((apt) => apt.id !== appointmentId));
   };
 
   const handleCreateAppointment = async (data: CreateAppointmentDTO) => {
@@ -154,8 +195,11 @@ export default function GestionCitasPage() {
         return (
           <AdminListView
             appointments={appointments}
+            allAppointments={allAppointments} // Pass full list for counts
             onEdit={handleEditAppointment}
             onDelete={handleDeleteAppointment}
+            filters={adminFilters}
+            onFilterChange={(newFilters) => setAdminFilters(prev => ({ ...prev, ...newFilters }))}
           />
         );
 

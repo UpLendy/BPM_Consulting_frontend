@@ -11,9 +11,11 @@ export enum UserRole {
  * Appointment status enumeration
  */
 export enum AppointmentStatus {
-    PENDIENTE = 'pendiente',
-    COMPLETADA = 'completada',
-    CANCELADA = 'cancelada'
+    PROGRAMADA = 'PROGRAMADA',
+    CONFIRMADA = 'CONFIRMADA',
+    EN_PROGRESO = 'EN_PROGRESO',
+    COMPLETADA = 'COMPLETADA',
+    CANCELADA = 'CANCELADA'
 }
 
 /**
@@ -21,7 +23,8 @@ export enum AppointmentStatus {
  */
 export enum AppointmentType {
     ASESORIA = 'ASESORIA',
-    AUDITORIA = 'AUDITORIA'
+    AUDITORIA = 'AUDITORIA',
+    SEGUIMIENTO = 'SEGUIMIENTO'
 }
 
 /**
