@@ -6,6 +6,7 @@ import { DashboardLayout } from '@/app/components/layout';
 import { userService } from '@/app/services/users/userService';
 import { companyService } from '@/app/services/companies/companyService';
 import { engineerService } from '@/app/services/engineers/engineerService';
+import { representativeService } from '@/app/services/representatives/representativeService';
 import { Company } from '@/app/types';
 
 // Define a local interface for the user data from the API (matching backend snake_case)
@@ -37,19 +38,36 @@ export default function GestionUsuariosPage() {
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserListData | null>(null);
   const [assignForm, setAssignForm] = useState({
-    companyId: ''
+    companyId: '',
+    phoneNumber: '' // For company representatives
   });
+
+  // Filtered companies for company role (only companies without representatives)
+  const [filteredCompanies, setFilteredCompanies] = useState<Company[]>([]);
+  
+  // Track users who already have representative assignments
+  const [usersWithAssignments, setUsersWithAssignments] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        const [usersData, companiesData] = await Promise.all([
+        const [usersData, companiesData, representativesData] = await Promise.all([
           userService.getAllUsers(),
-          companyService.getAllCompanies()
+          companyService.getAllCompanies(),
+          representativeService.getAllRepresentatives()
         ]);
         setUsers(usersData);
         setCompanies(companiesData);
+
+        // Track which users already have representative assignments
+        const assignedUserIds = new Set(
+          representativesData
+            .filter(rep => rep.companyId) // Only those with a company assigned
+            .map(rep => rep.userId)
+        );
+        setUsersWithAssignments(assignedUserIds);
+        console.log(`👥 Usuarios con empresa asignada: ${assignedUserIds.size}`);
       } catch (err: any) {
         console.error('Error fetching data:', err);
         setError('No se pudieron cargar los datos.');
@@ -61,6 +79,66 @@ export default function GestionUsuariosPage() {
     fetchData();
   }, []);
 
+  // Filter companies based on selected user's role
+  useEffect(() => {
+    const filterCompaniesForRole = async () => {
+      if (!selectedUser) {
+        setFilteredCompanies(companies);
+        return;
+      }
+
+      const isCompany = selectedUser.role?.name?.toLowerCase() === 'company' || 
+                        selectedUser.role?.name?.toLowerCase() === 'empresa' ||
+                        selectedUser.role?.name?.toLowerCase() === 'empresario';
+
+      if (isCompany) {
+        // For company role: Only show companies without representatives
+        try {
+          const allReps = await representativeService.getAllRepresentatives();
+          const companiesWithReps = new Set(
+            allReps
+              .filter(rep => rep.companyId) // Only those with a company assigned
+              .map(rep => rep.companyId)
+          );
+
+          const availableCompanies = companies.filter(
+            company => !companiesWithReps.has(company.id)
+          );
+
+          setFilteredCompanies(availableCompanies);
+          console.log(`📋 Empresas disponibles para representante: ${availableCompanies.length} de ${companies.length}`);
+        } catch (err) {
+          console.error('Error filtering companies:', err);
+          setFilteredCompanies(companies);
+        }
+      } else {
+        // For engineer role: Only show companies without engineers
+        try {
+          const allEngineers = await engineerService.getAllEngineers();
+          
+          // Get IDs of companies that already have an engineer assigned
+          const companiesWithEngineers = new Set(
+            allEngineers
+              .flatMap(eng => eng.companies || [])
+              .map(comp => comp.id)
+          );
+
+          const availableCompanies = companies.filter(
+            company => !companiesWithEngineers.has(company.id)
+          );
+
+          setFilteredCompanies(availableCompanies);
+          console.log(`📋 Empresas disponibles para ingeniero: ${availableCompanies.length} de ${companies.length}`);
+        } catch (err) {
+          console.error('Error filtering companies for engineer:', err);
+          setFilteredCompanies(companies);
+        }
+      }
+    };
+
+    filterCompaniesForRole();
+  }, [selectedUser, companies]);
+
   const openAssignModal = (user: UserListData) => {
     setSelectedUser(user);
     setIsAssignModalOpen(true);
@@ -71,20 +149,42 @@ export default function GestionUsuariosPage() {
   const closeAssignModal = () => {
     setIsAssignModalOpen(false);
     setSelectedUser(null);
-    setAssignForm({ companyId: '' });
+    setAssignForm({ companyId: '', phoneNumber: '' });
   };
 
   const handleAssignSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUser || !assignForm.companyId) return;
 
+    const isCompany = selectedUser.role?.name?.toLowerCase() === 'company' || 
+                      selectedUser.role?.name?.toLowerCase() === 'empresa' ||
+                      selectedUser.role?.name?.toLowerCase() === 'empresario';
+
+    // Validate phone number for company representatives
+    if (isCompany && (!assignForm.phoneNumber || assignForm.phoneNumber.length < 10 || assignForm.phoneNumber.length > 15)) {
+      setError('El número de teléfono debe tener entre 10 y 15 caracteres');
+      return;
+    }
+
     setIsAssigning(true);
     setError(null);
     setSuccess(null);
 
     try {
-      await engineerService.createAndAssign(selectedUser.id, assignForm.companyId);
-      setSuccess(`Usuario ${selectedUser.first_name} asignado correctamente.`);
+      if (isCompany) {
+        // Create representative and assign to company
+        await representativeService.ensureRepresentative(
+          selectedUser.id, 
+          assignForm.phoneNumber, 
+          assignForm.companyId
+        );
+        setSuccess(`Representante ${selectedUser.first_name} asignado correctamente.`);
+      } else {
+        // Create engineer and assign to company
+        await engineerService.createAndAssign(selectedUser.id, assignForm.companyId);
+        setSuccess(`Ingeniero ${selectedUser.first_name} asignado correctamente.`);
+      }
+      
       setTimeout(() => {
         closeAssignModal();
       }, 2000);
@@ -195,13 +295,34 @@ export default function GestionUsuariosPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        {(user.role?.name?.toLowerCase() === 'engineer' || user.role?.name?.toLowerCase() === 'ingeniero') && (
-                          <button 
-                            onClick={() => openAssignModal(user)}
-                            className="px-3 py-1.5 bg-blue-50 text-blue-600 text-xs font-bold rounded-lg hover:bg-blue-100 transition-colors font-inter"
-                          >
-                            Asignar Empresa
-                          </button>
+                        {((user.role?.name?.toLowerCase() === 'engineer' || user.role?.name?.toLowerCase() === 'ingeniero') ||
+                          (user.role?.name?.toLowerCase() === 'company' || user.role?.name?.toLowerCase() === 'empresa' || user.role?.name?.toLowerCase() === 'empresario')) && (
+                          (() => {
+                            const isCompany = user.role?.name?.toLowerCase() === 'company' || 
+                                            user.role?.name?.toLowerCase() === 'empresa' || 
+                                            user.role?.name?.toLowerCase() === 'empresario';
+                                            
+                            const isAssigned = isCompany && usersWithAssignments.has(user.id);
+                            
+                            return (
+                              <button 
+                                onClick={() => !isAssigned && openAssignModal(user)}
+                                disabled={isAssigned}
+                                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors font-inter flex items-center gap-1 ${
+                                  isAssigned 
+                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                                    : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                                }`}
+                              >
+                                {isAssigned && (
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                )}
+                                {isAssigned ? 'Asignado' : 'Asignar Empresa'}
+                              </button>
+                            );
+                          })()
                         )}
                       </td>
                       <td className="px-6 py-4 text-right">
@@ -261,22 +382,53 @@ export default function GestionUsuariosPage() {
 
               <div>
                 <p className="text-sm text-gray-600 mb-4 font-inter">
-                  Asignar una empresa al ingeniero <span className="font-bold text-gray-900">{selectedUser?.first_name} {selectedUser?.last_name}</span>.
+                  Asignar una empresa a {selectedUser?.role?.name?.toLowerCase() === 'company' || selectedUser?.role?.name?.toLowerCase() === 'empresa' || selectedUser?.role?.name?.toLowerCase() === 'empresario' ? 'el representante' : 'el ingeniero'} <span className="font-bold text-gray-900">{selectedUser?.first_name} {selectedUser?.last_name}</span>.
                 </p>
+
+                {/* Phone Number - Only for Company representatives */}
+                {(selectedUser?.role?.name?.toLowerCase() === 'company' || 
+                  selectedUser?.role?.name?.toLowerCase() === 'empresa' || 
+                  selectedUser?.role?.name?.toLowerCase() === 'empresario') && (
+                  <div className="mb-4">
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 font-inter">
+                      Número de Teléfono
+                    </label>
+                    <input
+                      required
+                      type="tel"
+                      placeholder="Ej: 3001234567"
+                      minLength={10}
+                      maxLength={15}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-inter text-gray-900"
+                      value={assignForm.phoneNumber}
+                      onChange={(e) => setAssignForm(prev => ({ ...prev, phoneNumber: e.target.value }))}
+                    />
+                  </div>
+                )}
+
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 font-inter">Seleccionar Empresa</label>
                 <select
                   required
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all font-inter text-gray-900"
                   value={assignForm.companyId}
-                  onChange={(e) => setAssignForm({ companyId: e.target.value })}
+                  onChange={(e) => setAssignForm(prev => ({ ...prev, companyId: e.target.value }))}
                 >
-                  <option value="">Seleccione una empresa...</option>
-                  {companies.map((company) => (
+                  <option value="">
+                    {filteredCompanies.length > 0 
+                      ? 'Seleccione una empresa...' 
+                      : 'No hay empresas disponibles'}
+                  </option>
+                  {filteredCompanies.map((company) => (
                     <option key={company.id} value={company.id}>
                       {company.name} (NIT: {company.nit})
                     </option>
                   ))}
                 </select>
+                {filteredCompanies.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-2 font-inter">
+                    ℹ️ Todas las empresas ya tienen un {selectedUser?.role?.name?.toLowerCase() === 'company' || selectedUser?.role?.name?.toLowerCase() === 'empresa' || selectedUser?.role?.name?.toLowerCase() === 'empresario' ? 'representante' : 'ingeniero'} asignado. Recuerda verificar si creaste la empresa que vas a asignar.
+                  </p>
+                )}
               </div>
 
               <div className="flex gap-3 pt-4">
