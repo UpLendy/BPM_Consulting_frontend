@@ -9,11 +9,14 @@ interface FilterButtonsProps {
   onTypeChange: (type: AppointmentType | 'all') => void;
   appointmentCounts?: {
     all: number;
-    pendiente: number;
+    programada: number;
+    confirmada: number;
+    en_progreso: number;
     completada: number;
     cancelada: number;
     asesoria: number;
     auditoria: number;
+    seguimiento: number;
   };
 }
 
@@ -26,7 +29,9 @@ export default function FilterButtons({
 }: FilterButtonsProps) {
   const statusFilters = [
     { value: 'all' as const, label: 'Todas', count: appointmentCounts?.all },
-    { value: AppointmentStatus.PENDIENTE, label: 'Pendientes', count: appointmentCounts?.pendiente },
+    { value: AppointmentStatus.PROGRAMADA, label: 'Programadas', count: appointmentCounts?.programada },
+    { value: AppointmentStatus.CONFIRMADA, label: 'Confirmadas', count: appointmentCounts?.confirmada },
+    { value: AppointmentStatus.EN_PROGRESO, label: 'En Progreso', count: appointmentCounts?.en_progreso },
     { value: AppointmentStatus.COMPLETADA, label: 'Completadas', count: appointmentCounts?.completada },
     { value: AppointmentStatus.CANCELADA, label: 'Canceladas', count: appointmentCounts?.cancelada }
   ];
@@ -34,7 +39,8 @@ export default function FilterButtons({
   const typeFilters = [
     { value: 'all' as const, label: 'Todos los tipos' },
     { value: AppointmentType.ASESORIA, label: 'Asesorías', count: appointmentCounts?.asesoria },
-    { value: AppointmentType.AUDITORIA, label: 'Auditorías', count: appointmentCounts?.auditoria }
+    { value: AppointmentType.AUDITORIA, label: 'Auditorías', count: appointmentCounts?.auditoria },
+    { value: AppointmentType.SEGUIMIENTO, label: 'Seguimiento', count: appointmentCounts?.seguimiento }
   ];
 
   return (
