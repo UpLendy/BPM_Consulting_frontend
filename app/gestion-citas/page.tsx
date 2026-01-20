@@ -143,12 +143,6 @@ export default function GestionCitasPage() {
     }
   };
 
-  // Handlers
-  const handleEditAppointment = (appointment: Appointment) => {
-    console.log('Edit appointment:', appointment);
-    alert(`Función de edición pendiente de implementar para: ${appointment.companyName}`);
-  };
-
   const handleDeleteAppointment = (appointmentId: string) => {
     setAppointments(appointments.filter((apt) => apt.id !== appointmentId));
     setAllAppointments(allAppointments.filter((apt) => apt.id !== appointmentId));
@@ -195,8 +189,7 @@ export default function GestionCitasPage() {
         return (
           <AdminListView
             appointments={appointments}
-            allAppointments={allAppointments} // Pass full list for counts
-            onEdit={handleEditAppointment}
+            allAppointments={allAppointments}
             onDelete={handleDeleteAppointment}
             filters={adminFilters}
             onFilterChange={(newFilters) => setAdminFilters(prev => ({ ...prev, ...newFilters }))}

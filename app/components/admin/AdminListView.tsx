@@ -14,7 +14,6 @@ import { Appointment, AppointmentStatus, AppointmentType } from '@/app/types';
 interface AdminListViewProps {
   appointments: Appointment[];
   allAppointments?: Appointment[]; // Full list for counts
-  onEdit?: (appointment: Appointment) => void;
   onDelete?: (appointmentId: string) => void;
   filters?: {
       status: AppointmentStatus | 'all';
@@ -26,7 +25,6 @@ interface AdminListViewProps {
 export default function AdminListView({
   appointments,
   allAppointments = [],
-  onEdit,
   onDelete,
   filters = { status: 'all', type: 'all' },
   onFilterChange
@@ -84,10 +82,6 @@ export default function AdminListView({
   const handleView = (appointment: Appointment) => {
     setSelectedAppointment(appointment);
     setViewModalOpen(true);
-  };
-    
-  const handleEdit = (appointment: Appointment) => {
-    if (onEdit) onEdit(appointment);
   };
 
   const handleDeleteClick = (appointment: Appointment) => {
@@ -153,9 +147,7 @@ export default function AdminListView({
                           key={apt.id}
                           appointment={apt}
                           onView={() => handleView(apt)}
-                          onEdit={() => handleEdit(apt)}
                           onDelete={() => handleDeleteClick(apt)}
-                          // Admin specific actions usually?
                        />
                    ))}
                 </div>

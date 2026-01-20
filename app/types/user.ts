@@ -64,3 +64,14 @@ export interface CreateUserDTO {
     id_number: string;
     roleId: string;
 }
+
+/**
+ * DTO for updating a user
+ */
+export interface UpdateUserDTO {
+    email?: string;
+    first_name?: string;
+    last_name?: string;
+    id_number?: string;
+    roleId?: string;
+}
