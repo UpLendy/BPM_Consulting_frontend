@@ -11,7 +11,6 @@ export const appointmentService = {
     async createAppointment(data: CreateAppointmentDTO): Promise<Appointment> {
         const token = localStorage.getItem('token');
 
-        // Construct payload strictly matching the backend requirement
         const payload = {
             description: data.description,
             appointmentType: data.appointmentType,
@@ -42,9 +41,34 @@ export const appointmentService = {
     },
 
     /**
+     * Get a specific appointment by ID
+     * GET /api/v1/appointments/{id}
+     */
+    async getAppointmentById(id: string): Promise<Appointment> {
+        const token = localStorage.getItem('token');
+        const url = `${API_URL}/appointments/${id}/`;
+
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                authService.handleUnauthorized();
+            }
+            throw new Error('Error al obtener los detalles de la cita');
+        }
+
+        return response.json();
+    },
+
+    /**
      * Get appointments for a specific engineer
      * GET /api/v1/appointments/engineer/{engineerId}
-     * (Admin or the Engineer themselves)
      */
     async getAppointmentsByEngineer(engineerId: string): Promise<Appointment[]> {
         const token = localStorage.getItem('token');
@@ -69,9 +93,59 @@ export const appointmentService = {
     },
 
     /**
+     * Get appointments for a specific company
+     * GET /api/v1/appointments/company/{companyId}
+     */
+    async getAppointmentsByCompany(companyId: string): Promise<Appointment[]> {
+        const token = localStorage.getItem('token');
+        const url = `${API_URL}/appointments/company/${companyId}`;
+
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                authService.handleUnauthorized();
+            }
+            return [];
+        }
+
+        return response.json();
+    },
+
+    /**
+     * Get the last completed appointment for a company
+     * GET /api/v1/appointments/company/${companyId}/last
+     */
+    async getLastAppointmentByCompany(companyId: string): Promise<Appointment | null> {
+        const token = localStorage.getItem('token');
+        const url = `${API_URL}/appointments/company/${companyId}/last-completed`;
+
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                authService.handleUnauthorized();
+            }
+            return null;
+        }
+
+        return response.json();
+    },
+
+    /**
      * Get appointments for the assigned engineer of the logged-in company
-     * GET /api/v1/appointments/my-company/engineer-appointments
-     * (Admin or Company)
      */
     async getCompanyEngineerAppointments(): Promise<Appointment[]> {
         const token = localStorage.getItem('token');
@@ -97,7 +171,6 @@ export const appointmentService = {
 
     /**
      * Get my appointments as representative (Solo Companies)
-     * GET /api/v1/appointments/my-appointments
      */
     async getMyAppointments(): Promise<Appointment[]> {
         const token = localStorage.getItem('token');
@@ -123,7 +196,6 @@ export const appointmentService = {
 
     /**
      * Get all appointments (Admin) with optional filters
-     * GET /api/v1/appointments/?is_active=true&...
      */
     async getAllAppointments(filters?: AppointmentFilters): Promise<Appointment[]> {
         const token = localStorage.getItem('token');
@@ -156,8 +228,7 @@ export const appointmentService = {
     },
 
     /**
-     * Confirm appointment (Engineer says "I will attend")
-     * PATCH /api/v1/appointments/{id}/status
+     * Confirm appointment
      */
     async confirmAppointment(id: string): Promise<Appointment> {
         const token = localStorage.getItem('token');
@@ -188,8 +259,7 @@ export const appointmentService = {
     },
 
     /**
-     * Start appointment (Engineer says "I am here, starting visit")
-     * PATCH /api/v1/appointments/{id}/status
+     * Start appointment
      */
     async startAppointment(id: string): Promise<Appointment> {
         const token = localStorage.getItem('token');
@@ -214,6 +284,58 @@ export const appointmentService = {
                 authService.handleUnauthorized();
             }
             throw new Error('Error al iniciar la cita');
+        }
+
+        return response.json();
+    },
+
+    /**
+     * Save visit registration record
+     */
+    async saveVisitRecord(id: string, recordData: any): Promise<any> {
+        const token = localStorage.getItem('token');
+
+        const response = await fetch(`${API_URL}/appointments/${id}/evaluation`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(recordData)
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                authService.handleUnauthorized();
+            }
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || 'Error al guardar el registro de visita');
+        }
+
+        return response.json();
+    },
+
+    /**
+     * Get visit evaluation (formData and successRate)
+     */
+    async getVisitEvaluation(id: string): Promise<any> {
+        const token = localStorage.getItem('token');
+        const url = `${API_URL}/appointments/${id}/evaluation/`;
+
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                authService.handleUnauthorized();
+            }
+            return null;
         }
 
         return response.json();
