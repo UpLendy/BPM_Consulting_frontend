@@ -23,8 +23,14 @@ export default function LoginForm() {
       // Guardar user data
       localStorage.setItem('user', JSON.stringify(response.user));
       
-      // Redirect a gestión de citas
-      window.location.href = '/gestion-citas';
+      // Redirect based on role
+      const roleName = ((response.user.role as any)?.name || response.user.role || '').toLowerCase();
+      
+      if (roleName === 'admin' || roleName === 'administrador') {
+        window.location.href = '/admin-dashboard';
+      } else {
+        window.location.href = '/gestion-citas';
+      }
     } catch (err) {
       setError('Email o contraseña incorrectos');
     } finally {
