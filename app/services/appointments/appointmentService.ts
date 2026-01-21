@@ -153,5 +153,37 @@ export const appointmentService = {
         }
 
         return response.json();
+    },
+
+    /**
+     * Confirm appointment (Engineer says "I will attend")
+     * PATCH /api/v1/appointments/{id}/status
+     */
+    async confirmAppointment(id: string): Promise<Appointment> {
+        const token = localStorage.getItem('token');
+
+        const payload = {
+            status: 'CONFIRMADA',
+            engineerNotes: 'Asistencia confirmada por el ingeniero'
+        };
+
+        const response = await fetch(`${API_URL}/appointments/${id}/status`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                authService.handleUnauthorized();
+            }
+            throw new Error('Error al confirmar la cita');
+        }
+
+        return response.json();
     }
 };

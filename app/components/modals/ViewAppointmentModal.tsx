@@ -1,9 +1,9 @@
-'use client';
-
+import { useState, useEffect } from 'react';
 import BaseModal from './BaseModal';
 import { getDisplayTime } from '@/app/components/calendar/utils';
-import { Appointment } from '@/app/types';
+import { Appointment, AppointmentStatus } from '@/app/types';
 import { AppointmentBadge, AppointmentTypeIcon } from '@/app/components/appointments';
+import { appointmentService } from '@/app/services/appointments/appointmentService';
 
 interface ViewAppointmentModalProps {
   isOpen: boolean;
@@ -16,6 +16,22 @@ export default function ViewAppointmentModal({
   onClose,
   appointment
 }: ViewAppointmentModalProps) {
+  const [userRole, setUserRole] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        const role = user.role?.name || user.role || '';
+        setUserRole(role.toLowerCase());
+      } catch (e) {
+        console.error('Error parsing user', e);
+      }
+    }
+  }, []);
+
   if (!appointment) return null;
 
   const formatDate = (date: Date) => {
@@ -26,6 +42,26 @@ export default function ViewAppointmentModal({
       year: 'numeric'
     });
   };
+
+  const handleConfirm = async () => {
+    if (!appointment) return;
+    
+    try {
+      setLoading(true);
+      await appointmentService.confirmAppointment(appointment.id);
+      // Refresh page to show updated status
+      window.location.reload();
+    } catch (error) {
+      console.error('Error confirming appointment:', error);
+      alert('Error al confirmar la cita');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const showConfirmButton = 
+    (userRole === 'ingeniero' || userRole === 'engineer') && 
+    appointment.status === AppointmentStatus.PROGRAMADA;
 
   return (
     <BaseModal
@@ -94,13 +130,32 @@ export default function ViewAppointmentModal({
         </div>
 
         {/* Actions */}
-        <div className="flex justify-end gap-3 pt-4">
+        <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
           <button
             onClick={onClose}
             className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
           >
             Cerrar
           </button>
+
+          {showConfirmButton && (
+            <button
+              onClick={handleConfirm}
+              disabled={loading}
+              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors disabled:bg-green-400 flex items-center gap-2"
+            >
+              {loading ? (
+                <>Wait...</>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Confirmar Asistencia
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </BaseModal>
