@@ -63,6 +63,24 @@ export default function ViewAppointmentModal({
     (userRole === 'ingeniero' || userRole === 'engineer') && 
     appointment.status === AppointmentStatus.PROGRAMADA;
 
+  const handleStart = async () => {
+    if (!appointment) return;
+    try {
+      setLoading(true);
+      await appointmentService.startAppointment(appointment.id);
+      window.location.reload();
+    } catch (error) {
+      console.error('Error starting appointment:', error);
+      alert('Error al iniciar la cita');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const showStartButton =
+    (userRole === 'ingeniero' || userRole === 'engineer') &&
+    appointment.status === AppointmentStatus.CONFIRMADA;
+
   return (
     <BaseModal
       isOpen={isOpen}
@@ -152,6 +170,27 @@ export default function ViewAppointmentModal({
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   Confirmar Asistencia
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Start Appointment Button (Visible if CONFIRMADA) */}
+          {showStartButton && (
+            <button
+              onClick={handleStart}
+              disabled={loading}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-blue-400 flex items-center gap-2"
+            >
+              {loading ? (
+                <>Wait...</>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Iniciar Visita
                 </>
               )}
             </button>
