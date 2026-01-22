@@ -40,7 +40,7 @@ export default function CalendarGrid({
       </div>
       
       {/* Calendar Grid */}
-      <div className="flex-1 grid grid-cols-7 grid-rows-6">
+      <div className="flex-1 grid grid-cols-7 grid-rows-6 min-h-0" style={{ gridTemplateRows: 'repeat(6, minmax(0, 1fr))' }}>
         {days.map((day, index) => {
           const dateKey = day.toDateString();
           const daySlots = slotsByDate[dateKey] || [];

@@ -9,24 +9,28 @@ import {
   ViewAppointmentModal,
   ConfirmDeleteModal
 } from '@/app/components/modals';
-import { Appointment, AppointmentStatus, AppointmentType } from '@/app/types';
+import Pagination from '@/app/components/common/Pagination';
+import { Appointment, AppointmentStatus, AppointmentType, PaginatedResponse } from '@/app/types';
 
 interface AdminListViewProps {
   appointments: Appointment[];
+  meta?: PaginatedResponse<Appointment>['meta'];
   allAppointments?: Appointment[]; // Full list for counts
   onDelete?: (appointmentId: string) => void;
   filters?: {
       status: AppointmentStatus | 'all';
       type: AppointmentType | 'all';
+      page?: number;
   };
-  onFilterChange?: (newFilters: { status?: AppointmentStatus | 'all'; type?: AppointmentType | 'all' }) => void;
+  onFilterChange?: (newFilters: { status?: AppointmentStatus | 'all'; type?: AppointmentType | 'all'; page?: number }) => void;
 }
 
 export default function AdminListView({
   appointments,
+  meta,
   allAppointments = [],
   onDelete,
-  filters = { status: 'all', type: 'all' },
+  filters = { status: 'all', type: 'all', page: 1 },
   onFilterChange
 }: AdminListViewProps) {
   // State
@@ -78,7 +82,7 @@ export default function AdminListView({
       if (onFilterChange) onFilterChange({ ...filters, type });
   };
     
-  // Handlers
+   // Handlers
   const handleView = (appointment: Appointment) => {
     setSelectedAppointment(appointment);
     setViewModalOpen(true);
@@ -96,7 +100,11 @@ export default function AdminListView({
     }
   };
 
-  return (
+   const handlePageChange = (page: number) => {
+      if (onFilterChange) onFilterChange({ ...filters, page });
+   };
+
+   return (
     <div className="h-full flex flex-col bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
@@ -106,26 +114,23 @@ export default function AdminListView({
               Gestión de Citas (Admin)
             </h1>
             <span className="text-sm text-gray-500">
-              {filteredAppointments.length} citas encontradas
+              {meta ? `${meta.total} citas encontradas` : `${filteredAppointments.length} citas encontradas`}
             </span>
           </div>
           
           <div className="flex space-x-4">
              <div className="flex-1">
-                 <SearchBar 
+                  <SearchBar 
                     value={searchQuery}
                     onChange={setSearchQuery}
-                 />
+                  />
              </div>
           </div>
         </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
          {/* Sidebar / Top Filters */}
-         {/* Moving Filters to Sidebar or Top? FilterButtons uses vertical layout usually? 
-             Let's put it in a sidebar for desktop.
-         */}
          <div className="w-64 bg-white border-r border-gray-200 p-4 hidden md:block overflow-y-auto">
             <FilterButtons 
                 selectedStatus={filters.status}
@@ -136,21 +141,35 @@ export default function AdminListView({
             />
          </div>
 
-         {/* Main List */}
-         <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-            {filteredAppointments.length === 0 ? (
-                <EmptyState />
-            ) : (
-                <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
-                   {filteredAppointments.map((apt) => (
-                       <AppointmentCard 
-                          key={apt.id}
-                          appointment={apt}
-                          onView={() => handleView(apt)}
-                          onDelete={() => handleDeleteClick(apt)}
-                       />
-                   ))}
-                </div>
+         {/* Main List Area */}
+         <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+               {filteredAppointments.length === 0 ? (
+                   <EmptyState />
+               ) : (
+                   <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
+                      {filteredAppointments.map((apt: Appointment) => (
+                          <AppointmentCard 
+                             key={apt.id}
+                             appointment={apt}
+                             onView={() => handleView(apt)}
+                             onDelete={() => handleDeleteClick(apt)}
+                          />
+                      ))}
+                   </div>
+               )}
+            </div>
+
+            {/* Pagination */}
+            {meta && (
+                <Pagination 
+                   currentPage={meta.page}
+                   totalPages={meta.totalPages}
+                   onPageChange={handlePageChange}
+                   hasNextPage={meta.hasNextPage}
+                   hasPreviousPage={meta.hasPreviousPage}
+                   totalItems={meta.total}
+                />
             )}
          </div>
       </div>
