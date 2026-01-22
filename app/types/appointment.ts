@@ -65,4 +65,21 @@ export interface AppointmentFilters {
     fechaInicio?: Date;
     fechaFin?: Date;
     searchQuery?: string;
+    page?: number;
+    limit?: number;
+}
+
+/**
+ * Paginated response structure from backend
+ */
+export interface PaginatedResponse<T> {
+    data: T[];
+    meta: {
+        total: number;
+        page: number;
+        limit: number;
+        totalPages: number;
+        hasNextPage: boolean;
+        hasPreviousPage: boolean;
+    };
 }

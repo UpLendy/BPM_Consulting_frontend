@@ -46,10 +46,10 @@ export default function EmpresarioCalendarView({
   useEffect(() => {
     const fetchMyAppointments = async () => {
         try {
-            // Fetch appointments where I am the representative
-            const myApts = await appointmentService.getMyAppointments();
-            if (myApts && myApts.length > 0) {
-                const ids = new Set(myApts.map(a => a.id));
+            // Fetch appointments where I am the representative (Paginated)
+            const response = await appointmentService.getMyAppointments(1, 100); // Get first 100 for verification
+            if (response.data && response.data.length > 0) {
+                const ids = new Set(response.data.map((a: Appointment) => String(a.id)));
                 console.log('--- API My Appointments Fetched (Empresario View) ---');
                 console.log('Owned IDs:', Array.from(ids));
                 setOwnedAppointmentIds(ids);
@@ -67,32 +67,34 @@ export default function EmpresarioCalendarView({
     return appointments; 
   }, [appointments]);
 
-  // Identify MY appointments (this empresa) - DEPRECATED via prop check, now relying on API Check or both?
-  // Let's keep this memo but use the Set for the slot flag if available.
+  // Identify MY appointments (this empresa)
   const myAppointments = useMemo(() => {
-    // Return appointments that match our owned Set
-    if (ownedAppointmentIds.size > 0) {
-        return engineerAppointments.filter(apt => ownedAppointmentIds.has(apt.id));
-    }
-    // Fallback if API hasn't loaded or returned nothing yet (or empty)
-    return engineerAppointments.filter((apt) => apt.empresaId === empresaId); 
+    return engineerAppointments.filter((apt) => {
+        const idStr = String(apt.id);
+        if (ownedAppointmentIds.size > 0) {
+            return ownedAppointmentIds.has(idStr);
+        }
+        // Fallback check: check both empresaId and representativeId
+        return String(apt.empresaId) === String(empresaId) || String(apt.representativeId) === String(empresaId);
+    });
   }, [engineerAppointments, empresaId, ownedAppointmentIds]);
 
-  // Create slots for calendar display (ONLY appointments are shown on grid now)
-  const allSlots = useMemo(() => {
+  // Create slots for calendar display (ONLY MY appointments are shown on grid now)
+  const mySlots = useMemo(() => {
     const slots: TimeSlot[] = [];
 
-    engineerAppointments.forEach((apt) => {
-      // Check ownership via API List if populated, else fallback to empresaId
-      const isMyAppointment = ownedAppointmentIds.size > 0 
-          ? ownedAppointmentIds.has(apt.id) 
-          : apt.empresaId === empresaId;
-      
+    myAppointments.forEach((apt) => {
       // Parse date manually to avoid UTC shift
+      let localDate: Date;
       const rawDate = apt.date as unknown as string | Date;
-      const dateString = typeof rawDate === 'string' ? rawDate.split('T')[0] : rawDate instanceof Date ? rawDate.toISOString().split('T')[0] : '';
-      const [y, m, d] = dateString.split('-').map(Number);
-      const localDate = new Date(y, m - 1, d);
+      
+      if (rawDate instanceof Date) {
+          localDate = new Date(rawDate.getFullYear(), rawDate.getMonth(), rawDate.getDate());
+      } else {
+          const dateString = typeof rawDate === 'string' ? rawDate.split('T')[0] : '';
+          const [y, m, d] = dateString.split('-').map(Number);
+          localDate = new Date(y, m - 1, d);
+      }
 
       slots.push({
         date: localDate,
@@ -100,12 +102,12 @@ export default function EmpresarioCalendarView({
         endTime: getDisplayTime(apt.endTime),
         isAvailable: false,
         appointmentId: apt.id,
-        isMyAppointment
+        isMyAppointment: true
       });
     });
 
     return slots;
-  }, [engineerAppointments, empresaId, ownedAppointmentIds]);
+  }, [myAppointments]);
 
   // Handlers
   const handleDayClick = (date: Date) => {
@@ -134,52 +136,40 @@ export default function EmpresarioCalendarView({
   
   const handleViewMyAppointment = (appointment: Appointment) => {
     setSelectedAppointment(appointment);
+    setDayScheduleModalOpen(false); // Close daily schedule first
     setViewModalOpen(true);
   };
 
   // Custom cell renderer for empresario
   const renderDayContent = (date: Date, daySlots: TimeSlot[]) => {
-    // Filter only my appointments to show on grid (or show all occupied?)
-    // User requested: "click any day... modal list".
-    // "sino, va a estar en blanco con posibilidad de agendar" refers to THE MODAL list.
-    // The calendar grid itself can show existing appointments.
-    
     if (daySlots.length === 0) return null;
+
+    // Show ONLY My Appointments
+    const displaySlots = daySlots.slice(0, 2);
+    const remaining = daySlots.length - displaySlots.length;
 
     return (
       <div className="mt-1 space-y-1 pointer-events-none"> 
-        {/* pointer-events-none to let click pass through to day cell? 
-            No, validation: clicking appointment should open appointment view.
-            So pointer-events-auto for appointment buttons.
-        */}
-        {daySlots.map((slot, idx) => {
-          if (slot.isMyAppointment && slot.appointmentId) {
-            const appointment = myAppointments.find((apt) => apt.id === slot.appointmentId);
-            if (appointment) {
-              return (
-                <div key={idx} className="pointer-events-auto">
-                    <EmpresarioMyAppointmentCell
-                      appointment={appointment}
-                      slot={slot}
-                      onView={handleViewMyAppointment}
-                    />
-                </div>
-              );
-            }
+        {displaySlots.map((slot, idx) => {
+          const appointment = myAppointments.find((apt) => String(apt.id) === String(slot.appointmentId));
+          if (appointment) {
+            return (
+              <div key={idx} className="pointer-events-auto">
+                  <EmpresarioMyAppointmentCell
+                    appointment={appointment}
+                    slot={slot}
+                    onView={handleViewMyAppointment}
+                  />
+              </div>
+            );
           }
-          // Do not render "Occupied" cells for other companies on the main grid to keep it clean?
-          // Or render them small? User said "cuando se pulse en cualquier dia se abra una ventana...".
-          // If we show "Occupied", clicking it might be confusing if it doesn't open the daily modal.
-          // Let's render them but make sure they don't block clicks excessively or handle click to open modal?
-          // Actually, EmpresarioOccupiedCell is usually just a visual block.
-          // If I return simple div, it should be fine.
-          
-          return (
-             <div key={idx} className="pointer-events-auto">
-                <EmpresarioOccupiedCell slot={slot} />
-             </div>
-          );
+          return null;
         })}
+        {remaining > 0 && (
+            <div className="text-[9px] font-black text-blue-600 uppercase text-center py-1 bg-blue-50/50 rounded-lg border border-blue-100">
+                + {remaining} más
+            </div>
+        )}
       </div>
     );
   };
@@ -216,7 +206,7 @@ export default function EmpresarioCalendarView({
             onDateChange={setSelectedDate}
             // Add onDayClick handler
             onDayClick={handleDayClick}
-            slots={allSlots}
+            slots={mySlots}
             renderDayContent={renderDayContent}
           />
         </div>
@@ -238,6 +228,8 @@ export default function EmpresarioCalendarView({
         date={selectedDay}
         appointments={engineerAppointments} // Pass all appointments of the engineer to check availability
         onSelectSlot={handleSelectSlot}
+        onViewAppointment={handleViewMyAppointment}
+        ownedAppointmentIds={ownedAppointmentIds}
       />
 
       <CreateAppointmentModal

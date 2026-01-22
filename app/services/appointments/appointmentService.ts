@@ -1,4 +1,4 @@
-import { CreateAppointmentDTO, Appointment, AppointmentFilters } from '@/app/types';
+import { CreateAppointmentDTO, Appointment, AppointmentFilters, PaginatedResponse } from '@/app/types';
 import { authService } from '@/app/services/authService';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -89,7 +89,8 @@ export const appointmentService = {
             return [];
         }
 
-        return response.json();
+        const responseData = await response.json();
+        return Array.isArray(responseData) ? responseData : (responseData.data || []);
     },
 
     /**
@@ -115,7 +116,8 @@ export const appointmentService = {
             return [];
         }
 
-        return response.json();
+        const responseData = await response.json();
+        return Array.isArray(responseData) ? responseData : (responseData.data || []);
     },
 
     /**
@@ -166,15 +168,16 @@ export const appointmentService = {
             throw new Error('Error al obtener las citas del ingeniero asignado');
         }
 
-        return response.json();
+        const responseData = await response.json();
+        return Array.isArray(responseData) ? responseData : (responseData.data || []);
     },
 
     /**
      * Get my appointments as representative (Solo Companies)
      */
-    async getMyAppointments(): Promise<Appointment[]> {
+    async getMyAppointments(page = 1, limit = 10): Promise<PaginatedResponse<Appointment>> {
         const token = localStorage.getItem('token');
-        const url = `${API_URL}/appointments/my-appointments`;
+        const url = `${API_URL}/appointments/my-appointments?page=${page}&limit=${limit}`;
 
         const response = await fetch(url, {
             method: 'GET',
@@ -188,7 +191,7 @@ export const appointmentService = {
             if (response.status === 401) {
                 authService.handleUnauthorized();
             }
-            return [];
+            return { data: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0, hasNextPage: false, hasPreviousPage: false } };
         }
 
         return response.json();
@@ -197,7 +200,7 @@ export const appointmentService = {
     /**
      * Get all appointments (Admin) with optional filters
      */
-    async getAllAppointments(filters?: AppointmentFilters): Promise<Appointment[]> {
+    async getAllAppointments(filters?: AppointmentFilters): Promise<PaginatedResponse<Appointment>> {
         const token = localStorage.getItem('token');
         const params = new URLSearchParams();
         params.append('is_active', 'true');
@@ -207,6 +210,8 @@ export const appointmentService = {
             if (filters.tipo) params.append('appointmentType', filters.tipo);
             if (filters.fechaInicio) params.append('dateFrom', filters.fechaInicio.toISOString());
             if (filters.fechaFin) params.append('dateTo', filters.fechaFin.toISOString());
+            if (filters.page) params.append('page', filters.page.toString());
+            if (filters.limit) params.append('limit', filters.limit.toString());
         }
 
         const response = await fetch(`${API_URL}/appointments/?${params.toString()}`, {
@@ -221,7 +226,7 @@ export const appointmentService = {
             if (response.status === 401) {
                 authService.handleUnauthorized();
             }
-            return [];
+            return { data: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0, hasNextPage: false, hasPreviousPage: false } };
         }
 
         return response.json();

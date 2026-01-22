@@ -6,7 +6,7 @@ import { DashboardLayout } from '@/app/components/layout';
 import { AdminListView } from '@/app/components/admin';
 import { IngenieroCalendarView } from '@/app/components/ingeniero';
 import { EmpresarioCalendarView } from '@/app/components/empresario';
-import { UserRole, Appointment, AppointmentType, AppointmentStatus, TimeSlot, CreateAppointmentDTO, AppointmentFilters } from '@/app/types';
+import { UserRole, Appointment, AppointmentType, AppointmentStatus, TimeSlot, CreateAppointmentDTO, AppointmentFilters, PaginatedResponse } from '@/app/types';
 import { mapBackendRoleToFrontend } from '@/app/types/auth';
 import { appointmentService } from '@/app/services/appointments';
 import { authService } from '@/app/services/authService';
@@ -28,12 +28,14 @@ export default function GestionCitasPage() {
   const [allAppointments, setAllAppointments] = useState<Appointment[]>([]); // For counts
   const [engineerId, setEngineerId] = useState<string | null>(null);
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
+  const [paginationMeta, setPaginationMeta] = useState<PaginatedResponse<Appointment>['meta'] | undefined>(undefined);
   
   // Admin Filters
   const [adminFilters, setAdminFilters] = useState<{
     status: AppointmentStatus | 'all';
     type: AppointmentType | 'all';
-  }>({ status: 'all', type: 'all' });
+    page: number;
+  }>({ status: 'all', type: 'all', page: 1 });
 
   // Read user from localStorage on mount
   useEffect(() => {
@@ -72,49 +74,28 @@ export default function GestionCitasPage() {
         }
 
         if (currentUser.role === 'company') {
-             const data = await appointmentService.getCompanyEngineerAppointments();
-             setAppointments(data);
+             const response = await appointmentService.getCompanyEngineerAppointments();
+             setAppointments(Array.isArray(response) ? response : (response as any).data || []);
         } else if (currentUser.role === 'engineer') {
-             const data = await appointmentService.getAppointmentsByEngineer(engineerIdToUse);
-             setAppointments(data);
+             const response = await appointmentService.getAppointmentsByEngineer(engineerIdToUse);
+             setAppointments(Array.isArray(response) ? response : (response as any).data || []);
         } else if (currentUser.role === 'admin') {
-             // Admin sees all active appointments with filters
-             // Fetch ALL appointments first to get correct counts (if not already done or just always refresh to be safe)
-             // Optimization: Could fetch "stats" separately? 
-             // Simplest fix: Fetch all first. Then filter locally?
-             // User requested: "esos datos... no deberian de cambiar... el filtro debe mostrar cuantas de ese tipo hay en todo momento"
-             // This implies the COUNTS should be based on the TOTAL dataset, regardless of current filter.
-             
-             // Strategy: 
-             // 1. Fetch ALL appointments (base set)
-             // 2. Derive filtered list from base set locally? 
-             // Wait, user explicitly asked for backend filtering "endpoint de admin... para crear filtros de busqueda".
-             // If we use backend filtering, we only get filtered results. We can't count the others.
-             // UNLESS we make two calls: one for stats (or all), one for list.
-             // OR we just fetch ALL and filter Client-Side. 
-             // But user pushed for Backend params.
-             
-             // Compromise: 
-             // - Fetch ALL appointments initially (or in parallel) to get the "Counts".
-             // - Fetch FILTERED appointments for the list.
-             
-             // Let's do parallel fetch if filters are active.
-             // Actually, if we want counts based on "Status", we need the global counts.
-             
-             const filters: AppointmentFilters = {};
+             const filters: AppointmentFilters = {
+                page: adminFilters.page,
+                limit: 10
+             };
              if (adminFilters.status !== 'all') filters.estado = adminFilters.status;
              if (adminFilters.type !== 'all') filters.tipo = adminFilters.type;
              
-             // Fetch filtered list
-             const filteredDataPromise = appointmentService.getAllAppointments(filters);
+             // Fetch filtered list (paginated)
+             const filteredRes = await appointmentService.getAllAppointments(filters);
              
-             // Fetch all for counts (unfiltered) - only if we haven't or want to refresh
-             const allDataPromise = appointmentService.getAllAppointments({}); // Empty filters = all
+             // Fetch all for counts (unfiltered) - limit 1000 to get a good base for counts
+             const allRes = await appointmentService.getAllAppointments({ limit: 1000 });
              
-             const [filteredData, allData] = await Promise.all([filteredDataPromise, allDataPromise]);
-             
-             setAppointments(filteredData);
-             setAllAppointments(allData);
+             setAppointments(filteredRes.data);
+             setPaginationMeta(filteredRes.meta);
+             setAllAppointments(allRes.data);
         }
       } catch (error) {
         console.error('Error fetching appointments:', error);
@@ -152,13 +133,9 @@ export default function GestionCitasPage() {
     if (!currentUser) return;
 
     try {
-      // NOTE: location and other fields are sent to backend in DTO.
-      // Backend returns the created appointment.
       const newAppointment = await appointmentService.createAppointment({
         ...data,
-        // Ensure backend required fields are present if DTO optionality differs
         empresaId: currentUser.id,
-        // ingenieroId might be assigned by backend or passed from UI
       });
 
       setAppointments([...appointments, newAppointment]);
@@ -189,6 +166,7 @@ export default function GestionCitasPage() {
         return (
           <AdminListView
             appointments={appointments}
+            meta={paginationMeta}
             allAppointments={allAppointments}
             onDelete={handleDeleteAppointment}
             filters={adminFilters}
