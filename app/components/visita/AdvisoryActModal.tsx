@@ -43,6 +43,8 @@ export default function AdvisoryActModal({
   const [step, setStep] = useState<'form' | 'preview'>(initialStep === 'sign' ? 'form' : 'form');
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const [showSignatureSuccess, setShowSignatureSuccess] = useState(false);
   const sigPad = useRef<any>(null);
   const previewRef = useRef<HTMLDivElement>(null);
 
@@ -155,7 +157,10 @@ export default function AdvisoryActModal({
     const signatureData = sigPad.current?.getTrimmedCanvas().toDataURL('image/png');
     setFormData(prev => ({ ...prev, signature: signatureData }));
     setErrors(prev => ({...prev, signature: ''}));
-    alert('Firma capturada correctamente');
+    
+    // Mostrar feedback visual elegante en lugar de alert
+    setShowSignatureSuccess(true);
+    setTimeout(() => setShowSignatureSuccess(false), 3000);
   };
 
   const validateForm = () => {
@@ -245,19 +250,32 @@ export default function AdvisoryActModal({
       const pdfBlob = pdf.output('blob');
       const pdfFile = new File([pdfBlob], `${fileName}.pdf`, { type: 'application/pdf' });
       
-      await appointmentService.uploadAppointmentRecord(appointment.id, pdfFile, fileName);
+      const uploadRes = await appointmentService.uploadAppointmentRecord(appointment.id, pdfFile, fileName);
+      if (!uploadRes.success) {
+        setStatusError(uploadRes.error || 'Error al subir el acta');
+        setIsSaving(false);
+        const modalContent = document.querySelector('.max-h-\\[80vh\\]');
+        if (modalContent) modalContent.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
       
       const signaturePayload = {
         idAsesoria: formData.advisoryId,
         nombre: formData.representativeName
       };
-      await appointmentService.signAppointmentRecord(appointment.id, signaturePayload);
+      const signRes = await appointmentService.signAppointmentRecord(appointment.id, signaturePayload);
+      if (!signRes.success) {
+        setStatusError(signRes.error || 'Error al firmar el acta');
+        setIsSaving(false);
+        const modalContent = document.querySelector('.max-h-\\[80vh\\]');
+        if (modalContent) modalContent.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
 
-      alert('Acta guardada y firmada exitosamente');
       onClose();
     } catch (error: any) {
        console.error('ERROR DETALLADO - GUARDADO ACTA:', error);
-       alert('Error al guardar el acta: ' + (error?.message || 'Error desconocido'));
+       setStatusError('Error inesperado al procesar el documento');
     } finally {
       setIsSaving(false);
     }
@@ -271,6 +289,28 @@ export default function AdvisoryActModal({
       size="xl"
     >
       <div className="max-h-[80vh] overflow-y-auto px-1">
+        {statusError && (
+          <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-xl flex justify-between items-center animate-fade-in shadow-sm">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-red-700 font-bold uppercase tracking-tight">
+                  Error: {statusError}
+                </p>
+              </div>
+            </div>
+            <button onClick={() => setStatusError(null)} className="text-red-400 hover:text-red-600 transition-colors">
+              <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+        )}
+
         {step === 'form' ? (
           <div className="space-y-8 pb-10">
             {/* Header / Info Fija */}
@@ -519,6 +559,15 @@ export default function AdvisoryActModal({
                             <HiCheckCircle className="w-5 h-5" />
                         </button>
                     </div>
+
+                    {showSignatureSuccess && (
+                      <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center animate-fade-in z-20">
+                        <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-2">
+                          <HiCheckCircle className="w-8 h-8" />
+                        </div>
+                        <p className="text-xs font-black text-green-700 uppercase tracking-widest">Firma capturada</p>
+                      </div>
+                    )}
                  </div>
                  <p className="text-[10px] text-center text-gray-400 font-bold uppercase">EL ASIGNADO DE LA EMPRESA FIRMA CONFIRMANDO LA REALIZACIÓN DE LA ASESORÍA</p>
               </div>

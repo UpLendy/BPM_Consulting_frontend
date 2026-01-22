@@ -3,52 +3,69 @@ import { authService } from '@/app/services/authService';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
+async function getErrorMessage(response: Response, defaultMessage: string): Promise<string> {
+    if (response.status === 401) {
+        authService.handleUnauthorized();
+    }
+
+    let message = defaultMessage;
+    try {
+        const responseForText = response.clone();
+        const responseForJson = response.clone();
+
+        try {
+            const errorData = await responseForJson.json();
+            message = errorData.message || errorData.error || errorData.detail ||
+                (Array.isArray(errorData) ? errorData[0] : null) ||
+                (typeof errorData === 'object' ? JSON.stringify(errorData) : errorData);
+        } catch (e) {
+            const text = await responseForText.text();
+            if (text && text.length < 500) {
+                message = text;
+            }
+        }
+    } catch (error) {
+        console.error('Error al procesar la respuesta del servidor:', error);
+    }
+    return message;
+}
+
+export interface ServiceResponse<T = any> {
+    success: boolean;
+    data?: T;
+    error?: string;
+}
+
 export const appointmentService = {
     /**
      * Create a new appointment
-     * POST /api/v1/appointments/
      */
-    async createAppointment(data: CreateAppointmentDTO): Promise<Appointment> {
+    async createAppointment(data: CreateAppointmentDTO): Promise<ServiceResponse<Appointment>> {
         const token = localStorage.getItem('token');
-
-        const payload = {
-            description: data.description,
-            appointmentType: data.appointmentType,
-            date: data.date,
-            startTime: data.startTime,
-            endTime: data.endTime,
-            location: data.location
-        };
-
         const response = await fetch(`${API_URL}/appointments/`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify(payload),
+            body: JSON.stringify(data),
         });
 
         if (!response.ok) {
-            if (response.status === 401) {
-                authService.handleUnauthorized();
-            }
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.message || 'Error al crear la cita');
+            const error = await getErrorMessage(response, 'Error al crear la cita');
+            return { success: false, error };
         }
 
-        return response.json();
+        const result = await response.json();
+        return { success: true, data: result };
     },
 
     /**
      * Get a specific appointment by ID
-     * GET /api/v1/appointments/{id}
      */
-    async getAppointmentById(id: string): Promise<Appointment> {
+    async getAppointmentById(id: string): Promise<ServiceResponse<Appointment>> {
         const token = localStorage.getItem('token');
-        const url = `${API_URL}/appointments/${id}/`;
-
-        const response = await fetch(url, {
+        const response = await fetch(`${API_URL}/appointments/${id}/`, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
@@ -57,24 +74,20 @@ export const appointmentService = {
         });
 
         if (!response.ok) {
-            if (response.status === 401) {
-                authService.handleUnauthorized();
-            }
-            throw new Error('Error al obtener los detalles de la cita');
+            const error = await getErrorMessage(response, 'Error al obtener los detalles de la cita');
+            return { success: false, error };
         }
 
-        return response.json();
+        const result = await response.json();
+        return { success: true, data: result };
     },
 
     /**
      * Get appointments for a specific engineer
-     * GET /api/v1/appointments/engineer/{engineerId}
      */
     async getAppointmentsByEngineer(engineerId: string): Promise<Appointment[]> {
         const token = localStorage.getItem('token');
-        const url = `${API_URL}/appointments/engineer/${engineerId}`;
-
-        const response = await fetch(url, {
+        const response = await fetch(`${API_URL}/appointments/engineer/${engineerId}`, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
@@ -83,9 +96,7 @@ export const appointmentService = {
         });
 
         if (!response.ok) {
-            if (response.status === 401) {
-                authService.handleUnauthorized();
-            }
+            if (response.status === 401) authService.handleUnauthorized();
             return [];
         }
 
@@ -95,13 +106,10 @@ export const appointmentService = {
 
     /**
      * Get appointments for a specific company
-     * GET /api/v1/appointments/company/{companyId}
      */
     async getAppointmentsByCompany(companyId: string): Promise<Appointment[]> {
         const token = localStorage.getItem('token');
-        const url = `${API_URL}/appointments/company/${companyId}`;
-
-        const response = await fetch(url, {
+        const response = await fetch(`${API_URL}/appointments/company/${companyId}`, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
@@ -110,9 +118,7 @@ export const appointmentService = {
         });
 
         if (!response.ok) {
-            if (response.status === 401) {
-                authService.handleUnauthorized();
-            }
+            if (response.status === 401) authService.handleUnauthorized();
             return [];
         }
 
@@ -122,13 +128,10 @@ export const appointmentService = {
 
     /**
      * Get the last completed appointment for a company
-     * GET /api/v1/appointments/company/${companyId}/last
      */
     async getLastAppointmentByCompany(companyId: string): Promise<Appointment | null> {
         const token = localStorage.getItem('token');
-        const url = `${API_URL}/appointments/company/${companyId}/last-completed`;
-
-        const response = await fetch(url, {
+        const response = await fetch(`${API_URL}/appointments/company/${companyId}/last-completed`, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
@@ -137,9 +140,7 @@ export const appointmentService = {
         });
 
         if (!response.ok) {
-            if (response.status === 401) {
-                authService.handleUnauthorized();
-            }
+            if (response.status === 401) authService.handleUnauthorized();
             return null;
         }
 
@@ -151,9 +152,7 @@ export const appointmentService = {
      */
     async getCompanyEngineerAppointments(): Promise<Appointment[]> {
         const token = localStorage.getItem('token');
-        const url = `${API_URL}/appointments/my-company/engineer-appointments`;
-
-        const response = await fetch(url, {
+        const response = await fetch(`${API_URL}/appointments/my-company/engineer-appointments`, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
@@ -162,10 +161,8 @@ export const appointmentService = {
         });
 
         if (!response.ok) {
-            if (response.status === 401) {
-                authService.handleUnauthorized();
-            }
-            throw new Error('Error al obtener las citas del ingeniero asignado');
+            if (response.status === 401) authService.handleUnauthorized();
+            return [];
         }
 
         const responseData = await response.json();
@@ -173,32 +170,25 @@ export const appointmentService = {
     },
 
     /**
-     * Get my appointments as representative (Solo Companies)
+     * Get my appointments as representative
      */
     async getMyAppointments(page = 1, limit = 10): Promise<PaginatedResponse<Appointment>> {
         const token = localStorage.getItem('token');
-        const url = `${API_URL}/appointments/my-appointments?page=${page}&limit=${limit}`;
-
+        const url = `${API_URL}/appointments/my-appointments?page=${Math.floor(page)}&limit=${Math.floor(limit)}`;
         const response = await fetch(url, {
             method: 'GET',
-            headers: {
-                'Accept': 'application/json',
-                'Authorization': `Bearer ${token}`
-            }
+            headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}` }
         });
 
         if (!response.ok) {
-            if (response.status === 401) {
-                authService.handleUnauthorized();
-            }
+            if (response.status === 401) authService.handleUnauthorized();
             return { data: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0, hasNextPage: false, hasPreviousPage: false } };
         }
-
         return response.json();
     },
 
     /**
-     * Get all appointments (Admin) with optional filters
+     * Get all appointments (Admin)
      */
     async getAllAppointments(filters?: AppointmentFilters): Promise<PaginatedResponse<Appointment>> {
         const token = localStorage.getItem('token');
@@ -210,39 +200,27 @@ export const appointmentService = {
             if (filters.tipo) params.append('appointmentType', filters.tipo);
             if (filters.fechaInicio) params.append('dateFrom', filters.fechaInicio.toISOString());
             if (filters.fechaFin) params.append('dateTo', filters.fechaFin.toISOString());
-            if (filters.page) params.append('page', filters.page.toString());
-            if (filters.limit) params.append('limit', filters.limit.toString());
+            if (filters.page) params.append('page', Math.floor(filters.page).toString());
+            if (filters.limit) params.append('limit', Math.floor(filters.limit).toString());
         }
 
         const response = await fetch(`${API_URL}/appointments/?${params.toString()}`, {
             method: 'GET',
-            headers: {
-                'Accept': 'application/json',
-                'Authorization': `Bearer ${token}`
-            }
+            headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}` }
         });
 
         if (!response.ok) {
-            if (response.status === 401) {
-                authService.handleUnauthorized();
-            }
+            if (response.status === 401) authService.handleUnauthorized();
             return { data: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0, hasNextPage: false, hasPreviousPage: false } };
         }
-
         return response.json();
     },
 
     /**
      * Confirm appointment
      */
-    async confirmAppointment(id: string): Promise<Appointment> {
+    async confirmAppointment(id: string): Promise<ServiceResponse<Appointment>> {
         const token = localStorage.getItem('token');
-
-        const payload = {
-            status: 'CONFIRMADA',
-            engineerNotes: 'Asistencia confirmada por el ingeniero'
-        };
-
         const response = await fetch(`${API_URL}/appointments/${id}/status`, {
             method: 'PATCH',
             headers: {
@@ -250,30 +228,22 @@ export const appointmentService = {
                 'Accept': 'application/json',
                 'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({ status: 'CONFIRMADA', engineerNotes: 'Asistencia confirmada por el ingeniero' })
         });
 
         if (!response.ok) {
-            if (response.status === 401) {
-                authService.handleUnauthorized();
-            }
-            throw new Error('Error al confirmar la cita');
+            const error = await getErrorMessage(response, 'Error al confirmar la cita');
+            return { success: false, error };
         }
-
-        return response.json();
+        const result = await response.json();
+        return { success: true, data: result };
     },
 
     /**
      * Start appointment
      */
-    async startAppointment(id: string): Promise<Appointment> {
+    async startAppointment(id: string): Promise<ServiceResponse<Appointment>> {
         const token = localStorage.getItem('token');
-
-        const payload = {
-            status: 'EN_PROGRESO',
-            engineerNotes: 'Visita iniciada confirmada por el ingeniero'
-        };
-
         const response = await fetch(`${API_URL}/appointments/${id}/status`, {
             method: 'PATCH',
             headers: {
@@ -281,29 +251,22 @@ export const appointmentService = {
                 'Accept': 'application/json',
                 'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({ status: 'EN_PROGRESO', engineerNotes: 'Visita iniciada confirmada por el ingeniero' })
         });
 
         if (!response.ok) {
-            if (response.status === 401) {
-                authService.handleUnauthorized();
-            }
-            throw new Error('Error al iniciar la cita');
+            const error = await getErrorMessage(response, 'Error al iniciar la cita');
+            return { success: false, error };
         }
-
-        return response.json();
+        const result = await response.json();
+        return { success: true, data: result };
     },
+
     /**
      * Complete appointment
      */
-    async completeAppointment(id: string): Promise<Appointment> {
+    async completeAppointment(id: string): Promise<ServiceResponse<Appointment>> {
         const token = localStorage.getItem('token');
-
-        const payload = {
-            status: 'COMPLETADA',
-            engineerNotes: 'Visita finalizada y acta cargada'
-        };
-
         const response = await fetch(`${API_URL}/appointments/${id}/status`, {
             method: 'PATCH',
             headers: {
@@ -311,25 +274,22 @@ export const appointmentService = {
                 'Accept': 'application/json',
                 'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({ status: 'COMPLETADA', engineerNotes: 'Visita finalizada y acta cargada' })
         });
 
         if (!response.ok) {
-            if (response.status === 401) {
-                authService.handleUnauthorized();
-            }
-            throw new Error('Error al finalizar la cita');
+            const error = await getErrorMessage(response, 'Error al finalizar la cita');
+            return { success: false, error };
         }
-
-        return response.json();
+        const result = await response.json();
+        return { success: true, data: result };
     },
 
     /**
      * Save visit registration record
      */
-    async saveVisitRecord(id: string, recordData: any): Promise<any> {
+    async saveVisitRecord(id: string, recordData: any): Promise<ServiceResponse> {
         const token = localStorage.getItem('token');
-
         const response = await fetch(`${API_URL}/appointments/${id}/evaluation`, {
             method: 'POST',
             headers: {
@@ -341,82 +301,55 @@ export const appointmentService = {
         });
 
         if (!response.ok) {
-            if (response.status === 401) {
-                authService.handleUnauthorized();
-            }
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.message || 'Error al guardar el registro de visita');
+            const error = await getErrorMessage(response, 'Error al guardar el registro de visita');
+            return { success: false, error };
         }
-
-        return response.json();
+        const result = await response.json();
+        return { success: true, data: result };
     },
 
     /**
-     * Get visit evaluation (formData and successRate)
+     * Get visit evaluation
      */
     async getVisitEvaluation(id: string): Promise<any> {
         const token = localStorage.getItem('token');
-        const url = `${API_URL}/appointments/${id}/evaluation/`;
-
-        const response = await fetch(url, {
+        const response = await fetch(`${API_URL}/appointments/${id}/evaluation/`, {
             method: 'GET',
-            headers: {
-                'Accept': 'application/json',
-                'Authorization': `Bearer ${token}`
-            }
+            headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}` }
         });
-
-        if (!response.ok) {
-            if (response.status === 401) {
-                authService.handleUnauthorized();
-            }
-            return null;
-        }
-
+        if (!response.ok) return null;
         return response.json();
     },
 
     /**
      * Upload appointment record file (PDF)
-     * POST /api/v1/appointments/{id}/record/upload
      */
-    async uploadAppointmentRecord(id: string, file: Blob | File, fileName: string): Promise<any> {
+    async uploadAppointmentRecord(id: string, file: Blob | File, fileName: string): Promise<ServiceResponse> {
         const token = localStorage.getItem('token');
-        const url = `${API_URL}/appointments/${id}/record/upload/`;
-
         const formData = new FormData();
-        // Explicitly include the filename in the append call for better backend compatibility
         formData.append('file', file, fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`);
         formData.append('fileName', fileName);
 
-        const response = await fetch(url, {
+        const response = await fetch(`${API_URL}/appointments/${id}/record/upload/`, {
             method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`
-            },
+            headers: { 'Authorization': `Bearer ${token}` },
             body: formData
         });
 
         if (!response.ok) {
-            if (response.status === 401) {
-                authService.handleUnauthorized();
-            }
-            const error = await response.json().catch(() => ({}));
-            throw new Error(error.message || 'Error al subir el acta');
+            const error = await getErrorMessage(response, 'Error al subir el acta');
+            return { success: false, error };
         }
-
-        return response.json();
+        const result = await response.json();
+        return { success: true, data: result };
     },
 
     /**
-     * Sign appointment record (Finalize)
-     * PATCH /api/v1/appointments/{id}/record/sign
+     * Sign appointment record
      */
-    async signAppointmentRecord(id: string, signatureData: any): Promise<any> {
+    async signAppointmentRecord(id: string, signatureData: any): Promise<ServiceResponse> {
         const token = localStorage.getItem('token');
-        const url = `${API_URL}/appointments/${id}/record/sign/`;
-
-        const response = await fetch(url, {
+        const response = await fetch(`${API_URL}/appointments/${id}/record/sign/`, {
             method: 'PATCH',
             headers: {
                 'Content-Type': 'application/json',
@@ -426,13 +359,32 @@ export const appointmentService = {
         });
 
         if (!response.ok) {
-            if (response.status === 401) {
-                authService.handleUnauthorized();
-            }
-            const error = await response.json().catch(() => ({}));
-            throw new Error(error.message || 'Error al firmar el acta');
+            const error = await getErrorMessage(response, 'Error al firmar el acta');
+            return { success: false, error };
         }
+        const result = await response.json();
+        return { success: true, data: result };
+    },
 
-        return response.json();
+    /**
+     * Create appointment validation
+     */
+    async createAppointmentValidation(id: string, notes = ''): Promise<ServiceResponse> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/appointments/${id}/validation/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ notes })
+        });
+
+        if (!response.ok) {
+            const error = await getErrorMessage(response, 'Error al validar la cita');
+            return { success: false, error };
+        }
+        const result = await response.json();
+        return { success: true, data: result };
     }
 };

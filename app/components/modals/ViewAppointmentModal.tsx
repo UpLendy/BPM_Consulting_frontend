@@ -18,6 +18,7 @@ export default function ViewAppointmentModal({
 }: ViewAppointmentModalProps) {
   const [userRole, setUserRole] = useState<string>('');
   const [loading, setLoading] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
@@ -48,12 +49,13 @@ export default function ViewAppointmentModal({
     
     try {
       setLoading(true);
+      setStatusError(null);
       await appointmentService.confirmAppointment(appointment.id);
       // Refresh page to show updated status
       window.location.reload();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error confirming appointment:', error);
-      alert('Error al confirmar la cita');
+      setStatusError(error.message || 'Error al confirmar la cita');
     } finally {
       setLoading(false);
     }
@@ -67,11 +69,12 @@ export default function ViewAppointmentModal({
     if (!appointment) return;
     try {
       setLoading(true);
+      setStatusError(null);
       await appointmentService.startAppointment(appointment.id);
       window.location.reload();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error starting appointment:', error);
-      alert('Error al iniciar la cita');
+      setStatusError(error.message || 'Error al iniciar la cita');
     } finally {
       setLoading(false);
     }
@@ -81,6 +84,30 @@ export default function ViewAppointmentModal({
     (userRole === 'ingeniero' || userRole === 'engineer') &&
     appointment.status === AppointmentStatus.CONFIRMADA;
 
+  const handleComplete = async () => {
+    if (!appointment) return;
+    
+    setLoading(true);
+    setStatusError(null);
+    
+    const response = await appointmentService.completeAppointment(appointment.id);
+    
+    if (response.success) {
+      window.location.reload();
+    } else {
+      setStatusError(response.error || 'Error al finalizar la cita');
+      // Asegurarse de que el banner de error sea visible
+      const modalContent = document.querySelector('.max-h-\\[85vh\\]');
+      if (modalContent) modalContent.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    
+    setLoading(false);
+  };
+
+  const showCompleteButton =
+    (userRole === 'ingeniero' || userRole === 'engineer') &&
+    appointment.status === AppointmentStatus.EN_PROGRESO;
+
   return (
     <BaseModal
       isOpen={isOpen}
@@ -89,6 +116,37 @@ export default function ViewAppointmentModal({
       size="lg"
     >
       <div className="space-y-6">
+        {/* Error Banner */}
+        {statusError && (
+          <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-md animate-fade-in">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-red-700 font-medium">
+                  {statusError}
+                </p>
+              </div>
+              <div className="ml-auto pl-3">
+                <div className="-mx-1.5 -my-1.5">
+                  <button
+                    onClick={() => setStatusError(null)}
+                    className="inline-flex bg-red-50 rounded-md p-1.5 text-red-500 hover:bg-red-100 focus:outline-none"
+                  >
+                    <span className="sr-only">Dismiss</span>
+                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header with Type and Status */}
         <div className="flex items-center justify-between">
           <AppointmentTypeIcon type={appointment.appointmentType} />
@@ -195,6 +253,28 @@ export default function ViewAppointmentModal({
               )}
             </button>
           )}
+
+          {/* Complete Appointment Button (Visible if EN_PROGRESO) */}
+          {showCompleteButton && (
+            <button
+              onClick={handleComplete}
+              disabled={loading}
+              className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors disabled:bg-purple-400 flex items-center gap-2"
+            >
+              {loading ? (
+                <>Wait...</>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Finalizar Visita
+                </>
+              )}
+            </button>
+          )}
+
+          
         </div>
       </div>
     </BaseModal>
