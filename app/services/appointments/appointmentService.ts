@@ -288,6 +288,36 @@ export const appointmentService = {
 
         return response.json();
     },
+    /**
+     * Complete appointment
+     */
+    async completeAppointment(id: string): Promise<Appointment> {
+        const token = localStorage.getItem('token');
+
+        const payload = {
+            status: 'COMPLETADA',
+            engineerNotes: 'Visita finalizada y acta cargada'
+        };
+
+        const response = await fetch(`${API_URL}/appointments/${id}/status`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                authService.handleUnauthorized();
+            }
+            throw new Error('Error al finalizar la cita');
+        }
+
+        return response.json();
+    },
 
     /**
      * Save visit registration record
@@ -336,6 +366,66 @@ export const appointmentService = {
                 authService.handleUnauthorized();
             }
             return null;
+        }
+
+        return response.json();
+    },
+
+    /**
+     * Upload appointment record file (PDF)
+     * POST /api/v1/appointments/{id}/record/upload
+     */
+    async uploadAppointmentRecord(id: string, file: Blob | File, fileName: string): Promise<any> {
+        const token = localStorage.getItem('token');
+        const url = `${API_URL}/appointments/${id}/record/upload/`;
+
+        const formData = new FormData();
+        // Explicitly include the filename in the append call for better backend compatibility
+        formData.append('file', file, fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`);
+        formData.append('fileName', fileName);
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
+            body: formData
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                authService.handleUnauthorized();
+            }
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.message || 'Error al subir el acta');
+        }
+
+        return response.json();
+    },
+
+    /**
+     * Sign appointment record (Finalize)
+     * PATCH /api/v1/appointments/{id}/record/sign
+     */
+    async signAppointmentRecord(id: string, signatureData: any): Promise<any> {
+        const token = localStorage.getItem('token');
+        const url = `${API_URL}/appointments/${id}/record/sign/`;
+
+        const response = await fetch(url, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ signature: signatureData })
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                authService.handleUnauthorized();
+            }
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.message || 'Error al firmar el acta');
         }
 
         return response.json();
