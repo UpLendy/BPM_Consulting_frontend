@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import BaseModal from '@/app/components/modals/BaseModal';
 import { Appointment } from '@/app/types';
 import { appointmentService } from '@/app/services/appointments/appointmentService';
+import { HiCheckCircle } from 'react-icons/hi';
 
 interface VisitRegistrationModalProps {
   isOpen: boolean;
@@ -329,6 +330,8 @@ export default function VisitRegistrationModal({
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingLastVisit, setIsLoadingLastVisit] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Load user info and fetch last visit data
   useEffect(() => {
@@ -352,8 +355,9 @@ export default function VisitRegistrationModal({
           setIsLoadingLastVisit(true);
           
           // 1. Fetch full appointment details to ensure we have the company ID
-          const fullApt = await appointmentService.getAppointmentById(appointment.id);
-          const foundCompanyId = fullApt.empresaId || (fullApt as any).empresa_id || (fullApt as any).companyId;
+          const response = await appointmentService.getAppointmentById(appointment.id);
+          const fullApt = response.data;
+          const foundCompanyId = fullApt?.empresaId || (fullApt as any)?.empresa_id || (fullApt as any)?.companyId;
           
           if (foundCompanyId) {
             console.log('DEBUG - Company ID identified:', foundCompanyId);
@@ -429,6 +433,7 @@ export default function VisitRegistrationModal({
   const handleSave = async () => {
     try {
       setIsSaving(true);
+      setSaveError(null);
       const successRate = calculateTotalSuccessRate();
       
       const payload = {
@@ -436,13 +441,22 @@ export default function VisitRegistrationModal({
         formData: formData
       };
       
-      await appointmentService.saveVisitRecord(appointment.id, payload);
+      const response = await appointmentService.saveVisitRecord(appointment.id, payload);
 
-      alert('Registro guardado exitosamente');
-      onClose();
+      if (response.success) {
+        setIsSuccess(true);
+        // Esperamos un momento para que el usuario vea el éxito antes de cerrar
+        setTimeout(() => {
+          setIsSuccess(false);
+          setShowConfirmation(false);
+          onClose();
+        }, 2000);
+      } else {
+        setSaveError(response.error || 'Error al guardar el registro');
+      }
     } catch (error) {
       console.error(error);
-      alert('Error al guardar el registro');
+      setSaveError('Ocurrió un error inesperado al guardar');
     } finally {
       setIsSaving(false);
     }
@@ -644,7 +658,23 @@ export default function VisitRegistrationModal({
                     </div>
                 </div>
                 
-                <div className="flex-1 overflow-y-auto p-6">
+                <div className="flex-1 overflow-y-auto p-6 relative">
+                    {/* Success Overlay inside the confirmation modal */}
+                    {isSuccess && (
+                      <div className="absolute inset-0 z-50 bg-white/95 flex flex-col items-center justify-center animate-fade-in backdrop-blur-sm">
+                        <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-4">
+                          <HiCheckCircle className="w-12 h-12" />
+                        </div>
+                        <h4 className="text-2xl font-black text-green-900 uppercase">¡Guardado con éxito!</h4>
+                        <p className="text-green-700 font-medium">El registro se ha procesado correctamente.</p>
+                      </div>
+                    )}
+
+                    {saveError && (
+                      <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded-xl animate-fade-in">
+                        <p className="text-sm text-red-700 font-bold">Error: {saveError}</p>
+                      </div>
+                    )}
                     <div className="grid grid-cols-2 gap-4 mb-6">
                         <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
                             <span className="text-xs text-blue-600 font-bold uppercase block">Puntaje Total</span>
