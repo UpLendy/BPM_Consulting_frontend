@@ -8,6 +8,8 @@ import { authService } from '@/app/services/authService';
 import { Appointment } from '@/app/types';
 import { HiDocumentText, HiPencilAlt } from 'react-icons/hi';
 import AdvisoryActModal from '@/app/components/visita/AdvisoryActModal';
+import BaseModal from '@/app/components/modals/BaseModal';
+import { HiExclamation, HiCheckCircle } from 'react-icons/hi';
 
 export default function GenerarActaPage() {
   const router = useRouter();
@@ -16,6 +18,9 @@ export default function GenerarActaPage() {
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [activeModal, setActiveModal] = useState<'act' | 'sign' | null>(null);
   const [finishing, setFinishing] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [idToFinalize, setIdToFinalize] = useState<string | null>(null);
 
   const fetchAppointments = async () => {
     try {
@@ -42,20 +47,32 @@ export default function GenerarActaPage() {
     fetchAppointments();
   }, [router]);
 
-  const handleFinalizeAppointment = async (id: string) => {
-    if (!confirm('¿Estás seguro de que deseas finalizar esta cita? Asegúrate de haber guardado el acta primero.')) return;
+  const handleFinalizeAppointment = (id: string) => {
+    setIdToFinalize(id);
+    setShowConfirmModal(true);
+  };
+
+  const confirmFinalize = async () => {
+    if (!idToFinalize) return;
     
-    try {
-      setFinishing(id);
-      await appointmentService.completeAppointment(id);
-      alert('Visita finalizada exitosamente');
+    setShowConfirmModal(false);
+    setFinishing(idToFinalize);
+    setError(null);
+    
+    const response = await appointmentService.completeAppointment(idToFinalize);
+    
+    if (response.success) {
+      // Llamar a la validación obligatoriamente después de completar
+      await appointmentService.createAppointmentValidation(idToFinalize);
       fetchAppointments();
-    } catch (error) {
-      console.error('Error finalizing appointment:', error);
-      alert('Error al finalizar la cita');
-    } finally {
-      setFinishing(null);
+    } else {
+      setError(response.error || 'Error al finalizar la cita');
+      // Scroll to top to see error
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
+    
+    setFinishing(null);
+    setIdToFinalize(null);
   };
 
   return (
@@ -67,6 +84,28 @@ export default function GenerarActaPage() {
             Aquí podrás generar el acta de la visita que acabas de realizar
           </p>
         </div>
+        
+        {error && (
+          <div className="mb-8 bg-red-50 border-l-4 border-red-500 p-4 rounded-xl flex justify-between items-center animate-fade-in shadow-sm">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-red-700 font-bold uppercase tracking-tight">
+                  Atención: {error}
+                </p>
+              </div>
+            </div>
+            <button onClick={() => setError(null)} className="text-red-400 hover:text-red-600 transition-colors">
+              <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+        )}
 
         {loading ? (
           <div className="flex justify-center py-20">
@@ -128,6 +167,38 @@ export default function GenerarActaPage() {
             appointment={selectedAppointment}
           />
         )}
+
+        {/* Modal de Confirmación Personalizado */}
+        <BaseModal
+          isOpen={showConfirmModal}
+          onClose={() => setShowConfirmModal(false)}
+          title="Confirmar Finalización"
+          size="sm"
+        >
+          <div className="flex flex-col items-center text-center py-4">
+            <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mb-4">
+              <HiExclamation className="w-10 h-10" />
+            </div>
+            <h3 className="text-xl font-black text-gray-900 mb-2 uppercase tracking-tight">¿Estás seguro?</h3>
+            <p className="text-gray-500 text-sm mb-8 leading-relaxed">
+              Deseas finalizar esta cita. Asegúrate de haber <strong>guardado el acta</strong> primero, ya que esta acción no se puede deshacer.
+            </p>
+            <div className="flex gap-3 w-full">
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="flex-1 px-4 py-3 bg-gray-100 text-gray-600 font-bold rounded-2xl hover:bg-gray-200 transition-all uppercase text-xs"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmFinalize}
+                className="flex-1 px-4 py-3 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 shadow-lg shadow-emerald-900/20 transition-all uppercase text-xs"
+              >
+                Sí, finalizar
+              </button>
+            </div>
+          </div>
+        </BaseModal>
       </div>
     </DashboardLayout>
   );
