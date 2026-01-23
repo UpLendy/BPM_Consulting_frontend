@@ -34,13 +34,18 @@ export default function RegistroVisitaPage() {
 
         // Fetch appointments for this engineer
         // User requested to list them similar to admin view but for the engineer
-        const data = await appointmentService.getAppointmentsByEngineer(engineerId);
+        const response = await appointmentService.getAppointmentsByEngineer(engineerId);
         
         // Filter? User mentioned query params for PROGRAMADA/ASESORIA in the request,
         // but also said "listar todas...". Let's show all active ones for now or sort by date.
         // Let's filter client-side for active/relevant ones if needed. 
         // Showing all for visibility as requested.
-        setAppointments(data);
+        if (response.success && response.data) {
+          setAppointments(response.data);
+        } else {
+          console.error('Failed to fetch appointments:', response.error);
+          setAppointments([]);
+        }
       } catch (error) {
         console.error('Error fetching appointments:', error);
       } finally {
@@ -86,7 +91,6 @@ export default function RegistroVisitaPage() {
                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium 
                         ${apt.status === 'PROGRAMADA' ? 'bg-blue-100 text-blue-700' : 
                           apt.status === 'CONFIRMADA' ? 'bg-green-100 text-green-700' :
-                          apt.status === 'EN_PROGRESO' ? 'bg-purple-100 text-purple-700' :
                           'bg-gray-100 text-gray-700'}`}>
                          {apt.status}
                        </span>

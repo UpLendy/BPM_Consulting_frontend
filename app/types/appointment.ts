@@ -83,3 +83,23 @@ export interface PaginatedResponse<T> {
         hasPreviousPage: boolean;
     };
 }
+
+/**
+ * Appointment Validation structure
+ */
+export interface AppointmentValidation {
+    id: string;
+    appointmentId: string;
+    status: string;
+    is_active: boolean;
+    createdAt: string;
+    updatedAt: string;
+    documentsCount: number;
+    approvedDocumentsCount: number;
+    createdBy: string;
+    createdByName: string;
+    reviewedBy: string;
+    reviewedByName: string;
+    reviewedAt: string;
+    message: string;
+}
