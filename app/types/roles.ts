@@ -13,7 +13,7 @@ export enum UserRole {
 export enum AppointmentStatus {
     PROGRAMADA = 'PROGRAMADA',
     CONFIRMADA = 'CONFIRMADA',
-    EN_PROGRESO = 'EN_PROGRESO',
+    EN_REVISION = 'EN_REVISION',
     COMPLETADA = 'COMPLETADA',
     CANCELADA = 'CANCELADA'
 }

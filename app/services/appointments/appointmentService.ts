@@ -85,7 +85,7 @@ export const appointmentService = {
     /**
      * Get appointments for a specific engineer
      */
-    async getAppointmentsByEngineer(engineerId: string): Promise<Appointment[]> {
+    async getAppointmentsByEngineer(engineerId: string): Promise<ServiceResponse<Appointment[]>> {
         const token = localStorage.getItem('token');
         const response = await fetch(`${API_URL}/appointments/engineer/${engineerId}`, {
             method: 'GET',
@@ -96,18 +96,19 @@ export const appointmentService = {
         });
 
         if (!response.ok) {
-            if (response.status === 401) authService.handleUnauthorized();
-            return [];
+            const error = await getErrorMessage(response, 'Error al obtener las citas del ingeniero');
+            return { success: false, error };
         }
 
         const responseData = await response.json();
-        return Array.isArray(responseData) ? responseData : (responseData.data || []);
+        const data = Array.isArray(responseData) ? responseData : (responseData.data || []);
+        return { success: true, data };
     },
 
     /**
      * Get appointments for a specific company
      */
-    async getAppointmentsByCompany(companyId: string): Promise<Appointment[]> {
+    async getAppointmentsByCompany(companyId: string): Promise<ServiceResponse<Appointment[]>> {
         const token = localStorage.getItem('token');
         const response = await fetch(`${API_URL}/appointments/company/${companyId}`, {
             method: 'GET',
@@ -118,12 +119,13 @@ export const appointmentService = {
         });
 
         if (!response.ok) {
-            if (response.status === 401) authService.handleUnauthorized();
-            return [];
+            const error = await getErrorMessage(response, 'Error al obtener las citas de la empresa');
+            return { success: false, error };
         }
 
         const responseData = await response.json();
-        return Array.isArray(responseData) ? responseData : (responseData.data || []);
+        const data = Array.isArray(responseData) ? responseData : (responseData.data || []);
+        return { success: true, data };
     },
 
     /**
@@ -172,10 +174,18 @@ export const appointmentService = {
     /**
      * Get my appointments as representative
      */
-    async getMyAppointments(page = 1, limit = 10): Promise<PaginatedResponse<Appointment>> {
+    async getMyAppointments(filters?: { page?: number; limit?: number }): Promise<PaginatedResponse<Appointment>> {
         const token = localStorage.getItem('token');
-        const url = `${API_URL}/appointments/my-appointments?page=${Math.floor(page)}&limit=${Math.floor(limit)}`;
-        const response = await fetch(url, {
+
+        const params = new URLSearchParams();
+
+        // Only add pagination params if explicitly provided
+        if (filters) {
+            if (filters.page) params.append('page', Math.floor(filters.page).toString());
+            if (filters.limit) params.append('limit', Math.floor(filters.limit).toString());
+        }
+
+        const response = await fetch(`${API_URL}/appointments/my-appointments?${params.toString()}`, {
             method: 'GET',
             headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}` }
         });
@@ -193,14 +203,17 @@ export const appointmentService = {
     async getAllAppointments(filters?: AppointmentFilters): Promise<PaginatedResponse<Appointment>> {
         const token = localStorage.getItem('token');
         const params = new URLSearchParams();
-        params.append('is_active', 'true');
+        // params.append('is_active', 'true');
 
         if (filters) {
             if (filters.estado) params.append('status', filters.estado);
-            if (filters.tipo) params.append('appointmentType', filters.tipo);
-            if (filters.fechaInicio) params.append('dateFrom', filters.fechaInicio.toISOString());
-            if (filters.fechaFin) params.append('dateTo', filters.fechaFin.toISOString());
+            if (filters.tipo) params.append('appointment_type', filters.tipo);
+            if (filters.empresaId) params.append('company_id', filters.empresaId);
+            if (filters.ingenieroId) params.append('engineer_id', filters.ingenieroId);
+            if (filters.fechaInicio) params.append('date_from', filters.fechaInicio.toISOString());
+            if (filters.fechaFin) params.append('date_to', filters.fechaFin.toISOString());
             if (filters.page) params.append('page', Math.floor(filters.page).toString());
+            // Limit removal handled in page.tsx calling side for now, but good to keep support here if backend fixed or integer parsing added
             if (filters.limit) params.append('limit', Math.floor(filters.limit).toString());
         }
 
@@ -384,6 +397,238 @@ export const appointmentService = {
             const error = await getErrorMessage(response, 'Error al validar la cita');
             return { success: false, error };
         }
+        const result = await response.json();
+        return { success: true, data: result };
+    },
+
+    /**
+     * Get appointment validation details
+     */
+    async getAppointmentValidation(id: string): Promise<ServiceResponse> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/appointments/${id}/validation/`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            const error = await getErrorMessage(response, 'Error al obtener la validación');
+            return { success: false, error };
+        }
+        const result = await response.json();
+        return { success: true, data: result };
+    },
+
+    /**
+     * Upload validation document
+     */
+    async uploadValidationDocument(validationId: string, file: File, documentType = 'OTRO'): Promise<ServiceResponse> {
+        const token = localStorage.getItem('token');
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('documentType', documentType);
+        // displayName is optional and empty per requirements
+        formData.append('displayName', '');
+
+        // Note: The endpoint provided is post/api/v1/validations/{validationId}/documents/
+        // Assuming API_URL is the base URL (e.g. http://localhost:8000/api/v1 or similar). 
+        // If API_URL includes /api/v1, we just append /validations...
+        // Based on existing code: `${API_URL}/appointments/...` checks out. 
+        // We will assume validations is a sibling to appointments or similar path structure.
+        // User specified: post/api/v1/validations/{validationId}/documents/
+        // If API_URL is ".../api/v1", then we use `${API_URL}/validations/...`
+
+        const response = await fetch(`${API_URL}/validations/${validationId}/documents/`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
+            body: formData
+        });
+
+        if (!response.ok) {
+            const error = await getErrorMessage(response, 'Error al subir el documento');
+            return { success: false, error };
+        }
+
+        const result = await response.json();
+        return { success: true, data: result };
+    },
+
+    /**
+     * Get all validations (Admin)
+     */
+    async getAllValidations(filters?: {
+        page?: number;
+        limit?: number;
+        status?: string;
+        is_active?: boolean;
+        dateFrom?: string;
+        dateTo?: string;
+        orderBy?: string;
+        orderDir?: string;
+    }): Promise<ServiceResponse> {
+        const token = localStorage.getItem('token');
+        const params = new URLSearchParams();
+
+        if (filters) {
+            if (filters.page) params.append('page', filters.page.toString());
+            if (filters.limit) params.append('limit', filters.limit.toString());
+            if (filters.status) params.append('status', filters.status);
+            if (filters.is_active !== undefined) params.append('is_active', filters.is_active.toString());
+            if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
+            if (filters.dateTo) params.append('dateTo', filters.dateTo);
+            if (filters.orderBy) params.append('orderBy', filters.orderBy);
+            if (filters.orderDir) params.append('orderDir', filters.orderDir);
+        }
+
+        const response = await fetch(`${API_URL}/validations/?${params.toString()}`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            const error = await getErrorMessage(response, 'Error al obtener las validaciones');
+            return { success: false, error };
+        }
+
+        const result = await response.json();
+        return { success: true, data: result };
+    },
+
+    /**
+     * Update validation status
+     */
+    async updateValidationStatus(appointmentId: string, status: string): Promise<ServiceResponse> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/appointments/${appointmentId}/validation/status`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                status: status,
+                reviewNotes: "",
+                rejectionReason: ""
+            })
+        });
+
+        if (!response.ok) {
+            const error = await getErrorMessage(response, 'Error al actualizar el estado de la validación');
+            return { success: false, error };
+        }
+        const result = await response.json();
+        return { success: true, data: result };
+    },
+
+    /**
+     * Get documents for a validation (Re-added for Admin View)
+     */
+    async getValidationDocuments(validationId: string): Promise<ServiceResponse<any[]>> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/validations/${validationId}/documents/`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            const error = await getErrorMessage(response, 'Error al obtener documentos');
+            return { success: false, error };
+        }
+
+        const result = await response.json();
+        // Check for common array properties if result is an object
+        const data = Array.isArray(result)
+            ? result
+            : (result.data || result.documents || result.files || []);
+        return { success: true, data };
+    },
+
+    /**
+     * Get document preview URL
+     */
+    async getDocumentPreview(validationId: string, documentId: string): Promise<ServiceResponse<{ url: string; fileName: string; mimeType: string; }>> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/validations/${validationId}/documents/${documentId}/preview`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            const error = await getErrorMessage(response, 'Error al obtener previsualización');
+            return { success: false, error };
+        }
+
+        const result = await response.json();
+        return { success: true, data: result };
+    },
+
+    /**
+     * Review a document (Approve/Reject)
+     */
+    async reviewDocument(
+        validationId: string,
+        documentId: string,
+        data: { status: string; reviewNotes?: string; rejectionReason?: string }
+    ): Promise<ServiceResponse> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/validations/${validationId}/documents/${documentId}/review`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                status: data.status,
+                reviewNotes: data.reviewNotes || "",
+                rejectionReason: data.rejectionReason || ""
+            })
+        });
+
+        if (!response.ok) {
+            const error = await getErrorMessage(response, 'Error al revisar el documento');
+            return { success: false, error };
+        }
+
+        const result = await response.json();
+        return { success: true, data: result };
+    },
+
+    async replaceDocument(validationId: string, documentId: string, file: File): Promise<ServiceResponse> {
+        const token = localStorage.getItem('token');
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('displayName', file.name);
+        formData.append('documentType', 'OTRO');
+
+        const response = await fetch(`${API_URL}/validations/${validationId}/documents/${documentId}/replace`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
+            body: formData
+        });
+
+        if (!response.ok) {
+            const error = await getErrorMessage(response, 'Error al reemplazar el documento');
+            return { success: false, error };
+        }
+
         const result = await response.json();
         return { success: true, data: result };
     }
