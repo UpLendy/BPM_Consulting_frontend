@@ -15,7 +15,8 @@ import { Appointment, AppointmentStatus, AppointmentType, PaginatedResponse } fr
 interface AdminListViewProps {
   appointments: Appointment[];
   meta?: PaginatedResponse<Appointment>['meta'];
-  allAppointments?: Appointment[]; // Full list for counts
+  allAppointments?: Appointment[]; // Full list for counts (Legacy)
+  globalCounts?: any; // New global stats
   onDelete?: (appointmentId: string) => void;
   filters?: {
       status: AppointmentStatus | 'all';
@@ -29,6 +30,7 @@ export default function AdminListView({
   appointments,
   meta,
   allAppointments = [],
+  globalCounts,
   onDelete,
   filters = { status: 'all', type: 'all', page: 1 },
   onFilterChange
@@ -60,6 +62,8 @@ export default function AdminListView({
 
   // Calculate counts for filters (Based on ALL appointments, so they don't change with filters)
   const appointmentCounts = useMemo(() => {
+    if (globalCounts) return globalCounts;
+
     const dataSource = allAppointments.length > 0 ? allAppointments : appointments;
     return {
       all: dataSource.length,
@@ -72,7 +76,7 @@ export default function AdminListView({
       auditoria: dataSource.filter((a) => a.appointmentType === AppointmentType.AUDITORIA).length,
       seguimiento: dataSource.filter((a) => a.appointmentType === AppointmentType.SEGUIMIENTO).length
     };
-  }, [allAppointments, appointments]);
+  }, [allAppointments, appointments, globalCounts]);
 
   const handleStatusChange = (status: AppointmentStatus | 'all') => {
       if (onFilterChange) onFilterChange({ ...filters, status });

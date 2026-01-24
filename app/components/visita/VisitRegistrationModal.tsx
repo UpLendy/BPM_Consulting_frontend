@@ -10,6 +10,7 @@ interface VisitRegistrationModalProps {
   isOpen: boolean;
   onClose: () => void;
   appointment: Appointment;
+  readOnly?: boolean;
 }
 
 interface SectionItem {
@@ -322,7 +323,8 @@ const SECTIONS: Section[] = [
 export default function VisitRegistrationModal({
   isOpen,
   onClose,
-  appointment
+  appointment,
+  readOnly = false
 }: VisitRegistrationModalProps) {
   // State for form data: { [subsectionId]: { q1: string, hallazgos: string } }
   const [formData, setFormData] = useState<Record<string, any>>({});
@@ -333,7 +335,7 @@ export default function VisitRegistrationModal({
   const [isSuccess, setIsSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  // Load user info and fetch last visit data
+  // Load user info and fetch visit data (last visit if editing, current if read-only)
   useEffect(() => {
     const init = async () => {
       // Load user
@@ -346,43 +348,61 @@ export default function VisitRegistrationModal({
         }
       }
 
-      // 1. First, get the FULL appointment data to retrieve the CORRECT companyId
-      // (As requested: sacar el company id de get/api/v1/appointments/{id})
-      let companyId = appointment.empresaId || (appointment as any).empresa_id || (appointment as any).companyId || (appointment as any).company_id;
-      
       if (isOpen) {
         try {
           setIsLoadingLastVisit(true);
           
-          // 1. Fetch full appointment details to ensure we have the company ID
-          const response = await appointmentService.getAppointmentById(appointment.id);
-          const fullApt = response.data;
-          const foundCompanyId = fullApt?.empresaId || (fullApt as any)?.empresa_id || (fullApt as any)?.companyId;
-          
-          if (foundCompanyId) {
-            console.log('DEBUG - Company ID identified:', foundCompanyId);
+          if (readOnly) {
+            console.log('DEBUG - VisitRegistrationModal [ReadOnly]: Loading evaluation for:', appointment.id);
+            const response = await appointmentService.getVisitEvaluation(appointment.id);
+            console.log('DEBUG - API Response:', response);
             
-            // 2. Directly fetch the LAST appointment of the company (using the new endpoint)
-            const lastApt = await appointmentService.getLastAppointmentByCompany(foundCompanyId);
+            // Extract from any level (Backend sometimes returns { success, data: { ... } } or just { ... })
+            const root = response?.data || response;
             
-            if (lastApt && lastApt.id !== appointment.id) {
-              console.log('DEBUG - Most recent past appointment identified via endpoint:', lastApt.id, lastApt.date);
-              
-              // 3. Fetch the evaluation JSON using the PREVIOUS appointment ID
-              const evalData = await appointmentService.getVisitEvaluation(lastApt.id);
-              
-              if (evalData && evalData.formData) {
-                console.log('DEBUG - Evaluation data found for previous visit. Loading...');
-                setFormData(evalData.formData);
-              }
+            // Detailed check for formData
+            const foundFormData = root?.formData || root?.data?.formData;
+            
+            if (foundFormData) {
+              setFormData(foundFormData);
+              console.log('DEBUG - Full Evaluation Loaded');
             } else {
-              console.log('DEBUG - No different past appointment found using the "last" endpoint.');
+              console.warn('DEBUG - Evaluation is LIMITED. No formData provided by Backend for this role.');
+              // We keep formData empty so it shows "Sin hallazgos" or empty fields correctly
             }
           } else {
-            console.warn('DEBUG - No company ID found after fetch.');
+            // 1. Try to load CURRENT appointment evaluation (to see if it was already partially filled)
+            console.log('DEBUG - VisitRegistrationModal [Edit]: Checking for existing data in current appointment:', appointment.id);
+            const currentEvalRes = await appointmentService.getVisitEvaluation(appointment.id);
+            const currentRoot = currentEvalRes?.data || currentEvalRes;
+            const currentFormData = currentRoot?.formData || currentRoot?.data?.formData;
+
+            if (currentFormData && Object.keys(currentFormData).length > 0) {
+              console.log('DEBUG - VisitRegistrationModal [Edit]: Resuming existing evaluation data');
+              setFormData(currentFormData);
+            } else {
+              // 2. FALLBACK to previous visit if current is empty
+              console.log('DEBUG - VisitRegistrationModal [Edit]: Current evaluation is empty. Fetching last visit as baseline.');
+              const response = await appointmentService.getAppointmentById(appointment.id);
+              const fullApt = (response as any).data || response;
+              const foundCompanyId = fullApt?.empresaId || fullApt?.empresa_id || fullApt?.companyId;
+              
+              if (foundCompanyId) {
+                const lastApt = await appointmentService.getLastAppointmentByCompany(foundCompanyId);
+                if (lastApt && lastApt.id !== appointment.id) {
+                  const evalRes = await appointmentService.getVisitEvaluation(lastApt.id);
+                  const lastRoot = evalRes?.data || evalRes;
+                  const prevFormData = lastRoot?.formData || lastRoot?.data?.formData;
+                  if (prevFormData) {
+                    console.log('DEBUG - VisitRegistrationModal [Edit]: Loaded baseline from last visit:', lastApt.id);
+                    setFormData(prevFormData);
+                  }
+                }
+              }
+            }
           }
         } catch (error) {
-          console.error('Error loading last visit data:', error);
+          console.error('VisitRegistrationModal: Error loading visit data:', error);
         } finally {
           setIsLoadingLastVisit(false);
         }
@@ -392,7 +412,7 @@ export default function VisitRegistrationModal({
     if (isOpen) {
       init();
     }
-  }, [isOpen, appointment]);
+  }, [isOpen, appointment.id, readOnly]); // Added readOnly to dependency array
 
   const handleScoreChange = (subsectionId: string, score: 'A' | 'AR' | 'I') => {
     const numericScore = score === 'A' ? "2" : score === 'AR' ? "1" : "0";
@@ -479,18 +499,22 @@ export default function VisitRegistrationModal({
                        {new Date(appointment.date).toLocaleDateString()}
                    </span>
                </div>
-               <div>
+                <div>
                    <span className="block text-gray-700 text-xs font-black uppercase">Empresa</span>
-                   <span className="font-black text-black">{appointment.companyName}</span>
-               </div>
-               <div>
+                   <span className="font-black text-black">
+                     {appointment.companyName || (appointment as any).company?.name || (appointment as any).company_name || '...'}
+                   </span>
+                </div>
+                <div>
                    <span className="block text-gray-700 text-xs font-black uppercase">Municipio</span>
-                   <span className="font-black text-black">{appointment.location || 'Manizales'}</span>
-               </div>
-               <div>
-                   <span className="block text-gray-800 text-xs font-black uppercase">% Cumplimiento Última Visita</span>
+                   <span className="font-black text-black">{appointment.location || (appointment as any).company?.city || 'Manizales'}</span>
+                </div>
+                <div>
+                   <span className="block text-gray-800 text-xs font-black uppercase">
+                     {readOnly ? '% Cumplimiento Visita' : '% Cumplimiento Última Visita'}
+                   </span>
                    <span className="font-black text-blue-900 text-xl">{calculateTotalSuccessRate().toFixed(1)}%</span>
-               </div>
+                </div>
            </div>
            {isLoadingLastVisit && (
              <div className="mt-2 text-xs text-blue-800 font-black flex items-center gap-2">
@@ -545,7 +569,8 @@ export default function VisitRegistrationModal({
                                 name={`score-${sub.id}`}
                                 checked={formData[sub.id]?.q1 === "2"}
                                 onChange={() => handleScoreChange(sub.id, 'A')}
-                                className="h-5 w-5 text-green-700 focus:ring-green-500 cursor-pointer border-gray-400"
+                                disabled={readOnly}
+                                className="h-5 w-5 text-green-700 focus:ring-green-500 cursor-pointer border-gray-400 disabled:opacity-75"
                             />
                         </div>
                         <div className="flex items-center justify-center border-r border-gray-200 bg-white">
@@ -554,7 +579,8 @@ export default function VisitRegistrationModal({
                                 name={`score-${sub.id}`}
                                 checked={formData[sub.id]?.q1 === "1"}
                                 onChange={() => handleScoreChange(sub.id, 'AR')}
-                                className="h-5 w-5 text-yellow-600 focus:ring-yellow-400 cursor-pointer border-gray-400"
+                                disabled={readOnly}
+                                className="h-5 w-5 text-yellow-600 focus:ring-yellow-400 cursor-pointer border-gray-400 disabled:opacity-75"
                             />
                         </div>
                         <div className="flex items-center justify-center border-r border-gray-200 bg-white">
@@ -563,7 +589,8 @@ export default function VisitRegistrationModal({
                                 name={`score-${sub.id}`}
                                 checked={formData[sub.id]?.q1 === "0"}
                                 onChange={() => handleScoreChange(sub.id, 'I')}
-                                className="h-5 w-5 text-red-700 focus:ring-red-500 cursor-pointer border-gray-400"
+                                disabled={readOnly}
+                                className="h-5 w-5 text-red-700 focus:ring-red-500 cursor-pointer border-gray-400 disabled:opacity-75"
                             />
                         </div>
                         <div className="flex items-center justify-center border-r border-gray-200 bg-gray-100 font-black text-base text-black">
@@ -573,8 +600,9 @@ export default function VisitRegistrationModal({
                              <textarea
                                 value={formData[sub.id]?.hallazgos || ''}
                                 onChange={(e) => handleFindingsChange(sub.id, e.target.value)}
-                                className="w-full h-full min-h-[110px] p-2 text-[13px] text-black font-black border-0 bg-transparent focus:ring-0 resize-none placeholder-gray-500"
-                                placeholder="ESCRIBA AQUÍ LOS HALLAZGOS..."
+                                disabled={readOnly}
+                                className="w-full h-full min-h-[110px] p-2 text-[13px] text-black font-black border-0 bg-transparent focus:ring-0 resize-none placeholder-gray-500 disabled:text-gray-700"
+                                placeholder={readOnly ? "SIN HALLAZGOS" : "ESCRIBA AQUÍ LOS HALLAZGOS..."}
                             />
                         </div>
                     </div>
@@ -632,19 +660,30 @@ export default function VisitRegistrationModal({
         
         {/* Footer Actions */}
         <div className="mt-8 flex justify-end gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <button
-                onClick={onClose}
-                className="px-6 py-2 bg-white text-gray-700 font-medium rounded-lg border border-gray-300 hover:bg-gray-50"
-            >
-                Cancelar
-            </button>
-            <button
-                onClick={() => setShowConfirmation(true)}
-                disabled={isSaving}
-                className={`px-6 py-2 bg-blue-900 text-white font-medium rounded-lg hover:bg-blue-800 shadow-md ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
-            >
-                Revisar y Guardar
-            </button>
+            {readOnly ? (
+                <button
+                    onClick={onClose}
+                    className="px-8 py-2 bg-blue-900 text-white font-bold rounded-lg shadow-md hover:bg-blue-800 transition-all uppercase text-sm"
+                >
+                    Cerrar Detalle
+                </button>
+            ) : (
+                <>
+                    <button
+                        onClick={onClose}
+                        className="px-6 py-2 bg-white text-gray-700 font-medium rounded-lg border border-gray-300 hover:bg-gray-50"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        onClick={() => setShowConfirmation(true)}
+                        disabled={isSaving}
+                        className={`px-6 py-2 bg-blue-900 text-white font-medium rounded-lg hover:bg-blue-800 shadow-md ${isSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                        Revisar y Guardar
+                    </button>
+                </>
+            )}
         </div>
 
         {/* Confirmation Overlay Modal */}

@@ -27,8 +27,26 @@ export default function VisualizarDocumentosPage() {
 
       try {
         const user = JSON.parse(userStr);
+        const profileRes = await authService.getProfile();
+        const companyId = user.companyId || profileRes?.user?.companyId;
         
-        // Use my-appointments endpoint without parameters to avoid parsing issues
+        // 1. Fetch the absolute last completed success rate for this company as fallback
+        let globalFallbackRate = null;
+        if (companyId) {
+          try {
+            const lastApt = await appointmentService.getLastAppointmentByCompany(companyId);
+            if (lastApt && lastApt.id) {
+              const lastEval = await appointmentService.getVisitEvaluation(lastApt.id);
+              if (lastEval && lastEval.successRate !== undefined) {
+                globalFallbackRate = lastEval.successRate;
+              }
+            }
+          } catch (err) {
+            console.warn('Error fetching global fallback success rate', err);
+          }
+        }
+
+        // 2. Use my-appointments endpoint without parameters to avoid parsing issues
         const aptResponse = await appointmentService.getMyAppointments();
         
         if (aptResponse && aptResponse.data) {
@@ -49,15 +67,20 @@ export default function VisualizarDocumentosPage() {
                 
                 // Only show COMPLETADO validations
                 if (validation.status === 'COMPLETADO') {
-                  // Fetch evaluation to get successRate
+                  // Fetch specific evaluation to get successRate
                   let successRate = null;
                   try {
                     const evalResponse = await appointmentService.getVisitEvaluation(apt.id);
                     if (evalResponse && evalResponse.successRate !== undefined) {
                       successRate = evalResponse.successRate;
+                    } else {
+                      // Apply fallback if this specific appt has no evaluation yet
+                      successRate = globalFallbackRate;
                     }
                   } catch (evalErr) {
-                    console.warn(`Could not load evaluation for appointment ${apt.id}`, evalErr);
+                    // Apply fallback on error too
+                    successRate = globalFallbackRate;
+                    console.warn(`Could not load specific evaluation for appointment ${apt.id}, using fallback`, evalErr);
                   }
 
                   validationsList.push({
@@ -222,6 +245,7 @@ export default function VisualizarDocumentosPage() {
           onClose={handleCloseModal}
           validationId={selectedValidation.id}
           companyName={selectedValidation.companyName}
+          appointmentId={selectedValidation.appointmentId}
           readOnly={true}
         />
       )}

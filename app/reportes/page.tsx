@@ -59,14 +59,16 @@ export default function ReportsPage() {
     const fetchStats = async () => {
       try {
         setLoading(true);
-        const [companies, appointments, engineers] = await Promise.all([
+        const [companies, appointmentsRes, engineers] = await Promise.all([
           companyService.getAllCompanies(),
           appointmentService.getAllAppointments({}),
           engineerService.getAllEngineers()
         ]);
 
-        const asesorias = appointments.filter(a => a.appointmentType === AppointmentType.ASESORIA).length;
-        const auditorias = appointments.filter(a => a.appointmentType === AppointmentType.AUDITORIA).length;
+        const appointments = (Array.isArray(appointmentsRes) ? appointmentsRes : (appointmentsRes as any)?.data || []) as Appointment[];
+
+        const asesorias = appointments.filter((a: Appointment) => a.appointmentType === AppointmentType.ASESORIA).length;
+        const auditorias = appointments.filter((a: Appointment) => a.appointmentType === AppointmentType.AUDITORIA).length;
 
         setStats({
           companiesCount: companies.length,

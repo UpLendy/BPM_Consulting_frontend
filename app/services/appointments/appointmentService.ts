@@ -203,23 +203,34 @@ export const appointmentService = {
     async getAllAppointments(filters?: AppointmentFilters): Promise<PaginatedResponse<Appointment>> {
         const token = localStorage.getItem('token');
         const params = new URLSearchParams();
-        // params.append('is_active', 'true');
 
         if (filters) {
-            if (filters.estado) params.append('status', filters.estado);
-            if (filters.tipo) params.append('appointment_type', filters.tipo);
+            if (filters.estado && (filters.estado as any) !== 'all') params.append('status', filters.estado);
+            if (filters.tipo && (filters.tipo as any) !== 'all') params.append('appointment_type', filters.tipo);
             if (filters.empresaId) params.append('company_id', filters.empresaId);
             if (filters.ingenieroId) params.append('engineer_id', filters.ingenieroId);
+
+            // Only send page/limit if they are DIFFERENT from defaults to avoid strict backend validation errors
+            if (filters.page && filters.page > 1) {
+                params.append('page', Math.floor(filters.page).toString());
+            }
+            if (filters.limit && filters.limit !== 10) {
+                params.append('limit', Math.floor(filters.limit).toString());
+            }
+
             if (filters.fechaInicio) params.append('date_from', filters.fechaInicio.toISOString());
             if (filters.fechaFin) params.append('date_to', filters.fechaFin.toISOString());
-            if (filters.page) params.append('page', Math.floor(filters.page).toString());
-            // Limit removal handled in page.tsx calling side for now, but good to keep support here if backend fixed or integer parsing added
-            if (filters.limit) params.append('limit', Math.floor(filters.limit).toString());
         }
 
-        const response = await fetch(`${API_URL}/appointments/?${params.toString()}`, {
+        const queryString = params.toString();
+        const url = queryString ? `${API_URL}/appointments?${queryString}` : `${API_URL}/appointments`;
+
+        const response = await fetch(url, {
             method: 'GET',
-            headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}` }
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
         });
 
         if (!response.ok) {
@@ -326,7 +337,7 @@ export const appointmentService = {
      */
     async getVisitEvaluation(id: string): Promise<any> {
         const token = localStorage.getItem('token');
-        const response = await fetch(`${API_URL}/appointments/${id}/evaluation/`, {
+        const response = await fetch(`${API_URL}/appointments/${id}/evaluation`, {
             method: 'GET',
             headers: { 'Accept': 'application/json', 'Authorization': `Bearer ${token}` }
         });
@@ -406,7 +417,7 @@ export const appointmentService = {
      */
     async getAppointmentValidation(id: string): Promise<ServiceResponse> {
         const token = localStorage.getItem('token');
-        const response = await fetch(`${API_URL}/appointments/${id}/validation/`, {
+        const response = await fetch(`${API_URL}/appointments/${id}/validation`, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
@@ -631,5 +642,23 @@ export const appointmentService = {
 
         const result = await response.json();
         return { success: true, data: result };
+    },
+
+    async getAppointmentStats(): Promise<ServiceResponse<any>> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/appointments/stats`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            return { success: false, error: 'Error fetching stats' };
+        }
+
+        const data = await response.json();
+        return { success: true, data };
     }
 };

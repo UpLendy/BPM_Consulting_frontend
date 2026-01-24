@@ -9,13 +9,19 @@ interface AppointmentBadgeProps {
 
 export default function AppointmentBadge({ status, className = '' }: AppointmentBadgeProps) {
   const badgeStyles = {
-    [AppointmentStatus.PENDIENTE]: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+    [AppointmentStatus.PROGRAMADA]: 'bg-blue-100 text-blue-800 border-blue-300',
+    [AppointmentStatus.CONFIRMADA]: 'bg-indigo-100 text-indigo-800 border-indigo-300',
+    [AppointmentStatus.EN_PROGRESO]: 'bg-amber-100 text-amber-800 border-amber-300',
+    [AppointmentStatus.EN_REVISION]: 'bg-purple-100 text-purple-800 border-purple-300',
     [AppointmentStatus.COMPLETADA]: 'bg-green-100 text-green-800 border-green-300',
     [AppointmentStatus.CANCELADA]: 'bg-red-100 text-red-800 border-red-300'
   };
   
   const badgeLabels = {
-    [AppointmentStatus.PENDIENTE]: 'Pendiente',
+    [AppointmentStatus.PROGRAMADA]: 'Programada',
+    [AppointmentStatus.CONFIRMADA]: 'Confirmada',
+    [AppointmentStatus.EN_PROGRESO]: 'En Progreso',
+    [AppointmentStatus.EN_REVISION]: 'En Revisión',
     [AppointmentStatus.COMPLETADA]: 'Completada',
     [AppointmentStatus.CANCELADA]: 'Cancelada'
   };

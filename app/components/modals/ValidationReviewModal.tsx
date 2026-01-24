@@ -3,12 +3,15 @@
 import { useState, useEffect } from 'react';
 import BaseModal from './BaseModal';
 import { appointmentService } from '@/app/services/appointments/appointmentService';
+import VisitRegistrationModal from '../visita/VisitRegistrationModal';
+import { Appointment } from '@/app/types';
 
 interface ValidationReviewModalProps {
   isOpen: boolean;
   onClose: () => void;
   validationId: string;
   companyName: string;
+  appointmentId?: string;
   readOnly?: boolean;
 }
 
@@ -17,10 +20,15 @@ export default function ValidationReviewModal({
   onClose,
   validationId,
   companyName,
+  appointmentId,
   readOnly = false
 }: ValidationReviewModalProps) {
 
   const [documents, setDocuments] = useState<any[]>([]);
+  const [evaluation, setEvaluation] = useState<any>(null);
+  const [fullAppointment, setFullAppointment] = useState<Appointment | null>(null);
+  const [showFullEvaluation, setShowFullEvaluation] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   // State for active document being previewed
   const [activeDoc, setActiveDoc] = useState<any>(null);
@@ -34,9 +42,23 @@ export default function ValidationReviewModal({
   const [previewLoading, setPreviewLoading] = useState(false);
 
   useEffect(() => {
+    // Get user role once
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        setUserRole(user.role);
+      } catch (err) {
+        console.error('Error parsing user for role check', err);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
     if (isOpen) {
       if (validationId) {
         loadDocuments();
+        if (appointmentId) loadEvaluation();
         setActiveDoc(null); 
         setSelectedPreview(null);
         setIsRejecting(false);
@@ -45,7 +67,7 @@ export default function ValidationReviewModal({
         console.error('ValidationReviewModal: Missing validationId');
       }
     }
-  }, [isOpen, validationId]);
+  }, [isOpen, validationId, appointmentId]);
 
   const loadDocuments = async () => {
     setIsLoading(true);
@@ -86,6 +108,36 @@ export default function ValidationReviewModal({
       setDocuments([]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadEvaluation = async () => {
+    if (!appointmentId) {
+      console.warn('ValidationReviewModal: No appointmentId provided for evaluation');
+      return;
+    }
+    
+    try {
+      console.log('ValidationReviewModal: Fetching evaluation for appointment:', appointmentId);
+      const response = await appointmentService.getVisitEvaluation(appointmentId);
+      console.log('ValidationReviewModal: Evaluation API Response:', response);
+      
+      // Extract data handling potential wrappers { success, data, ... }
+      const evalData = response?.success === true ? (response.data || response) : response;
+      
+      if (evalData) {
+        setEvaluation(evalData);
+      }
+      
+      // Also load the full appointment for the VisitRegistrationModal
+      const aptResponse = await appointmentService.getAppointmentById(appointmentId);
+      const fullApt = (aptResponse?.success === true ? aptResponse.data : aptResponse) as any;
+      
+      if (fullApt) {
+          setFullAppointment(fullApt);
+      }
+    } catch (error) {
+      console.error('Error loading evaluation for modal:', error);
     }
   };
 
@@ -184,20 +236,75 @@ export default function ValidationReviewModal({
       size="xl" 
     >
       <div className="flex h-[75vh] gap-6">
-        {/* Left Side: Document List */}
-        <div className="w-1/3 border-r border-gray-200 pr-4 overflow-y-auto">
-            <h3 className="text-sm font-semibold text-gray-700 mb-4 uppercase tracking-wider">Documentos Subidos</h3>
+        {/* Left Side: Document List + Evaluation Summary for Engineers */}
+        <div className="w-1/3 border-r border-gray-200 pr-4 flex flex-col gap-6 overflow-hidden">
             
-            {isLoading ? (
-                 <div className="flex justify-center py-8">
-                    <span className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></span>
-                 </div>
-            ) : documents.length === 0 ? (
+            {/* Evaluation Summary Card - Only for Engineers */}
+            {userRole === 'ingeniero' && evaluation && (
+                <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl p-5 text-white shadow-lg shrink-0">
+                    <div className="flex justify-between items-start mb-4">
+                        <h3 className="text-sm font-bold uppercase tracking-wider opacity-90">Evaluación de Visita</h3>
+                        <div className="bg-white/20 px-2 py-1 rounded text-[10px] font-bold">REVISIÓN</div>
+                    </div>
+                    
+                    <div className="flex items-center gap-4 mb-4">
+                        <div className="relative h-16 w-16 flex items-center justify-center shrink-0">
+                             <svg className="w-full h-full transform -rotate-90">
+                                <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="4" fill="transparent" className="opacity-20" />
+                                <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="4" fill="transparent" 
+                                    strokeDasharray={175.9} strokeDashoffset={175.9 * (1 - (evaluation.successRate || 0)/100)} 
+                                    strokeLinecap="round" className="transition-all duration-1000" />
+                             </svg>
+                             <span className="absolute text-lg font-black">{Math.round(evaluation.successRate || 0)}%</span>
+                        </div>
+                        <div>
+                            <p className="text-xs opacity-80 leading-tight mb-1">Resultado Técnico</p>
+                            <p className="text-sm font-bold">
+                                {evaluation.successRate >= 80 ? 'Excelente Desempeño' : 
+                                 evaluation.successRate >= 60 ? 'Desempeño Aceptable' : 'Necesita Mejoras'}
+                            </p>
+                        </div>
+                    </div>
+
+                    {evaluation.categories ? (
+                        <div className="grid grid-cols-2 gap-2 mt-2 pt-3 border-t border-white/10 text-[10px]">
+                            {evaluation.categories.slice(0, 4).map((cat: any, idx: number) => (
+                                <div key={idx} className="flex flex-col gap-0.5">
+                                    <span className="opacity-70 truncate">{cat.name}</span>
+                                    <div className="w-full bg-white/10 rounded-full h-1 overflow-hidden">
+                                        <div className="bg-white h-full" style={{ width: `${cat.score}%` }}></div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="mt-4 pt-3 border-t border-white/10">
+                            <p className="text-[10px] opacity-70 italic text-center">Datos de evaluación cargados para revisión técnica.</p>
+                        </div>
+                    )}
+                    
+                    <button 
+                        onClick={() => setShowFullEvaluation(true)}
+                        className="w-full mt-4 py-2 bg-white/10 hover:bg-white/20 border border-white/30 rounded-lg text-xs font-bold transition-all"
+                    >
+                        Ver Detalle Completo
+                    </button>
+                </div>
+            )}
+
+            <div className="flex flex-col gap-4 overflow-y-auto flex-1">
+                <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">Documentos Subidos</h3>
+                
+                {isLoading ? (
+                    <div className="flex justify-center py-8">
+                        <span className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></span>
+                    </div>
+                ) : documents.length === 0 ? (
                 <div className="text-center py-8 text-gray-500 text-sm bg-gray-50 rounded-lg">
                     No hay documentos en esta validación.
                 </div>
             ) : (
-                <div className="space-y-3">
+                <div className="space-y-3 pb-4">
                     {documents.map((doc) => (
                         <div 
                             key={doc.id} 
@@ -215,23 +322,24 @@ export default function ValidationReviewModal({
                                     </svg>
                                 </div>
                                 <div className="min-w-0">
-                                     <p className="text-sm font-medium text-gray-900 truncate" title={doc.fileName || doc.originalName}>
-                                         {doc.fileName || doc.originalName || 'Documento sin nombre'}
-                                     </p>
-                                     <div className="flex items-center gap-2 mt-0.5">
-                                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border
+                                    <p className="text-sm font-medium text-gray-900 truncate" title={doc.fileName || doc.originalName}>
+                                        {doc.fileName || doc.originalName || 'Documento sin nombre'}
+                                    </p>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border
                                             ${doc.status === 'APROBADO' ? 'bg-green-50 text-green-700 border-green-200' : 
                                               doc.status === 'RECHAZADO' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`
-                                         }>
+                                        }>
                                             {doc.status || 'PENDIENTE'}
-                                         </span>
-                                     </div>
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     ))}
                 </div>
             )}
+            </div>
         </div>
 
         {/* Right Side: Preview Pane */}
@@ -337,6 +445,16 @@ export default function ValidationReviewModal({
             )}
         </div>
       </div>
+
+      {/* Full Evaluation Read-Only View */}
+      {showFullEvaluation && fullAppointment && (
+          <VisitRegistrationModal
+            isOpen={showFullEvaluation}
+            onClose={() => setShowFullEvaluation(false)}
+            appointment={fullAppointment}
+            readOnly={true}
+          />
+      )}
     </BaseModal>
   );
 }
