@@ -45,8 +45,9 @@ export default function AdminDashboardPage() {
         // We only really need appointments for the chart right now
         // But if we wanted to show counts in the cards, we could fetch others.
         // The design shows static titles "Usuarios registrados", etc. with descriptions.
-        const appointments = await appointmentService.getAllAppointments({});
-        processChartData(appointments);
+        const response = await appointmentService.getAllAppointments({});
+        const apps = response?.data || [];
+        processChartData(apps);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
       } finally {
@@ -57,9 +58,12 @@ export default function AdminDashboardPage() {
     fetchData();
   }, []);
 
-  const processChartData = (appointments: Appointment[]) => {
+  const processChartData = (appointments: Appointment[] = []) => {
+    // Ensure we have an array
+    const appsArray = Array.isArray(appointments) ? appointments : [];
+    
     // Filter appointments - Using PROGRAMADA for now as per user request in previous step for Reports
-    const filteredApps = appointments.filter(app => app.status === AppointmentStatus.PROGRAMADA);
+    const filteredApps = appsArray.filter(app => app.status === AppointmentStatus.PROGRAMADA);
     
     // Engineer Map
     const engineerMap = new Map<string, string>();

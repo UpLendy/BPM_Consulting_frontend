@@ -64,12 +64,15 @@ export default function GestionUsuariosPage() {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        const [usersData, companiesData, representativesData] = await Promise.all([
+        const [usersResponse, companiesData, representativesData] = await Promise.all([
           userService.getAllUsers(),
           companyService.getAllCompanies(),
           representativeService.getAllRepresentatives()
         ]);
-        setUsers(usersData);
+        
+        // Handle potential paginated response
+        const usersList = Array.isArray(usersResponse) ? usersResponse : (usersResponse as any)?.data || [];
+        setUsers(usersList);
         setCompanies(companiesData);
 
         // Track which users already have representative assignments
@@ -178,7 +181,8 @@ export default function GestionUsuariosPage() {
     // Refresh user list
     try {
       const usersData = await userService.getAllUsers();
-      setUsers(usersData);
+      const usersList = Array.isArray(usersData) ? usersData : (usersData as any)?.data || [];
+      setUsers(usersList);
     } catch (err) {
       console.error('Error refreshing users:', err);
     }
@@ -229,7 +233,8 @@ export default function GestionUsuariosPage() {
       
       // Refresh user list
       const usersData = await userService.getAllUsers();
-      setUsers(usersData);
+      const usersList = Array.isArray(usersData) ? usersData : (usersData as any)?.data || [];
+      setUsers(usersList);
       
       // Close modal after short delay
       setTimeout(() => {
@@ -287,10 +292,11 @@ export default function GestionUsuariosPage() {
     }
   };
 
-  const filteredUsers = users.filter(user => 
-    `${user.first_name} ${user.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.id_number.includes(searchTerm)
+  const usersArray = Array.isArray(users) ? users : [];
+  const filteredUsers = usersArray.filter(user => 
+    `${user.first_name || ''} ${user.last_name || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (user.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (user.id_number || '').includes(searchTerm)
   );
 
   return (

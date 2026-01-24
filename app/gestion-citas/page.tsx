@@ -29,6 +29,7 @@ export default function GestionCitasPage() {
   const [engineerId, setEngineerId] = useState<string | null>(null);
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
   const [paginationMeta, setPaginationMeta] = useState<PaginatedResponse<Appointment>['meta'] | undefined>(undefined);
+  const [globalStats, setGlobalStats] = useState<any>(null);
   
   // Admin Filters
   const [adminFilters, setAdminFilters] = useState<{
@@ -88,14 +89,22 @@ export default function GestionCitasPage() {
              if (adminFilters.type !== 'all') filters.tipo = adminFilters.type;
              
              // Fetch filtered list (paginated)
+             console.log('DEBUG - Fetching filtered appointments with:', filters);
              const filteredRes = await appointmentService.getAllAppointments(filters);
+             console.log('DEBUG - Filtered response:', filteredRes);
              
-             // Fetch all for counts (unfiltered) - limit 1000 to get a good base for counts
-             const allRes = await appointmentService.getAllAppointments({ limit: 1000 });
+             // Fetch global stats for counts
+             const statsRes = await appointmentService.getAppointmentStats();
+             if (statsRes.success) {
+                setGlobalStats(statsRes.data);
+             }
              
-             setAppointments(filteredRes.data);
-             setPaginationMeta(filteredRes.meta);
-             setAllAppointments(allRes.data);
+             const filteredData = (filteredRes?.data || (Array.isArray(filteredRes) ? filteredRes : [])) as Appointment[];
+
+             setAppointments(filteredData);
+             setPaginationMeta(filteredRes?.meta);
+             // Use filtered Data as a baseline for counts to avoid a second API call that triggers 'Expected integer' on limit
+             setAllAppointments(filteredData);
         }
       } catch (error) {
         console.error('Error fetching appointments:', error);
@@ -133,13 +142,17 @@ export default function GestionCitasPage() {
     if (!currentUser) return;
 
     try {
-      const newAppointment = await appointmentService.createAppointment({
+      const response = await appointmentService.createAppointment({
         ...data,
         empresaId: currentUser.id,
       });
 
-      setAppointments([...appointments, newAppointment]);
-      alert('Cita creada exitosamente!');
+      if (response.success && response.data) {
+        setAppointments([...appointments, response.data]);
+        alert('Cita creada exitosamente!');
+      } else {
+        throw new Error(response.error || 'Error al crear la cita');
+      }
     } catch (error) {
       console.error('Error creating appointment:', error);
       alert('Error al crear la cita. Por favor intente nuevamente.');
@@ -168,6 +181,7 @@ export default function GestionCitasPage() {
             appointments={appointments}
             meta={paginationMeta}
             allAppointments={allAppointments}
+            globalCounts={globalStats}
             onDelete={handleDeleteAppointment}
             filters={adminFilters}
             onFilterChange={(newFilters) => setAdminFilters(prev => ({ ...prev, ...newFilters }))}

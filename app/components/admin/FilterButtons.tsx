@@ -53,7 +53,7 @@ export default function FilterButtons({
         <div className="flex flex-wrap gap-2">
           {statusFilters.map((filter) => (
             <button
-              key={filter.value}
+              key={`status-${filter.value}`}
               onClick={() => onStatusChange(filter.value)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 selectedStatus === filter.value
@@ -82,7 +82,7 @@ export default function FilterButtons({
         <div className="flex flex-wrap gap-2">
           {typeFilters.map((filter) => (
             <button
-              key={filter.value}
+              key={`type-${filter.value}`}
               onClick={() => onTypeChange(filter.value)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 selectedType === filter.value
