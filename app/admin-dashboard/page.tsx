@@ -42,12 +42,19 @@ export default function AdminDashboardPage() {
     const fetchData = async () => {
       try {
         setLoading(true);
-        // We only really need appointments for the chart right now
-        // But if we wanted to show counts in the cards, we could fetch others.
-        // The design shows static titles "Usuarios registrados", etc. with descriptions.
-        const response = await appointmentService.getAllAppointments({});
-        const apps = response?.data || [];
+        
+        // Parallel fetch for chart data and global stats
+        const [aptRes, statsRes] = await Promise.all([
+          appointmentService.getAllAppointments({}),
+          appointmentService.getAppointmentStats()
+        ]);
+
+        const apps = aptRes?.data || [];
         processChartData(apps);
+
+        if (statsRes.success) {
+           setStats(statsRes.data);
+        }
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
       } finally {
@@ -57,6 +64,8 @@ export default function AdminDashboardPage() {
 
     fetchData();
   }, []);
+
+  const [stats, setStats] = useState<any>(null);
 
   const processChartData = (appointments: Appointment[] = []) => {
     // Ensure we have an array
@@ -122,13 +131,13 @@ export default function AdminDashboardPage() {
       path: '/gestion-usuarios',
     },
     {
-      title: 'Revisiones pendientes',
-      subtitle: 'Documentacion',
-      path: '/documentos-empresa',
+      title: stats?.en_revision > 0 ? `${stats.en_revision} Citas por revisar` : 'Sin citas por revisar',
+      subtitle: 'Revisiones pendientes',
+      path: '/gestion-citas?status=EN_REVISION',
     },
     {
-      title: 'Citas para consultoria',
-      subtitle: 'Citas',
+      title: 'Gestión de Citas',
+      subtitle: 'Historial y Programación',
       path: '/gestion-citas',
     },
     {

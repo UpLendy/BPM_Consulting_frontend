@@ -59,10 +59,11 @@ export default function ReportsPage() {
     const fetchStats = async () => {
       try {
         setLoading(true);
-        const [companies, appointmentsRes, engineers] = await Promise.all([
+        const [companies, appointmentsRes, engineers, globalStatsRes] = await Promise.all([
           companyService.getAllCompanies(),
           appointmentService.getAllAppointments({}),
-          engineerService.getAllEngineers()
+          engineerService.getAllEngineers(),
+          appointmentService.getAppointmentStats()
         ]);
 
         const appointments = (Array.isArray(appointmentsRes) ? appointmentsRes : (appointmentsRes as any)?.data || []) as Appointment[];
@@ -76,7 +77,7 @@ export default function ReportsPage() {
           auditoriasCount: auditorias,
           engineersCount: engineers.length,
           totalEngineers: engineers.length,
-          documentsPending: 30
+          documentsPending: globalStatsRes.success ? globalStatsRes.data.en_revision : 0
         });
 
         // Process Chart Data
@@ -254,20 +255,20 @@ export default function ReportsPage() {
               <div className="text-4xl">📋</div>
             </div>
 
-            {/* Documentos por revisar (Large CTA) */}
+            {/* Citas por revisar (Large CTA) */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between h-auto row-span-2 lg:col-start-4 lg:row-start-1 lg:row-end-3">
               <div>
-                <p className="text-sm text-gray-500 font-medium mb-2">Documentos por revisar</p>
+                <p className="text-sm text-gray-500 font-medium mb-2">Citas por revisar</p>
                 <h3 className="text-xl font-bold text-gray-900 leading-tight">
                   Hacen falta por revisar:<br />
-                  <span className="text-3xl">{stats.documentsPending} documentos</span>
+                  <span className="text-3xl">{stats.documentsPending} citas</span>
                 </h3>
               </div>
               <button 
-                onClick={() => router.push('/documentos-empresa')}
+                onClick={() => router.push('/gestion-citas?status=EN_REVISION')}
                 className="mt-6 w-full py-3 bg-[#3f4771] text-white rounded-xl text-sm font-medium hover:bg-[#2c3357] transition-colors flex items-center justify-center gap-2"
               >
-                Ir a documentacion
+                Ver todas las citas
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
                 </svg>
