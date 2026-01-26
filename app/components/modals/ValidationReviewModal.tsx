@@ -73,20 +73,44 @@ export default function ValidationReviewModal({
     setIsLoading(true);
     try {
       console.log('Fetching documents for validation:', validationId);
-      const response = await appointmentService.getValidationDocuments(validationId);
-      if (response.success) {
-        // Ensure data is array
-        let docs = Array.isArray(response.data) ? response.data : ((response.data as any)?.data || []);
-        console.log('Documents fetched:', docs);
+      
+      // Parallel fetch for documents and potentially the Acta (Record)
+      const tasks: [Promise<any>, Promise<any>?] = [
+        appointmentService.getValidationDocuments(validationId)
+      ];
 
-        // Fetch previews for ALL documents to get fileName and URL as requested
+      if (appointmentId) {
+        tasks.push(appointmentService.getAppointmentRecordPreview(appointmentId));
+      }
+
+      const [response, recordRes] = await Promise.all(tasks);
+
+      let finalDocs: any[] = [];
+
+      // 1. Add Acta if exists
+      if (recordRes && recordRes.success && recordRes.data?.url) {
+        finalDocs.push({
+          id: 'ACTA_VISITA_ID',
+          fileName: 'Acta de Visita (PDF)',
+          url: recordRes.data.url,
+          status: 'COMPLETADO',
+          isActa: true,
+          hasPreview: true
+        });
+      }
+
+      // 2. Add validation documents
+      if (response.success) {
+        let docs = Array.isArray(response.data) ? response.data : ((response.data as any)?.data || []);
+        
+        // Fetch previews for validation documents
         const docPromises = docs.map(async (doc: any) => {
             try {
                 const previewRes = await appointmentService.getDocumentPreview(validationId, doc.id);
                 if (previewRes.success && previewRes.data) {
                     return {
                         ...doc,
-                        ...previewRes.data, // Merges url, fileName, mimeType
+                        ...previewRes.data,
                         hasPreview: true
                     };
                 }
@@ -98,11 +122,16 @@ export default function ValidationReviewModal({
         });
 
         const docsWithPreviews = await Promise.all(docPromises);
-        setDocuments(docsWithPreviews);
-      } else {
-        console.error('Error fetching documents:', response.error);
-        setDocuments([]);
+        finalDocs = [...finalDocs, ...docsWithPreviews];
       }
+
+      setDocuments(finalDocs);
+
+      // Auto-select Acta if it's the first one
+      if (finalDocs.length > 0 && !activeDoc) {
+        handleSelectDoc(finalDocs[0]);
+      }
+
     } catch (error) {
       console.error('Error loading documents:', error);
       setDocuments([]);
@@ -239,12 +268,14 @@ export default function ValidationReviewModal({
         {/* Left Side: Document List + Evaluation Summary for Engineers */}
         <div className="w-1/3 border-r border-gray-200 pr-4 flex flex-col gap-6 overflow-hidden">
             
-            {/* Evaluation Summary Card - Only for Engineers */}
-            {userRole === 'ingeniero' && evaluation && (
+            {/* Evaluation Summary Card */}
+            {(userRole === 'ingeniero' || userRole === 'empresario' || userRole === 'company') && evaluation && (
                 <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl p-5 text-white shadow-lg shrink-0">
                     <div className="flex justify-between items-start mb-4">
                         <h3 className="text-sm font-bold uppercase tracking-wider opacity-90">Evaluación de Visita</h3>
-                        <div className="bg-white/20 px-2 py-1 rounded text-[10px] font-bold">REVISIÓN</div>
+                        <div className="bg-white/20 px-2 py-1 rounded text-[10px] font-bold">
+                            {(userRole === 'empresario' || userRole === 'company') ? 'RESULTADOS' : 'REVISIÓN'}
+                        </div>
                     </div>
                     
                     <div className="flex items-center gap-4 mb-4">
@@ -258,10 +289,10 @@ export default function ValidationReviewModal({
                              <span className="absolute text-lg font-black">{Math.round(evaluation.successRate || 0)}%</span>
                         </div>
                         <div>
-                            <p className="text-xs opacity-80 leading-tight mb-1">Resultado Técnico</p>
+                            <p className="text-xs opacity-80 leading-tight mb-1">CUMPLIMIENTO</p>
                             <p className="text-sm font-bold">
                                 {evaluation.successRate >= 80 ? 'Excelente Desempeño' : 
-                                 evaluation.successRate >= 60 ? 'Desempeño Aceptable' : 'Necesita Mejoras'}
+                                 evaluation.successRate >= 60 ? 'Aceptable con Ajustes' : 'Requiere Intervención'}
                             </p>
                         </div>
                     </div>
@@ -279,7 +310,7 @@ export default function ValidationReviewModal({
                         </div>
                     ) : (
                         <div className="mt-4 pt-3 border-t border-white/10">
-                            <p className="text-[10px] opacity-70 italic text-center">Datos de evaluación cargados para revisión técnica.</p>
+                            <p className="text-[10px] opacity-70 italic text-center">Detalle del cumplimiento técnico detallado.</p>
                         </div>
                     )}
                     
@@ -315,14 +346,21 @@ export default function ValidationReviewModal({
                         >
                             <div className="flex items-center gap-3 overflow-hidden">
                                 <div className={`p-2 rounded flex-shrink-0 
-                                    ${doc.status === 'APROBADO' ? 'bg-green-100 text-green-600' : 
+                                    ${doc.isActa ? 'bg-blue-600 text-white shadow-sm' : 
+                                      doc.status === 'APROBADO' ? 'bg-green-100 text-green-600' : 
                                       doc.status === 'RECHAZADO' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'}`}>
-                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
+                                    {doc.isActa ? (
+                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                        </svg>
+                                    ) : (
+                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                    )}
                                 </div>
                                 <div className="min-w-0">
-                                    <p className="text-sm font-medium text-gray-900 truncate" title={doc.fileName || doc.originalName}>
+                                    <p className={`text-sm font-medium truncate ${doc.isActa ? 'text-blue-700' : 'text-gray-900'}`} title={doc.fileName || doc.originalName}>
                                         {doc.fileName || doc.originalName || 'Documento sin nombre'}
                                     </p>
                                     <div className="flex items-center gap-2 mt-0.5">
@@ -369,7 +407,7 @@ export default function ValidationReviewModal({
                 )}
             </div>
 
-            {activeDoc && !readOnly && (
+            {activeDoc && !readOnly && !activeDoc.isActa && (
                 <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col gap-3">
                     <div className="flex justify-between items-center">
                         <h4 className="font-medium text-gray-900">Revisión: {activeDoc.fileName}</h4>

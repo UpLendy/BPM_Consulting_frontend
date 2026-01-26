@@ -391,6 +391,26 @@ export const appointmentService = {
     },
 
     /**
+     * Get record preview URL
+     */
+    async getAppointmentRecordPreview(id: string): Promise<ServiceResponse<{ url: string }>> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/appointments/${id}/record/preview`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            return { success: false, error: 'No se pudo obtener la previsualización del acta' };
+        }
+        const result = await response.json();
+        return { success: true, data: result };
+    },
+
+    /**
      * Create appointment validation
      */
     async createAppointmentValidation(id: string, notes = ''): Promise<ServiceResponse> {

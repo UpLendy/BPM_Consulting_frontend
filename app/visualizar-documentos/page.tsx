@@ -83,6 +83,17 @@ export default function VisualizarDocumentosPage() {
                     console.warn(`Could not load specific evaluation for appointment ${apt.id}, using fallback`, evalErr);
                   }
 
+                  // Fetch Record if exists
+                  let recordUrl = null;
+                  try {
+                    const recordRes = await appointmentService.getAppointmentRecordPreview(apt.id);
+                    if (recordRes.success) {
+                      recordUrl = recordRes.data?.url;
+                    }
+                  } catch (recErr) {
+                    console.warn(`No record found for appointment ${apt.id}`);
+                  }
+
                   validationsList.push({
                     id: validation.id,
                     appointmentId: apt.id,
@@ -93,7 +104,8 @@ export default function VisualizarDocumentosPage() {
                     status: validation.status,
                     docCount: validation.documentsCount || 0,
                     rawDate: apt.date,
-                    successRate: successRate
+                    successRate: successRate,
+                    recordUrl: recordUrl
                   });
                 }
               }
@@ -203,7 +215,7 @@ export default function VisualizarDocumentosPage() {
                 </span>
               </div>
 
-              <div className="space-y-2 text-sm text-gray-600 mb-4">
+              <div className="space-y-2 text-sm text-gray-600 mb-6">
                 <div className="flex items-center gap-2">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -219,7 +231,7 @@ export default function VisualizarDocumentosPage() {
               </div>
 
               <button className="w-full py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors text-sm">
-                Ver Documentos
+                Ver Documentación
               </button>
             </div>
           ))}
