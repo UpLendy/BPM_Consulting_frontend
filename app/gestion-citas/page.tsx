@@ -81,10 +81,12 @@ export default function GestionCitasPage() {
              const response = await appointmentService.getAppointmentsByEngineer(engineerIdToUse);
              setAppointments(Array.isArray(response) ? response : (response as any).data || []);
         } else if (currentUser.role === 'admin') {
-             const filters: AppointmentFilters = {
-                page: adminFilters.page,
-                limit: 10
-             };
+             const filters: AppointmentFilters = {};
+             
+             // Only add page if > 1 and limit if != 10 to avoid string conversion issues on backend
+             if (adminFilters.page > 1) filters.page = adminFilters.page;
+             // We omit limit entirely if we want backend default
+             
              if (adminFilters.status !== 'all') filters.estado = adminFilters.status;
              if (adminFilters.type !== 'all') filters.tipo = adminFilters.type;
              

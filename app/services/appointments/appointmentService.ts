@@ -210,22 +210,14 @@ export const appointmentService = {
             if (filters.empresaId) params.append('company_id', filters.empresaId);
             if (filters.ingenieroId) params.append('engineer_id', filters.ingenieroId);
 
-            // Only send page/limit if they are DIFFERENT from defaults to avoid strict backend validation errors
-            if (filters.page && filters.page > 1) {
-                params.append('page', Math.floor(filters.page).toString());
-            }
-            if (filters.limit && filters.limit !== 10) {
-                params.append('limit', Math.floor(filters.limit).toString());
-            }
+            if (filters.page) params.append('page', Math.floor(filters.page).toString());
+            if (filters.limit) params.append('limit', Math.floor(filters.limit).toString());
 
             if (filters.fechaInicio) params.append('date_from', filters.fechaInicio.toISOString());
             if (filters.fechaFin) params.append('date_to', filters.fechaFin.toISOString());
         }
 
-        const queryString = params.toString();
-        const url = queryString ? `${API_URL}/appointments?${queryString}` : `${API_URL}/appointments`;
-
-        const response = await fetch(url, {
+        const response = await fetch(`${API_URL}/appointments?${params.toString()}`, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
