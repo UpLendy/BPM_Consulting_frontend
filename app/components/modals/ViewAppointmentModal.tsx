@@ -84,30 +84,6 @@ export default function ViewAppointmentModal({
     (userRole === 'ingeniero' || userRole === 'engineer') &&
     appointment.status === AppointmentStatus.CONFIRMADA;
 
-  const handleComplete = async () => {
-    if (!appointment) return;
-    
-    setLoading(true);
-    setStatusError(null);
-    
-    const response = await appointmentService.completeAppointment(appointment.id);
-    
-    if (response.success) {
-      window.location.reload();
-    } else {
-      setStatusError(response.error || 'Error al finalizar la cita');
-      // Asegurarse de que el banner de error sea visible
-      const modalContent = document.querySelector('.max-h-\\[85vh\\]');
-      if (modalContent) modalContent.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-    
-    setLoading(false);
-  };
-
-  const showCompleteButton =
-    (userRole === 'ingeniero' || userRole === 'engineer') &&
-    appointment.status === AppointmentStatus.EN_PROGRESO;
-
   return (
     <BaseModal
       isOpen={isOpen}
@@ -252,29 +228,7 @@ export default function ViewAppointmentModal({
                 </>
               )}
             </button>
-          )}
-
-          {/* Complete Appointment Button (Visible if EN_PROGRESO) */}
-          {showCompleteButton && (
-            <button
-              onClick={handleComplete}
-              disabled={loading}
-              className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors disabled:bg-purple-400 flex items-center gap-2"
-            >
-              {loading ? (
-                <>Wait...</>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  Finalizar Visita
-                </>
-              )}
-            </button>
-          )}
-
-          
+          )}    
         </div>
       </div>
     </BaseModal>

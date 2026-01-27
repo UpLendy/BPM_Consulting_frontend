@@ -42,8 +42,8 @@ export default function DayScheduleModal({
     ? dayAppointments.filter(apt => ownedAppointmentIds.has(String(apt.id)))
     : dayAppointments;
 
-  // Generate 1-hour slots from 8:00 to 17:00 (5 PM)
-  const hours = Array.from({ length: 9 }, (_, i) => i + 8); // 8, 9, ... 16
+  // Generate 1-hour slots from 5:00 to 19:00 (7 PM)
+  const hours = Array.from({ length: 15 }, (_, i) => i + 5); // 5, 6, ..., 19 (7 PM)
 
   const getSlotStatus = (hour: number) => {
     const appointment = dayAppointments.find(apt => {

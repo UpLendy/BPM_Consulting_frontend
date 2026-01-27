@@ -25,7 +25,8 @@ export enum AppointmentStatus {
 export enum AppointmentType {
     ASESORIA = 'ASESORIA',
     AUDITORIA = 'AUDITORIA',
-    SEGUIMIENTO = 'SEGUIMIENTO'
+    SEGUIMIENTO = 'SEGUIMIENTO',
+    CAPACITACION = 'CAPACITACION'
 }
 
 /**

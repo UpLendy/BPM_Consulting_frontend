@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import BaseModal from './BaseModal';
-import { CreateAppointmentDTO, AppointmentType } from '@/app/types';
+import { CreateAppointmentDTO, AppointmentType, Appointment } from '@/app/types';
 
 interface CreateAppointmentModalProps {
   isOpen: boolean;
@@ -12,6 +12,7 @@ interface CreateAppointmentModalProps {
   prefilledTime?: string;
   empresarioId?: string;
   ingenieroId?: string;
+  existingAppointments?: Appointment[];
 }
 
 export default function CreateAppointmentModal({
@@ -21,13 +22,21 @@ export default function CreateAppointmentModal({
   prefilledDate,
   prefilledTime,
   empresarioId,
-  ingenieroId
+  ingenieroId,
+  existingAppointments = []
 }: CreateAppointmentModalProps) {
+  const getInitialEndTime = (start: string) => {
+    const [h, m] = start.split(':').map(Number);
+    const date = new Date();
+    date.setHours(h + 2, m, 0, 0);
+    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  };
+
   // Internal state for form handling (separate from DTO structure slightly for easier input handling)
   const [formState, setFormState] = useState({
     date: prefilledDate || new Date(),
     startTime: prefilledTime || '09:00',
-    endTime: '',
+    endTime: getInitialEndTime(prefilledTime || '09:00'),
     description: '',
     appointmentType: AppointmentType.ASESORIA,
     location: ''
@@ -38,17 +47,99 @@ export default function CreateAppointmentModal({
   // Reset form state when modal opens with new prefilled data
   useEffect(() => {
     if (isOpen) {
+      let initialStart = prefilledTime || '09:00';
+      
+      // -- BUFFER LOGIC: Check if initialStart needs a 15 min shift --
+      // If there's an appointment ending exactly at our start time, shift 15 min
+      const hasClash = existingAppointments.some(apt => {
+          const endStr = new Date(apt.endTime).getUTCHours().toString().padStart(2, '0') + ':' + 
+                         new Date(apt.endTime).getUTCMinutes().toString().padStart(2, '0');
+          return endStr === initialStart;
+      });
+
+      if (hasClash) {
+          const [h, m] = initialStart.split(':').map(Number);
+          const d = new Date();
+          d.setHours(h, m + 15, 0, 0);
+          initialStart = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      }
+
       setFormState({
         date: prefilledDate || new Date(),
-        startTime: prefilledTime || '09:00',
-        endTime: '',
+        startTime: initialStart,
+        endTime: getInitialEndTime(initialStart),
         description: '',
         appointmentType: AppointmentType.ASESORIA,
         location: ''
       });
       setErrors({});
     }
-  }, [isOpen, prefilledDate, prefilledTime]);
+  }, [isOpen, prefilledDate, prefilledTime, existingAppointments]);
+
+  const adjustEndTime = (minutes: number) => {
+    const [startH, startM] = formState.startTime.split(':').map(Number);
+    const [endH, endM] = formState.endTime.split(':').map(Number);
+    
+    const startTotal = startH * 60 + startM;
+    const currentEndTotal = endH * 60 + endM;
+    const newEndTotal = currentEndTotal + minutes;
+    
+    const duration = newEndTotal - startTotal;
+
+    // Constraints: 120 min (2h) to 180 min (3h)
+    if (duration >= 120 && duration <= 180) {
+      const newH = Math.floor(newEndTotal / 60);
+      const newM = newEndTotal % 60;
+      setFormState(prev => ({
+        ...prev,
+        endTime: `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`
+      }));
+    }
+  };
+
+  const [transportWarning, setTransportWarning] = useState<string | null>(null);
+
+  const handleStartTimeChange = (newStart: string) => {
+    const [h, m] = newStart.split(':').map(Number);
+    const newTotal = h * 60 + m;
+    
+    // Filter appointments for the current selected date in form
+    const selectedDateStr = formState.date instanceof Date 
+      ? formState.date.toISOString().split('T')[0] 
+      : new Date(formState.date).toISOString().split('T')[0];
+
+    const dayAppointments = existingAppointments.filter(apt => {
+        const aptDateStr = new Date(apt.date).toISOString().split('T')[0];
+        return aptDateStr === selectedDateStr;
+    });
+
+    let adjustedStart = newStart;
+    let showWarning = false;
+
+    dayAppointments.forEach(apt => {
+        const aptEnd = new Date(apt.endTime);
+        const aptEndTotal = aptEnd.getUTCHours() * 60 + aptEnd.getUTCMinutes();
+        
+        if (newTotal >= aptEndTotal && newTotal < aptEndTotal + 15) {
+            showWarning = true;
+            const finalMins = aptEndTotal + 15;
+            adjustedStart = `${String(Math.floor(finalMins / 60)).padStart(2, '0')}:${String(finalMins % 60).padStart(2, '0')}`;
+        }
+    });
+
+    if (showWarning) {
+        setTransportWarning('Por cuestiones de transporte el ingeniero requiere al menos 15 minutos para llegar al establecimiento');
+        setTimeout(() => setTransportWarning(null), 5000);
+    } else {
+        setTransportWarning(null);
+    }
+
+    setFormState(prev => ({
+      ...prev,
+      startTime: adjustedStart,
+      endTime: getInitialEndTime(adjustedStart)
+    }));
+  };
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -60,9 +151,53 @@ export default function CreateAppointmentModal({
 
     // Validate time range
     if (formState.startTime && formState.endTime) {
-      if (formState.startTime >= formState.endTime) {
-        newErrors.endTime = 'La hora de fin debe ser posterior a la hora de inicio';
+      const [startH, startM] = formState.startTime.split(':').map(Number);
+      const [endH, endM] = formState.endTime.split(':').map(Number);
+      
+      const startTotalMinutes = startH * 60 + startM;
+      const endTotalMinutes = endH * 60 + endM;
+      const durationMinutes = endTotalMinutes - startTotalMinutes;
+
+      // 5:00 AM (300 min) to 7:00 PM (1140 min)
+      if (startTotalMinutes < 300) {
+          newErrors.startTime = 'La hora de inicio mínima es a las 5:00 AM';
+      } else if (startTotalMinutes > 1140) {
+          newErrors.startTime = 'La última cita permitida inicia a las 7:00 PM';
       }
+
+      if (durationMinutes < 0) {
+        newErrors.endTime = 'La hora de fin debe ser posterior a la hora de inicio';
+      } else if (durationMinutes < 120) {
+        newErrors.endTime = 'La duración mínima es de 2 horas';
+      } else if (durationMinutes > 180) {
+        newErrors.endTime = 'La duración máxima es de 3 horas';
+      }
+
+      // Check Buffer with existing appointments
+      existingAppointments.forEach(apt => {
+          const aptStart = new Date(apt.startTime);
+          const aptEnd = new Date(apt.endTime);
+          
+          const aptStartTotal = aptStart.getUTCHours() * 60 + aptStart.getUTCMinutes();
+          const aptEndTotal = aptEnd.getUTCHours() * 60 + aptEnd.getUTCMinutes();
+
+          // 15 min transport buffer rule
+          // Our start must be at least 15m after their end, OR our end must be 15m before their start
+          const buffer = 15;
+
+          // If we start BEFORE they end, but AFTER they start (Overlap)
+          if (startTotalMinutes < aptEndTotal && endTotalMinutes > aptStartTotal) {
+              newErrors.startTime = 'Esta hora presenta un conflicto con otra cita existente.';
+          } else {
+              // No overlap, check buffers
+              if (startTotalMinutes < aptEndTotal + buffer && startTotalMinutes >= aptEndTotal) {
+                  newErrors.startTime = `Debes dejar al menos ${buffer} min para el transporte del ingeniero (Mínimo: ${Math.floor((aptEndTotal+buffer)/60)}:${String((aptEndTotal+buffer)%60).padStart(2,'0')})`;
+              }
+              if (endTotalMinutes > aptStartTotal - buffer && endTotalMinutes <= aptStartTotal) {
+                  newErrors.endTime = `Debes dejar al menos ${buffer} min antes de la siguiente cita del ingeniero.`;
+              }
+          }
+      });
     }
 
     setErrors(newErrors);
@@ -126,38 +261,49 @@ export default function CreateAppointmentModal({
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Tipo de Cita */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-bold text-gray-900 mb-2">
             Tipo de Cita *
           </label>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <button
               type="button"
               onClick={() => setFormState({ ...formState, appointmentType: AppointmentType.ASESORIA })}
-              className={`p-3 border-2 rounded-lg transition-colors ${
+              className={`p-3 border-2 rounded-xl transition-all duration-200 flex flex-col items-center gap-1 ${
                 formState.appointmentType === AppointmentType.ASESORIA
-                  ? 'border-blue-500 bg-blue-50'
-                  : 'border-gray-200 hover:border-gray-300'
+                  ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm'
+                  : 'border-gray-200 text-gray-800 hover:border-blue-300 hover:bg-gray-50'
               }`}
             >
-              <span className="text-sm font-medium">Asesoría</span>
+              <span className="text-xs font-bold uppercase tracking-tight">Asesoría</span>
             </button>
             <button
               type="button"
               onClick={() => setFormState({ ...formState, appointmentType: AppointmentType.AUDITORIA })}
-              className={`p-3 border-2 rounded-lg transition-colors ${
+              className={`p-3 border-2 rounded-xl transition-all duration-200 flex flex-col items-center gap-1 ${
                 formState.appointmentType === AppointmentType.AUDITORIA
-                  ? 'border-purple-500 bg-purple-50'
-                  : 'border-gray-200 hover:border-gray-300'
+                  ? 'border-purple-600 bg-purple-50 text-purple-700 shadow-sm'
+                  : 'border-gray-200 text-gray-800 hover:border-purple-300 hover:bg-gray-50'
               }`}
             >
-              <span className="text-sm font-medium">Auditoría</span>
+              <span className="text-xs font-bold uppercase tracking-tight">Auditoría</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFormState({ ...formState, appointmentType: AppointmentType.CAPACITACION })}
+              className={`p-3 border-2 rounded-xl transition-all duration-200 flex flex-col items-center gap-1 ${
+                formState.appointmentType === AppointmentType.CAPACITACION
+                  ? 'border-emerald-600 bg-emerald-50 text-emerald-700 shadow-sm'
+                  : 'border-gray-200 text-gray-800 hover:border-emerald-300 hover:bg-gray-50'
+              }`}
+            >
+              <span className="text-xs font-bold uppercase tracking-tight">Capacitación</span>
             </button>
           </div>
         </div>
 
         {/* Fecha */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-bold text-gray-900 mb-1">
             Fecha *
           </label>
           <input
@@ -171,14 +317,21 @@ export default function CreateAppointmentModal({
 
         {/* Horas */}
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+          <div className="relative">
+            <label className="block text-sm font-bold text-gray-900 mb-1">
               Hora de Inicio *
             </label>
+            {transportWarning && (
+              <div className="absolute -top-7 left-0 w-[200%] z-10">
+                <p className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded shadow-sm border border-amber-200 animate-in fade-in slide-in-from-bottom-1 duration-200">
+                  ⚠️ {transportWarning}
+                </p>
+              </div>
+            )}
             <input
               type="time"
               value={formState.startTime}
-              onChange={(e) => setFormState({ ...formState, startTime: e.target.value })}
+              onChange={(e) => handleStartTimeChange(e.target.value)}
               className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 ${
                 errors.startTime ? 'border-red-500' : 'border-gray-300'
               }`}
@@ -189,27 +342,46 @@ export default function CreateAppointmentModal({
             )}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Hora de Fin *
+            <label className="block text-sm font-bold text-gray-900 mb-1">
+              Hora de Fin (Ajustable) *
             </label>
-            <input
-              type="time"
-              value={formState.endTime}
-              onChange={(e) => setFormState({ ...formState, endTime: e.target.value })}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 ${
-                errors.endTime ? 'border-red-500' : 'border-gray-300'
-              }`}
-              required
-            />
+            <div className="flex items-center gap-2 h-[42px]">
+               <button 
+                type="button"
+                onClick={() => adjustEndTime(-15)}
+                className="w-10 h-full flex items-center justify-center bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-30"
+                title="Reducir 15 min"
+               >
+                 <span className="font-bold text-lg text-gray-700">−</span>
+               </button>
+               
+               <div className="flex-1 h-full flex items-center justify-center bg-white border border-gray-300 rounded-lg font-bold text-gray-900 text-sm shadow-inner">
+                  {formState.endTime}
+               </div>
+
+               <button 
+                type="button"
+                onClick={() => adjustEndTime(15)}
+                className="w-10 h-full flex items-center justify-center bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-30"
+                title="Aumentar 15 min"
+               >
+                 <span className="font-bold text-lg text-gray-700">+</span>
+               </button>
+            </div>
+            {!errors.endTime && (
+              <p className="mt-1 text-[10px] text-gray-500 font-medium italic">
+                Duración: 2 a 3 horas (Intervalo 15m)
+              </p>
+            )}
             {errors.endTime && (
-              <p className="mt-1 text-xs text-red-600">{errors.endTime}</p>
+              <p className="mt-1 text-xs text-red-600 font-bold">{errors.endTime}</p>
             )}
           </div>
         </div>
 
         {/* Ubicación */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-bold text-gray-900 mb-1">
             Ubicación *
           </label>
           <input
@@ -229,7 +401,7 @@ export default function CreateAppointmentModal({
 
         {/* Descripción */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-bold text-gray-900 mb-1">
             Descripción *
           </label>
           <textarea
