@@ -75,6 +75,12 @@ export default function LoginForm() {
             <span className="absolute left-3 top-3 text-gray-500">🔒</span>
           </div>
 
+          <div className="text-right">
+            <a href="/recuperar-contrasena" className="text-sm text-blue-900 hover:underline">
+              ¿Has olvidado tu contraseña?
+            </a>
+          </div>
+
           {/* Error */}
           {error && (
             <p className="text-red-700 text-sm text-center">{error}</p>
