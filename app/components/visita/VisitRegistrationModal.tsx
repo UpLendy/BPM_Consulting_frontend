@@ -9,6 +9,7 @@ import { HiCheckCircle } from 'react-icons/hi';
 interface VisitRegistrationModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
   appointment: Appointment;
   readOnly?: boolean;
 }
@@ -323,6 +324,7 @@ const SECTIONS: Section[] = [
 export default function VisitRegistrationModal({
   isOpen,
   onClose,
+  onSuccess,
   appointment,
   readOnly = false
 }: VisitRegistrationModalProps) {
@@ -469,6 +471,7 @@ export default function VisitRegistrationModal({
         setTimeout(() => {
           setIsSuccess(false);
           setShowConfirmation(false);
+          if (onSuccess) onSuccess();
           onClose();
         }, 2000);
       } else {
@@ -614,12 +617,14 @@ export default function VisitRegistrationModal({
 
         {/* CALIFICACIÓN DEL BLOQUE */}
         <div className="mt-8 border border-gray-300 rounded-lg overflow-hidden">
-            <div className="bg-gray-100 p-2 text-center font-bold text-xs border-b border-gray-300">
-                CALIFICACIÓN DEL BLOQUE (Calculado Automáticamente)
+            <div className="bg-gray-200 p-2 text-center font-black text-xs border-b border-gray-300 text-black uppercase">
+                CALIFICACIÓN DE LA VISITA (Calculado Automáticamente)
             </div>
-            {/* Placeholder for footer calc */}
-            <div className="p-4 text-center text-sm text-gray-500 italic">
-                La calificación del bloque corresponde al 33% del total del acta...
+            <div className="p-6 text-center bg-white">
+                <span className="block text-gray-500 text-xs font-bold uppercase mb-1">Porcentaje de Cumplimiento</span>
+                <span className="text-4xl font-black text-blue-900">
+                    {calculateTotalSuccessRate().toFixed(1)}%
+                </span>
             </div>
         </div>
 

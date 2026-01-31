@@ -28,16 +28,18 @@ export default function DocumentosEmpresaPage() {
       isOpen: boolean;
       doc: any | null;
       isProcessing: boolean;
+      warning?: string;
+      isConfirmDisabled?: boolean;
   }>({
       isOpen: false,
       doc: null,
-      isProcessing: false
+      isProcessing: false,
+      warning: '',
+      isConfirmDisabled: false
   });
 
-  useEffect(() => {
-    // ... existing init logic ...
-    const init = async () => {
-      // ... existing auth checks ...
+  /* Fetch Data Function - Reusable for Refresh */
+  const fetchData = async () => {
       const userStr = localStorage.getItem('user');
       const token = localStorage.getItem('token');
       
@@ -76,7 +78,7 @@ export default function DocumentosEmpresaPage() {
                          
                          const mappedList = items.map((val: any) => ({
                              id: val.id,
-                             appointmentId: val.appointmentId,
+                             appointmentId: val.appointmentId || val.appointment?.id,
                              companyName: val.companyName || val.appointment?.companyName || 'Empresa', 
                              engineerName: val.reviewedByName || val.appointment?.engineerName || 'Ingeniero',
                              date: val.updatedAt ? new Date(val.updatedAt).toLocaleDateString('es-ES') : new Date().toLocaleDateString('es-ES'),
@@ -120,7 +122,7 @@ export default function DocumentosEmpresaPage() {
                                 companyName: apt.companyName || user.companyName || 'Mi Empresa',
                                 engineerName: validation.reviewedByName || apt.engineerName || 'Ingeniero Asignado',
                                 date: new Date(apt.date).toLocaleDateString('es-ES'),
-                                description: validation.message || validation.status || 'Validación de Cita',
+                                description: validation.message || (validation.status || '').replace(/_/g, ' ') || 'Validación de Cita',
                                 status: validation.status,
                                 docCount: docCount, 
                                 rawDate: apt.date 
@@ -142,12 +144,12 @@ export default function DocumentosEmpresaPage() {
         }
     };
 
-    init();
+  useEffect(() => {
+    fetchData();
   }, [router]);
 
   const filteredDocs = docs.filter(doc => 
     doc.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    doc.engineerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     doc.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -180,11 +182,35 @@ export default function DocumentosEmpresaPage() {
   };
 
   /* Trigger confirmation modal */
-  const handleStatusUpdateClick = (doc: any, e: React.MouseEvent) => {
+  const handleStatusUpdateClick = async (doc: any, e: React.MouseEvent) => {
+      let warning = '';
+      let isConfirmDisabled = false;
+      
+      // If Admin and finalizing review, check for pending docs
+      if (currentUserRole === 'admin' && doc.status === 'EN_REVISION') {
+          setIsLoading(true); // Temporary loading state while checking
+          try {
+              const res = await appointmentService.getValidationDocuments(doc.id);
+              if (res.success && res.data) {
+                  const pendingCount = res.data.filter((d: any) => !d.isActa && d.status !== 'APROBADO' && d.status !== 'RECHAZADO').length;
+                  if (pendingCount > 0) {
+                      warning = `No puedes finalizar la revisión porque hay ${pendingCount} documentos pendientes. Debes aprobarlos o rechazarlos todos primero.`;
+                      isConfirmDisabled = true;
+                  }
+              }
+          } catch (err) {
+              console.error('Error checking pending docs', err);
+          } finally {
+              setIsLoading(false);
+          }
+      }
+
       setConfirmModal({
           isOpen: true,
           doc: doc,
-          isProcessing: false
+          isProcessing: false,
+          warning: warning,
+          isConfirmDisabled: isConfirmDisabled
       });
   };
 
@@ -199,31 +225,45 @@ export default function DocumentosEmpresaPage() {
         let nextStatus = 'EN_REVISION';
         let nextDescription = 'Documentación cargada, en revisión por el administrador';
 
-        // Logic for Admin updating Approved -> Completed
-        // (Assuming current user is Admin if they can see/interact with APROBADO card)
-        if (doc.status === 'APROBADO') {
+        // 1. Logic for ADMIN finalizing a review (EN_REVISION -> APROBADO/REQUIERE_CORRECCIONES)
+        if (currentUserRole === 'admin' && doc.status === 'EN_REVISION') {
+            const docsResponse = await appointmentService.getValidationDocuments(doc.id);
+            if (docsResponse.success && docsResponse.data) {
+                const validationDocs = docsResponse.data;
+                const hasRejected = validationDocs.some((d: any) => d.status === 'RECHAZADO');
+                nextStatus = hasRejected ? 'REQUIERE_CORRECCIONES' : 'APROBADO';
+                nextDescription = hasRejected 
+                    ? 'La validación requiere correcciones en algunos documentos.' 
+                    : 'Todos los documentos han sido aprobados.';
+            } else {
+                throw new Error('No se pudieron verificar los documentos para finalizar la revisión.');
+            }
+        } 
+        // 2. Logic for Admin updating Approved -> Completed
+        else if (currentUserRole === 'admin' && doc.status === 'APROBADO') {
             nextStatus = 'COMPLETADO';
             nextDescription = 'Validación completada y documentos enviados.';
+        }
+        // 3. Logic for Engineer sending to review
+        else {
+            nextStatus = 'EN_REVISION';
+            nextDescription = 'Documentación cargada, en revisión por el administrador';
         }
 
         const response = await appointmentService.updateValidationStatus(doc.appointmentId || doc.id, nextStatus);
         
         if (response.success) {
-            // Success
             setDocs(prevDocs => 
                 prevDocs.map(d => 
                     d.id === doc.id ? { ...d, status: nextStatus, description: nextDescription } : d
                 )
             );
-            // Close modal
-            setConfirmModal({ isOpen: false, doc: null, isProcessing: false });
+            setConfirmModal({ isOpen: false, doc: null, isProcessing: false, warning: '', isConfirmDisabled: false });
         } else {
-            alert('Error al actualizar: ' + response.error);
             setConfirmModal(prev => ({ ...prev, isProcessing: false }));
         }
-    } catch (err) {
+    } catch (err: any) {
         console.error(err);
-        alert('Ocurrió un error al actualizar el estado.');
         setConfirmModal(prev => ({ ...prev, isProcessing: false }));
     }
   };
@@ -268,8 +308,8 @@ export default function DocumentosEmpresaPage() {
               </span>
               <input
                 type="text"
-                placeholder="Buscar por ingeniero, empresa..."
-                className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all shadow-sm font-inter"
+                placeholder="Buscar por empresa..."
+                className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all shadow-sm font-inter placeholder-gray-600"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -290,17 +330,21 @@ export default function DocumentosEmpresaPage() {
               onClick={
                   isCardClickable(doc) ? () => handleCardClick(doc) : undefined
               }
-              onAction={
-                (doc.status === 'PENDIENTE_DOCUMENTACION' || doc.status === 'REQUIERE_CORRECCIONES' || !doc.status || (currentUserRole === 'admin' && doc.status === 'APROBADO')) 
-                  ? (e) => handleStatusUpdateClick(doc, e) 
-                  : undefined
-              }
-              actionLabel={
-                doc.status === 'REQUIERE_CORRECCIONES' ? "Finalizar y Enviar a Revisión" :
-                doc.status === 'APROBADO' ? "Enviar Documentos" :
-                "Confirmar Carga de Documentos"
-              }
-              actionDisabled={!doc.docCount || doc.docCount === 0}
+               onAction={
+                 (currentUserRole === 'admin' && (doc.status === 'EN_REVISION' || doc.status === 'APROBADO'))
+                 ? (e) => handleStatusUpdateClick(doc, e)
+                 : (currentUserRole !== 'admin' && (doc.status === 'PENDIENTE_DOCUMENTACION' || doc.status === 'REQUIERE_CORRECCIONES' || !doc.status))
+                 ? (e) => handleStatusUpdateClick(doc, e)
+                 : undefined
+               }
+               actionLabel={
+                 currentUserRole === 'admin' 
+                   ? (doc.status === 'APROBADO' ? "Marcar como Completado" : "Finalizar Revisión")
+                   : (doc.status === 'REQUIERE_CORRECCIONES' ? "Finalizar y Enviar a Revisión" : "Confirmar Carga de Documentos")
+               }
+               actionDisabled={
+                 (currentUserRole !== 'admin' && (!doc.docCount || doc.docCount === 0))
+               }
             />
           ))}
 
@@ -322,6 +366,9 @@ export default function DocumentosEmpresaPage() {
       <ValidationUploadModal 
          isOpen={isModalOpen}
          onClose={handleCloseModal}
+         onSuccess={() => {
+             fetchData(); // Refresh list on success
+         }}
          validation={selectedDoc}
       />
       
@@ -331,6 +378,7 @@ export default function DocumentosEmpresaPage() {
             isOpen={isReviewModalOpen}
             onClose={handleCloseReviewModal}
             validationId={selectedDoc.id}
+            appointmentId={selectedDoc.appointmentId}
             companyName={selectedDoc.companyName}
           />
       )}
@@ -341,28 +389,46 @@ export default function DocumentosEmpresaPage() {
         onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
         onConfirm={executeStatusUpdate}
         title={
-            confirmModal.doc?.status === 'APROBADO' 
-                ? "Confirmar Envío de Documentos"
-                : "Confirmar Finalización"
+            currentUserRole === 'admin' 
+                ? (confirmModal.doc?.status === 'APROBADO' ? "Confirmar Envío de Documentos" : "Confirmar Finalización de Revisión")
+                : "Confirmar Carga de Documentos"
         }
         message={
-            confirmModal.doc?.status === 'APROBADO' ? (
-                <span>
-                    ¿Estás seguro que deseas enviar los documentos finales? 
-                    <br/><br/>
-                    El estado cambiará a <strong>COMPLETADO</strong>.
-                </span>
+            currentUserRole === 'admin' ? (
+                confirmModal.doc?.status === 'APROBADO' ? (
+                    <span>
+                        ¿Estás seguro que deseas enviar los documentos finales? 
+                        <br/><br/>
+                        El estado cambiará a <strong>COMPLETADO</strong>.
+                    </span>
+                ) : (
+                    <span>
+                        ¿Estás seguro que deseas finalizar la revisión? 
+                        <br/><br/>
+                        El estado cambiará a <strong>APROBADO</strong> o <strong>REQUIERE CORRECCIONES</strong> según tus revisiones.
+                    </span>
+                )
             ) : (
                 <span>
                     ¿Estás seguro que deseas notificar que has cargado toda la documentación? 
                     <br/><br/>
-                    El estado cambiará a <strong>EN_REVISIÓN</strong> y el administrador será notificado.
+                    El estado cambiará a <strong>EN REVISION</strong> y el administrador será notificado.
                 </span>
             )
         }
         confirmLabel="Sí, Confirmar"
         isProcessing={confirmModal.isProcessing}
-      />
+        confirmDisabled={confirmModal.isConfirmDisabled}
+      >
+        {confirmModal.warning && (
+            <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex gap-3">
+                <svg className="w-5 h-5 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <p className="text-xs text-amber-800 font-medium">{confirmModal.warning}</p>
+            </div>
+        )}
+      </ConfirmationModal>
     </DashboardLayout>
   );
 }

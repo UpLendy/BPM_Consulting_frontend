@@ -12,6 +12,8 @@ interface ConfirmationModalProps {
   confirmLabel?: string;
   cancelLabel?: string;
   isProcessing?: boolean;
+  confirmDisabled?: boolean;
+  children?: React.ReactNode;
 }
 
 export default function ConfirmationModal({
@@ -22,7 +24,9 @@ export default function ConfirmationModal({
   message,
   confirmLabel = 'Confirmar',
   cancelLabel = 'Cancelar',
-  isProcessing = false
+  isProcessing = false,
+  confirmDisabled = false,
+  children
 }: ConfirmationModalProps) {
   return (
     <BaseModal
@@ -36,6 +40,8 @@ export default function ConfirmationModal({
             {message}
         </div>
         
+        {children}
+        
         <div className="flex justify-end gap-3 mt-4">
             <button
                 onClick={onClose}
@@ -46,8 +52,11 @@ export default function ConfirmationModal({
             </button>
             <button
                 onClick={onConfirm}
-                disabled={isProcessing}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm min-w-[100px] flex justify-center disabled:opacity-70 disabled:cursor-not-allowed"
+                disabled={isProcessing || confirmDisabled}
+                className={`px-4 py-2 text-white rounded-lg transition-colors shadow-sm min-w-[100px] flex justify-center font-bold
+                    ${isProcessing || confirmDisabled 
+                        ? 'bg-gray-300 cursor-not-allowed opacity-70' 
+                        : 'bg-blue-600 hover:bg-blue-700'}`}
             >
                 {isProcessing ? (
                    <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>

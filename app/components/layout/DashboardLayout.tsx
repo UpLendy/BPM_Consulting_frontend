@@ -12,6 +12,7 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   // Initialize state from localStorage if available, default to true
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isMounting, setIsMounting] = useState(true);
 
   useEffect(() => {
     // Check auth
@@ -24,6 +25,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     if (storedState !== null) {
       setIsSidebarOpen(storedState === 'true');
     }
+    
+    // Enable transitions after initial render and state restoration
+    // Use a small timeout to ensure the initial state is applied without transition
+    setTimeout(() => {
+        setIsMounting(false);
+    }, 100);
   }, []);
 
   const toggleSidebar = () => {
@@ -40,7 +47,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
     <div className="h-screen flex bg-gray-50">
       {/* Sidebar */}
-      <Sidebar isOpen={isSidebarOpen} onClose={handleCloseSidebar} />
+      <Sidebar 
+        isOpen={isSidebarOpen} 
+        onClose={handleCloseSidebar} 
+        transitionEnabled={!isMounting}
+      />
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}

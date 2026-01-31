@@ -43,7 +43,7 @@ export default function LoginForm() {
       <div className="bg-yellow-400 p-12 rounded-lg shadow-xl w-96">
         {/* Logo y título */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-blue-900">BPM<span className="font-light">Consulting</span></h1>
+          <img src="/logoBPM.png" alt="BPM Consulting" className="h-20 w-auto mx-auto" />
           <p className="text-xs text-blue-900 mt-2">LÍDERES DEL EJE CAFETERO</p>
           <p className="text-xs text-blue-900">Un camino sin parar a la industria alimentaria</p>
         </div>

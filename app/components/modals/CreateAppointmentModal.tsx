@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import BaseModal from './BaseModal';
-import { CreateAppointmentDTO, AppointmentType, Appointment } from '@/app/types';
+import { CreateAppointmentDTO, AppointmentType, Appointment, AppointmentStatus } from '@/app/types';
+import { getDisplayTime } from '@/app/components/calendar/utils';
 
 interface CreateAppointmentModalProps {
   isOpen: boolean;
@@ -32,7 +33,18 @@ export default function CreateAppointmentModal({
     return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
   };
 
-  // Internal state for form handling (separate from DTO structure slightly for easier input handling)
+  const getSafeDateStr = (dateInput: any) => {
+    if (!dateInput) return '';
+    if (dateInput instanceof Date) {
+        const y = dateInput.getFullYear();
+        const m = String(dateInput.getMonth() + 1).padStart(2, '0');
+        const d = String(dateInput.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+    if (typeof dateInput === 'string') return dateInput.split('T')[0];
+    return '';
+  };
+
   const [formState, setFormState] = useState({
     date: prefilledDate || new Date(),
     startTime: prefilledTime || '09:00',
@@ -49,11 +61,15 @@ export default function CreateAppointmentModal({
     if (isOpen) {
       let initialStart = prefilledTime || '09:00';
       
+      const selectedDateStr = getSafeDateStr(prefilledDate || formState.date);
+      
       // -- BUFFER LOGIC: Check if initialStart needs a 15 min shift --
-      // If there's an appointment ending exactly at our start time, shift 15 min
       const hasClash = existingAppointments.some(apt => {
-          const endStr = new Date(apt.endTime).getUTCHours().toString().padStart(2, '0') + ':' + 
-                         new Date(apt.endTime).getUTCMinutes().toString().padStart(2, '0');
+          if (apt.status === AppointmentStatus.CANCELADA) return false;
+          const aptDateStr = getSafeDateStr(apt.date);
+          if (aptDateStr !== selectedDateStr) return false;
+          
+          const endStr = getDisplayTime(apt.endTime);
           return endStr === initialStart;
       });
 
@@ -103,13 +119,11 @@ export default function CreateAppointmentModal({
     const [h, m] = newStart.split(':').map(Number);
     const newTotal = h * 60 + m;
     
-    // Filter appointments for the current selected date in form
-    const selectedDateStr = formState.date instanceof Date 
-      ? formState.date.toISOString().split('T')[0] 
-      : new Date(formState.date).toISOString().split('T')[0];
+    const selectedDateStr = getSafeDateStr(formState.date);
 
     const dayAppointments = existingAppointments.filter(apt => {
-        const aptDateStr = new Date(apt.date).toISOString().split('T')[0];
+        if (apt.status === AppointmentStatus.CANCELADA) return false;
+        const aptDateStr = getSafeDateStr(apt.date);
         return aptDateStr === selectedDateStr;
     });
 
@@ -117,8 +131,10 @@ export default function CreateAppointmentModal({
     let showWarning = false;
 
     dayAppointments.forEach(apt => {
-        const aptEnd = new Date(apt.endTime);
-        const aptEndTotal = aptEnd.getUTCHours() * 60 + aptEnd.getUTCMinutes();
+        const aptEndStr = getDisplayTime(apt.endTime);
+        if (!aptEndStr) return;
+        const [aeH, aeM] = aptEndStr.split(':').map(Number);
+        const aptEndTotal = aeH * 60 + aeM;
         
         if (newTotal >= aptEndTotal && newTotal < aptEndTotal + 15) {
             showWarning = true;
@@ -149,7 +165,6 @@ export default function CreateAppointmentModal({
     if (!formState.description) newErrors.description = 'Descripción es requerida';
     if (!formState.location) newErrors.location = 'Ubicación es requerida';
 
-    // Validate time range
     if (formState.startTime && formState.endTime) {
       const [startH, startM] = formState.startTime.split(':').map(Number);
       const [endH, endM] = formState.endTime.split(':').map(Number);
@@ -158,7 +173,6 @@ export default function CreateAppointmentModal({
       const endTotalMinutes = endH * 60 + endM;
       const durationMinutes = endTotalMinutes - startTotalMinutes;
 
-      // 5:00 AM (300 min) to 7:00 PM (1140 min)
       if (startTotalMinutes < 300) {
           newErrors.startTime = 'La hora de inicio mínima es a las 5:00 AM';
       } else if (startTotalMinutes > 1140) {
@@ -173,23 +187,28 @@ export default function CreateAppointmentModal({
         newErrors.endTime = 'La duración máxima es de 3 horas';
       }
 
-      // Check Buffer with existing appointments
-      existingAppointments.forEach(apt => {
-          const aptStart = new Date(apt.startTime);
-          const aptEnd = new Date(apt.endTime);
-          
-          const aptStartTotal = aptStart.getUTCHours() * 60 + aptStart.getUTCMinutes();
-          const aptEndTotal = aptEnd.getUTCHours() * 60 + aptEnd.getUTCMinutes();
+      const selectedDateCompare = getSafeDateStr(formState.date);
+      const dayAppointments = existingAppointments.filter(apt => {
+          if (apt.status === AppointmentStatus.CANCELADA) return false;
+          return getSafeDateStr(apt.date) === selectedDateCompare;
+      });
 
-          // 15 min transport buffer rule
-          // Our start must be at least 15m after their end, OR our end must be 15m before their start
+      dayAppointments.forEach(apt => {
+          const aptStartStr = getDisplayTime(apt.startTime);
+          const aptEndStr = getDisplayTime(apt.endTime);
+          if (!aptStartStr || !aptEndStr) return;
+
+          const [asH, asM] = aptStartStr.split(':').map(Number);
+          const [aeH, aeM] = aptEndStr.split(':').map(Number);
+          
+          const aptStartTotal = asH * 60 + asM;
+          const aptEndTotal = aeH * 60 + aeM;
+
           const buffer = 15;
 
-          // If we start BEFORE they end, but AFTER they start (Overlap)
           if (startTotalMinutes < aptEndTotal && endTotalMinutes > aptStartTotal) {
               newErrors.startTime = 'Esta hora presenta un conflicto con otra cita existente.';
           } else {
-              // No overlap, check buffers
               if (startTotalMinutes < aptEndTotal + buffer && startTotalMinutes >= aptEndTotal) {
                   newErrors.startTime = `Debes dejar al menos ${buffer} min para el transporte del ingeniero (Mínimo: ${Math.floor((aptEndTotal+buffer)/60)}:${String((aptEndTotal+buffer)%60).padStart(2,'0')})`;
               }
@@ -206,19 +225,8 @@ export default function CreateAppointmentModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (validate()) {
-      // 1. Get YYYY-MM-DD from formState.date
-      // formState.date is likely a Date object. If created via new Date("YYYY-MM-DD"), it's UTC midnight.
-      // But let's rely on the local interpretation or ensure we extract just the YYYY-MM-DD part reliably.
-      const dateStr = formState.date instanceof Date 
-        ? formState.date.toISOString().split('T')[0] 
-        : new Date(formState.date).toISOString().split('T')[0];
-
-      // 3. Construct ISO strings strictly as UTC (Z) matching the local time face-value.
-      // User selects 09:00. We send 09:00Z.
-      // Backend stores 09:00Z.
-      // Frontend displays 09:00 (ignoring timezone).
+      const dateStr = getSafeDateStr(formState.date);
       const startTimeISO = `${dateStr}T${formState.startTime}:00.000Z`;
       const endTimeISO = `${dateStr}T${formState.endTime}:00.000Z`;
 
@@ -242,7 +250,7 @@ export default function CreateAppointmentModal({
     setFormState({
       date: prefilledDate || new Date(),
       startTime: prefilledTime || '09:00',
-      endTime: '',
+      endTime: getInitialEndTime(prefilledTime || '09:00'),
       description: '',
       appointmentType: AppointmentType.ASESORIA,
       location: ''
@@ -259,63 +267,61 @@ export default function CreateAppointmentModal({
       size="lg"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Tipo de Cita */}
         <div>
           <label className="block text-sm font-bold text-gray-900 mb-2">
             Tipo de Cita *
           </label>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2">
             <button
               type="button"
               onClick={() => setFormState({ ...formState, appointmentType: AppointmentType.ASESORIA })}
-              className={`p-3 border-2 rounded-xl transition-all duration-200 flex flex-col items-center gap-1 ${
+              className={`p-2 border-2 rounded-xl transition-all duration-200 flex flex-col items-center gap-1 ${
                 formState.appointmentType === AppointmentType.ASESORIA
                   ? 'border-blue-600 bg-blue-50 text-blue-700 shadow-sm'
                   : 'border-gray-200 text-gray-800 hover:border-blue-300 hover:bg-gray-50'
               }`}
             >
-              <span className="text-xs font-bold uppercase tracking-tight">Asesoría</span>
+              <span className="text-[10px] font-bold uppercase tracking-tight">Asesoría</span>
             </button>
             <button
               type="button"
               onClick={() => setFormState({ ...formState, appointmentType: AppointmentType.AUDITORIA })}
-              className={`p-3 border-2 rounded-xl transition-all duration-200 flex flex-col items-center gap-1 ${
+              className={`p-2 border-2 rounded-xl transition-all duration-200 flex flex-col items-center gap-1 ${
                 formState.appointmentType === AppointmentType.AUDITORIA
                   ? 'border-purple-600 bg-purple-50 text-purple-700 shadow-sm'
                   : 'border-gray-200 text-gray-800 hover:border-purple-300 hover:bg-gray-50'
               }`}
             >
-              <span className="text-xs font-bold uppercase tracking-tight">Auditoría</span>
+              <span className="text-[10px] font-bold uppercase tracking-tight">Auditoría</span>
             </button>
+            {/* Seguimiento option removed per user request (backend support remains) */}
             <button
               type="button"
               onClick={() => setFormState({ ...formState, appointmentType: AppointmentType.CAPACITACION })}
-              className={`p-3 border-2 rounded-xl transition-all duration-200 flex flex-col items-center gap-1 ${
+              className={`p-2 border-2 rounded-xl transition-all duration-200 flex flex-col items-center gap-1 ${
                 formState.appointmentType === AppointmentType.CAPACITACION
-                  ? 'border-emerald-600 bg-emerald-50 text-emerald-700 shadow-sm'
-                  : 'border-gray-200 text-gray-800 hover:border-emerald-300 hover:bg-gray-50'
+                  ? 'border-orange-600 bg-orange-50 text-orange-700 shadow-sm'
+                  : 'border-gray-200 text-gray-800 hover:border-orange-300 hover:bg-gray-50'
               }`}
             >
-              <span className="text-xs font-bold uppercase tracking-tight">Capacitación</span>
+              <span className="text-[10px] font-bold uppercase tracking-tight">Capacitación</span>
             </button>
           </div>
         </div>
 
-        {/* Fecha */}
         <div>
           <label className="block text-sm font-bold text-gray-900 mb-1">
             Fecha *
           </label>
           <input
             type="date"
-            value={formState.date.toISOString().split('T')[0]}
+            value={getSafeDateStr(formState.date)}
             onChange={(e) => setFormState({ ...formState, date: new Date(e.target.value) })}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
             required
           />
         </div>
 
-        {/* Horas */}
         <div className="grid grid-cols-2 gap-4">
           <div className="relative">
             <label className="block text-sm font-bold text-gray-900 mb-1">
@@ -374,12 +380,11 @@ export default function CreateAppointmentModal({
               </p>
             )}
             {errors.endTime && (
-              <p className="mt-1 text-xs text-red-600 font-bold">{errors.endTime}</p>
+               <p className="mt-1 text-xs text-red-600 font-bold">{errors.endTime}</p>
             )}
           </div>
         </div>
 
-        {/* Ubicación */}
         <div>
           <label className="block text-sm font-bold text-gray-900 mb-1">
             Ubicación *
@@ -399,7 +404,6 @@ export default function CreateAppointmentModal({
           )}
         </div>
 
-        {/* Descripción */}
         <div>
           <label className="block text-sm font-bold text-gray-900 mb-1">
             Descripción *
@@ -419,7 +423,6 @@ export default function CreateAppointmentModal({
           )}
         </div>
 
-        {/* Actions */}
         <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
           <button
             type="button"
