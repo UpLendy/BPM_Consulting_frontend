@@ -34,7 +34,7 @@ export default function DocCard({
               Cita para {companyName}
             </h2>
             <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded font-medium">
-                {status}
+                {status.replace(/_/g, ' ')}
             </span>
         </div>
         

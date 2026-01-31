@@ -40,6 +40,14 @@ export default function ValidationReviewModal({
 
   const [selectedPreview, setSelectedPreview] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+
+  useEffect(() => {
+    if (statusMessage) {
+        const timer = setTimeout(() => setStatusMessage(null), 3500);
+        return () => clearTimeout(timer);
+    }
+  }, [statusMessage]);
 
   useEffect(() => {
     // Get user role once
@@ -187,11 +195,11 @@ export default function ValidationReviewModal({
         if (response.success && response.data && response.data.url) {
             setSelectedPreview(response.data.url);
         } else {
-            alert('No se pudo obtener la visualización del documento.');
+            setStatusMessage({ type: 'error', text: 'No se pudo obtener la visualización del documento.' });
         }
     } catch (error) {
         console.error('Error fetching preview:', error);
-        alert('Error al cargar el documento.');
+        setStatusMessage({ type: 'error', text: 'Error al cargar el documento.' });
     } finally {
         setPreviewLoading(false);
     }
@@ -207,12 +215,13 @@ export default function ValidationReviewModal({
           
           if (response.success) {
               updateLocalDocStatus(activeDoc.id, 'APROBADO');
+              setStatusMessage({ type: 'success', text: 'Documento aprobado' });
           } else {
-              alert('Error al aprobar: ' + response.error);
+              setStatusMessage({ type: 'error', text: 'Error al aprobar: ' + response.error });
           }
       } catch (error) {
           console.error(error);
-          alert('Error al procesar la aprobación');
+          setStatusMessage({ type: 'error', text: 'Error al procesar la aprobación' });
       } finally {
           setActionProcessing(false);
       }
@@ -221,7 +230,7 @@ export default function ValidationReviewModal({
   const handleReject = async () => {
       if (!activeDoc) return;
       if (!rejectionReason.trim()) {
-          alert('Debes ingresar una razón para el rechazo.');
+          setStatusMessage({ type: 'error', text: 'Debes ingresar una razón para el rechazo.' });
           return;
       }
 
@@ -229,19 +238,21 @@ export default function ValidationReviewModal({
       try {
           const response = await appointmentService.reviewDocument(validationId, activeDoc.id, {
               status: 'RECHAZADO',
-              rejectionReason: rejectionReason
+              rejectionReason: rejectionReason,
+              reviewNotes: rejectionReason
           });
           
           if (response.success) {
               updateLocalDocStatus(activeDoc.id, 'RECHAZADO');
               setIsRejecting(false);
               setRejectionReason('');
+              setStatusMessage({ type: 'success', text: 'Documento rechazado' });
           } else {
-              alert('Error al rechazar: ' + response.error);
+              setStatusMessage({ type: 'error', text: 'Error al rechazar: ' + response.error });
           }
       } catch (error) {
           console.error(error);
-          alert('Error al procesar el rechazo');
+          setStatusMessage({ type: 'error', text: 'Error al procesar el rechazo' });
       } finally {
           setActionProcessing(false);
       }
@@ -257,6 +268,7 @@ export default function ValidationReviewModal({
       }
   };
 
+
   return (
     <BaseModal
       isOpen={isOpen}
@@ -264,16 +276,33 @@ export default function ValidationReviewModal({
       title={`Revisión de Documentos - ${companyName}`}
       size="xl" 
     >
-      <div className="flex h-[75vh] gap-6">
+      <div className="flex h-[75vh] gap-6 relative">
+          {/* Status Toast Message */}
+          {statusMessage && (
+               <div className={`absolute top-0 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 rounded-lg shadow-xl border animate-in fade-in slide-in-from-top-4 duration-300 flex items-center gap-2
+                    ${statusMessage.type === 'success' ? 'bg-green-600 text-white border-green-500' : 'bg-red-600 text-white border-red-500'}`}>
+                    {statusMessage.type === 'success' ? (
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                    ) : (
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    )}
+                    <span className="text-sm font-black uppercase tracking-wider">{statusMessage.text}</span>
+               </div>
+          )}
+
         {/* Left Side: Document List + Evaluation Summary for Engineers */}
         <div className="w-1/3 border-r border-gray-200 pr-4 flex flex-col gap-6 overflow-hidden">
             
             {/* Evaluation Summary Card */}
             {(userRole === 'ingeniero' || userRole === 'empresario' || userRole === 'company') && evaluation && (
-                <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl p-5 text-white shadow-lg shrink-0">
+                <div className="bg-gradient-to-br from-blue-700 to-blue-900 rounded-2xl p-5 text-white shadow-lg shrink-0">
                     <div className="flex justify-between items-start mb-4">
-                        <h3 className="text-sm font-bold uppercase tracking-wider opacity-90">Evaluación de Visita</h3>
-                        <div className="bg-white/20 px-2 py-1 rounded text-[10px] font-bold">
+                        <h3 className="text-[10px] font-black uppercase tracking-widest text-blue-100">Evaluación de Visita</h3>
+                        <div className="bg-white/20 px-2 py-1 rounded text-[10px] font-black italic">
                             {(userRole === 'empresario' || userRole === 'company') ? 'RESULTADOS' : 'REVISIÓN'}
                         </div>
                     </div>
@@ -289,8 +318,8 @@ export default function ValidationReviewModal({
                              <span className="absolute text-lg font-black">{Math.round(evaluation.successRate || 0)}%</span>
                         </div>
                         <div>
-                            <p className="text-xs opacity-80 leading-tight mb-1">CUMPLIMIENTO</p>
-                            <p className="text-sm font-bold">
+                            <p className="text-[10px] font-black text-blue-100 leading-tight mb-1 uppercase tracking-widest">CUMPLIMIENTO</p>
+                            <p className="text-sm font-black">
                                 {evaluation.successRate >= 80 ? 'Excelente Desempeño' : 
                                  evaluation.successRate >= 60 ? 'Aceptable con Ajustes' : 'Requiere Intervención'}
                             </p>
@@ -324,7 +353,7 @@ export default function ValidationReviewModal({
             )}
 
             <div className="flex flex-col gap-4 overflow-y-auto flex-1">
-                <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider">Documentos Subidos</h3>
+                <h3 className="text-[10px] font-black text-black uppercase tracking-widest">Documentos Subidos</h3>
                 
                 {isLoading ? (
                     <div className="flex justify-center py-8">
@@ -360,7 +389,7 @@ export default function ValidationReviewModal({
                                     )}
                                 </div>
                                 <div className="min-w-0">
-                                    <p className={`text-sm font-medium truncate ${doc.isActa ? 'text-blue-700' : 'text-gray-900'}`} title={doc.fileName || doc.originalName}>
+                                    <p className={`text-sm font-black truncate ${doc.isActa ? 'text-blue-700' : 'text-black'}`} title={doc.fileName || doc.originalName}>
                                         {doc.fileName || doc.originalName || 'Documento sin nombre'}
                                     </p>
                                     <div className="flex items-center gap-2 mt-0.5">
@@ -368,7 +397,7 @@ export default function ValidationReviewModal({
                                             ${doc.status === 'APROBADO' ? 'bg-green-50 text-green-700 border-green-200' : 
                                               doc.status === 'RECHAZADO' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`
                                         }>
-                                            {doc.status || 'PENDIENTE'}
+                                            {(doc.status || 'PENDIENTE').replace(/_/g, ' ')}
                                         </span>
                                     </div>
                                 </div>
@@ -457,12 +486,12 @@ export default function ValidationReviewModal({
                     
                     {isRejecting && (
                         <div className="animate-in fade-in slide-in-from-top-2 duration-200">
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Razón del rechazo (Requerido)</label>
+                            <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-1">Razón del rechazo (Requerido)</label>
                             <textarea
                                 value={rejectionReason}
                                 onChange={(e) => setRejectionReason(e.target.value)}
-                                placeholder="Indica por qué se rechaza este documento..."
-                                className="w-full text-sm p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none resize-none"
+                                placeholder="Indica detalladamente por qué se rechaza este documento..."
+                                className="w-full text-sm p-3 border border-gray-400 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none resize-none text-black font-bold"
                                 rows={2}
                             />
                         </div>
@@ -477,7 +506,7 @@ export default function ValidationReviewModal({
                     <span className={`text-xs px-2 py-1 rounded font-bold
                         ${activeDoc.status === 'APROBADO' ? 'bg-green-100 text-green-700' : 
                           activeDoc.status === 'RECHAZADO' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`}>
-                        {activeDoc.status || 'PENDIENTE'}
+                        {(activeDoc.status || 'PENDIENTE').replace(/_/g, ' ')}
                     </span>
                 </div>
             )}

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import BaseModal from './BaseModal';
 import { getDisplayTime } from '@/app/components/calendar/utils';
-import { Appointment, AppointmentStatus } from '@/app/types';
+import { Appointment, AppointmentStatus, AppointmentType } from '@/app/types';
 import { AppointmentBadge, AppointmentTypeIcon } from '@/app/components/appointments';
 import { appointmentService } from '@/app/services/appointments/appointmentService';
 
@@ -14,11 +14,20 @@ interface ViewAppointmentModalProps {
 export default function ViewAppointmentModal({
   isOpen,
   onClose,
-  appointment
+  appointment: initialAppointment
 }: ViewAppointmentModalProps) {
+  const [appointment, setAppointment] = useState<Appointment | null>(initialAppointment);
   const [userRole, setUserRole] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
+
+  // Sub-modals state
+  const [showVisitModal, setShowVisitModal] = useState(false);
+  const [showActModal, setShowActModal] = useState(false);
+
+  useEffect(() => {
+    setAppointment(initialAppointment);
+  }, [initialAppointment]);
 
   useEffect(() => {
     const userStr = localStorage.getItem('user');
@@ -44,6 +53,17 @@ export default function ViewAppointmentModal({
     });
   };
 
+  const refreshAppointment = async () => {
+    if (!appointment) return;
+    try {
+      const response = await appointmentService.getAppointmentById(appointment.id);
+      const updated = (response as any).data || response; // Handle {success, data} or direct data
+      setAppointment(updated);
+    } catch (e) {
+      console.error("Error refreshing appointment", e);
+    }
+  };
+
   const handleConfirm = async () => {
     if (!appointment) return;
     
@@ -51,8 +71,8 @@ export default function ViewAppointmentModal({
       setLoading(true);
       setStatusError(null);
       await appointmentService.confirmAppointment(appointment.id);
-      // Refresh page to show updated status
-      window.location.reload();
+      await refreshAppointment();
+      window.location.reload(); // Keep reload for parent updates for now, or remove if we trust local state
     } catch (error: any) {
       console.error('Error confirming appointment:', error);
       setStatusError(error.message || 'Error al confirmar la cita');
@@ -71,7 +91,8 @@ export default function ViewAppointmentModal({
       setLoading(true);
       setStatusError(null);
       await appointmentService.startAppointment(appointment.id);
-      window.location.reload();
+      await refreshAppointment();
+      // window.location.reload(); // Optional: if we want to stay in modal
     } catch (error: any) {
       console.error('Error starting appointment:', error);
       setStatusError(error.message || 'Error al iniciar la cita');
@@ -83,6 +104,11 @@ export default function ViewAppointmentModal({
   const showStartButton =
     (userRole === 'ingeniero' || userRole === 'engineer') &&
     appointment.status === AppointmentStatus.CONFIRMADA;
+
+  const showExecutionButtons =
+    (userRole === 'ingeniero' || userRole === 'engineer') &&
+    (appointment.status === AppointmentStatus.EN_PROGRESO || appointment.status === AppointmentStatus.CONFIRMADA);
+  const canGenerateAct = showExecutionButtons || appointment.status === AppointmentStatus.EN_PROGRESO;
 
   return (
     <BaseModal
@@ -229,7 +255,9 @@ export default function ViewAppointmentModal({
               )}
             </button>
           )}    
+          
         </div>
+
       </div>
     </BaseModal>
   );

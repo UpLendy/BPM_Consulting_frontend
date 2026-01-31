@@ -11,6 +11,8 @@ import { mapBackendRoleToFrontend } from '@/app/types/auth';
 import { appointmentService } from '@/app/services/appointments';
 import { authService } from '@/app/services/authService';
 
+import { BaseModal } from '@/app/components/modals';
+
 interface AuthUser {
   id: string;
   email: string;
@@ -30,6 +32,9 @@ export default function GestionCitasPage() {
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
   const [paginationMeta, setPaginationMeta] = useState<PaginatedResponse<Appointment>['meta'] | undefined>(undefined);
   const [globalStats, setGlobalStats] = useState<any>(null);
+  
+  // Success Modal State
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   
   // Admin Filters
   const [adminFilters, setAdminFilters] = useState<{
@@ -151,13 +156,18 @@ export default function GestionCitasPage() {
 
       if (response.success && response.data) {
         setAppointments([...appointments, response.data]);
-        alert('Cita creada exitosamente!');
+        setShowSuccessModal(true); // Show nice modal instead of alert
+        // Reset modal after 3 seconds optionally, or let user close it
+        setTimeout(() => setShowSuccessModal(false), 3000);
       } else {
         throw new Error(response.error || 'Error al crear la cita');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating appointment:', error);
-      alert('Error al crear la cita. Por favor intente nuevamente.');
+      // For errors, we could also use a nicer modal, but let's stick to replacing the success alert first.
+      // Keeping alert for error is mostly acceptable if rare, but let's assume user wants "nice" overall.
+      // Ideally use a toast for error, but prompts specifically mentioned "confirmacion de cita creada".
+      alert(error.message || 'Error al crear la cita. Por favor intente nuevamente.');
     }
   };
 
@@ -224,6 +234,30 @@ export default function GestionCitasPage() {
   return (
     <DashboardLayout>
       {renderView()}
+
+      {/* Success Modal for Created Appointment */}
+      <BaseModal
+        isOpen={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        title=""
+        size="sm"
+      >
+        <div className="flex flex-col items-center justify-center p-6 text-center">
+            <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-4 animate-in zoom-in duration-300">
+                <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                </svg>
+            </div>
+            <h3 className="text-xl font-black text-gray-900 mb-2 font-inter">¡Cita Agendada!</h3>
+            <p className="text-gray-600 font-medium mb-6">Tu cita ha sido programada exitosamente en el sistema.</p>
+            <button
+                onClick={() => setShowSuccessModal(false)}
+                className="px-6 py-2 bg-green-600 text-white font-bold rounded-lg shadow-sm hover:bg-green-700 transition-colors"
+            >
+                Entendido
+            </button>
+        </div>
+      </BaseModal>
     </DashboardLayout>
   );
 }

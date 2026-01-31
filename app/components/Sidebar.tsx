@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 interface SidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
+  transitionEnabled?: boolean;
 }
 
 // Menu Items Configuration
@@ -95,7 +96,7 @@ const MENU_ITEMS = [
   }
 ];
 
-export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
+export default function Sidebar({ isOpen = true, onClose, transitionEnabled = true }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter(); // Initialize router
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -136,17 +137,23 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   });
 
   return (
-    <aside className={`${isOpen ? 'w-64' : 'w-20'} h-screen bg-[#3f4771] flex flex-col justify-between text-white transition-all duration-300 overflow-hidden`}>
+    <aside className={`${isOpen ? 'w-64' : 'w-20'} h-screen bg-[#3f4771] flex flex-col justify-between text-white transition-all ${transitionEnabled ? 'duration-300' : 'duration-0'} overflow-hidden`}>
       {/* Top Section */}
       <div>
-        {/* Logo Header */}
         <div className="p-6 border-b border-[#4a5180] min-h-[81px] flex items-center">
           {isOpen ? (
-            <h1 className="text-2xl font-bold text-[#1e3a8a] truncate">
-              BPM<span className="font-light">Consulting</span>
-            </h1>
+            <div className="w-full flex justify-center">
+              <img src="/logoBPM.png" alt="BPM Consulting" className="h-10 w-auto" />
+            </div>
           ) : (
-            <span className="text-xl font-bold text-[#1e3a8a] w-full text-center">BPM</span>
+             /* Ajuste fino: Recortar el ancho a 26px para ocultar la "C" sobrante */
+             <div className="w-[26px] h-8 relative overflow-hidden">
+               <img 
+                 src="/logoBPM.png" 
+                 alt="BPM" 
+                 className="h-[16px] w-auto max-w-none absolute left-0 top-1/2 -translate-y-1/2" 
+               />
+            </div>
           )}
         </div>
 
@@ -169,7 +176,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
 
       {/* Bottom Section */}
       <div className="p-3 border-t border-[#4a5180]">
-        {/* Ajustes (Available for everyone for now, or restrict if needed) */}
+        {/* Ajustes (Hidden for now)
         <button
           onClick={() => handleMenuClick('/ajustes')}
           className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
@@ -179,6 +186,7 @@ export default function Sidebar({ isOpen = true, onClose }: SidebarProps) {
           <span className="text-2xl shrink-0">⚙️</span>
           {isOpen && <span className="text-sm font-medium truncate">Ajustes</span>}
         </button>
+        */}
 
         {/* Cerrar Sesión */}
         <button

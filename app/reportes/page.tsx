@@ -59,11 +59,12 @@ export default function ReportsPage() {
     const fetchStats = async () => {
       try {
         setLoading(true);
-        const [companies, appointmentsRes, engineers, globalStatsRes] = await Promise.all([
+        const [companies, appointmentsRes, engineers, globalStatsRes, valRes] = await Promise.all([
           companyService.getAllCompanies(),
           appointmentService.getAllAppointments({}),
           engineerService.getAllEngineers(),
-          appointmentService.getAppointmentStats()
+          appointmentService.getAppointmentStats(),
+          appointmentService.getAllValidations({ status: 'EN_REVISION', limit: 1 })
         ]);
 
         const appointments = (Array.isArray(appointmentsRes) ? appointmentsRes : (appointmentsRes as any)?.data || []) as Appointment[];
@@ -77,7 +78,9 @@ export default function ReportsPage() {
           auditoriasCount: auditorias,
           engineersCount: engineers.length,
           totalEngineers: engineers.length,
-          documentsPending: globalStatsRes.success ? globalStatsRes.data.en_revision : 0
+          documentsPending: (globalStatsRes.success && globalStatsRes.data?.validations?.EN_REVISION) 
+            || (valRes.success && (valRes.data?.meta?.total ?? valRes.data?.total ?? 0)) 
+            || 0
         });
 
         // Process Chart Data
@@ -265,7 +268,7 @@ export default function ReportsPage() {
                 </h3>
               </div>
               <button 
-                onClick={() => router.push('/gestion-citas?status=EN_REVISION')}
+                onClick={() => router.push('/documentos-empresa')}
                 className="mt-6 w-full py-3 bg-[#3f4771] text-white rounded-xl text-sm font-medium hover:bg-[#2c3357] transition-colors flex items-center justify-center gap-2"
               >
                 Ver todas las citas

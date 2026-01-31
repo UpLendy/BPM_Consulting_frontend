@@ -14,12 +14,13 @@ import { PDF_STYLES } from '../../constants/pdfStyles';
 interface AdvisoryActModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
   appointment: Appointment;
   initialStep?: 'form' | 'sign' | 'preview';
 }
 
 interface ActFormData {
-  executedTime: string;
+  executedTimeMinutes: number;
   topicsCovered: string;
   solutions: {
     infrastructure: string;
@@ -37,6 +38,7 @@ interface ActFormData {
 export default function AdvisoryActModal({
   isOpen,
   onClose,
+  onSuccess,
   appointment,
   initialStep = 'form'
 }: AdvisoryActModalProps) {
@@ -48,9 +50,8 @@ export default function AdvisoryActModal({
   const sigPad = useRef<any>(null);
   const previewRef = useRef<HTMLDivElement>(null);
 
-  const [formData, setFormData] = useState<ActFormData & { advisoryId: string }>({
-    advisoryId: '',
-    executedTime: '3 horas 0 minutos',
+  const [formData, setFormData] = useState<ActFormData>({
+    executedTimeMinutes: 180,
     topicsCovered: '',
     representativeName: '',
     solutions: {
@@ -64,6 +65,12 @@ export default function AdvisoryActModal({
     evidencePhoto: null,
     signature: null
   });
+
+  const formatMinutesToHours = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours} ${hours === 1 ? 'hora' : 'horas'} ${mins} ${mins === 1 ? 'minuto' : 'minutos'}`;
+  };
 
   const [currentUser, setCurrentUser] = useState<any>(null);
 
@@ -165,9 +172,8 @@ export default function AdvisoryActModal({
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-    if (!formData.advisoryId.trim()) newErrors.advisoryId = 'El ID de Asesoría es obligatorio';
     if (!formData.representativeName.trim()) newErrors.representativeName = 'El nombre del Solicitante es obligatorio';
-    if (!formData.executedTime.trim()) newErrors.executedTime = 'El Tiempo Ejecutado es obligatorio';
+    if (!formData.executedTimeMinutes || formData.executedTimeMinutes <= 0) newErrors.executedTimeMinutes = 'El Tiempo Ejecutado es obligatorio';
     if (!formData.topicsCovered.trim()) newErrors.topicsCovered = 'Los Temas Tratados son obligatorios';
     if (!formData.solutions.infrastructure.trim()) newErrors.infrastructure = 'Campo obligatorio';
     if (!formData.solutions.inocuity.trim()) newErrors.inocuity = 'Campo obligatorio';
@@ -245,8 +251,9 @@ export default function AdvisoryActModal({
       }
 
       // 3. Finalize
-      const finalIdAsesoria = formData.advisoryId || '0000';
-      const fileName = `acta_asesoria_${finalIdAsesoria}`;
+      const companyName = (appointment.companyName || 'Empresa').replace(/\s+/g, '_');
+      const dateStr = new Date(appointment.date).toISOString().split('T')[0];
+      const fileName = `acta_asesoria_${companyName}_${dateStr}`;
       const pdfBlob = pdf.output('blob');
       const pdfFile = new File([pdfBlob], `${fileName}.pdf`, { type: 'application/pdf' });
       
@@ -260,8 +267,8 @@ export default function AdvisoryActModal({
       }
       
       const signaturePayload = {
-        idAsesoria: formData.advisoryId,
-        nombre: formData.representativeName
+        nombre: formData.representativeName,
+        tiempoEjecutado: formatMinutesToHours(formData.executedTimeMinutes)
       };
       const signRes = await appointmentService.signAppointmentRecord(appointment.id, signaturePayload);
       if (!signRes.success) {
@@ -272,6 +279,7 @@ export default function AdvisoryActModal({
         return;
       }
 
+      if (onSuccess) onSuccess();
       onClose();
     } catch (error: any) {
        console.error('ERROR DETALLADO - GUARDADO ACTA:', error);
@@ -314,70 +322,55 @@ export default function AdvisoryActModal({
         {step === 'form' ? (
           <div className="space-y-8 pb-10">
             {/* Header / Info Fija */}
-            <div className="bg-blue-50/50 border border-blue-100 p-6 rounded-2xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="bg-gray-100 border border-gray-400 p-6 rounded-2xl grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 shadow-sm">
                 <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="text-[10px] font-black text-blue-600 uppercase">ID Asesoría</label>
-                    {errors.advisoryId && <span className="text-[9px] font-bold text-red-500 uppercase">{errors.advisoryId}</span>}
-                  </div>
-                  <input 
-                    type="text"
-                    value={formData.advisoryId}
-                    onChange={(e) => {
-                      setFormData({...formData, advisoryId: e.target.value.toUpperCase()});
-                      if (errors.advisoryId) setErrors({...errors, advisoryId: ''});
-                    }}
-                    placeholder="Ej: CE57AG"
-                    className={`w-full bg-white border ${errors.advisoryId ? 'border-red-500' : 'border-blue-200'} rounded-lg px-3 py-1 text-sm font-bold text-black focus:ring-2 focus:ring-blue-500`}
-                  />
-               </div>
+                   <div className="flex justify-between items-center mb-1">
+                     <label className="text-[10px] font-black text-black uppercase tracking-widest">Solicitante</label>
+                     {errors.representativeName && <span className="text-[9px] font-bold text-red-600 uppercase">{errors.representativeName}</span>}
+                   </div>
+                   <input 
+                     type="text"
+                     value={formData.representativeName}
+                     onChange={(e) => {
+                       setFormData({...formData, representativeName: e.target.value});
+                       if (errors.representativeName) setErrors({...errors, representativeName: ''});
+                     }}
+                     placeholder="Nombre del solicitante"
+                     className={`w-full bg-white border ${errors.representativeName ? 'border-red-500' : 'border-gray-400'} rounded-lg px-3 py-1.5 text-sm font-black text-black focus:ring-2 focus:ring-blue-900 outline-none`}
+                   />
+                </div>
                 <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="text-[10px] font-black text-blue-600 uppercase">Solicitante</label>
-                    {errors.representativeName && <span className="text-[9px] font-bold text-red-500 uppercase">{errors.representativeName}</span>}
-                  </div>
-                  <input 
-                    type="text"
-                    value={formData.representativeName}
-                    onChange={(e) => {
-                      setFormData({...formData, representativeName: e.target.value});
-                      if (errors.representativeName) setErrors({...errors, representativeName: ''});
-                    }}
-                    placeholder="Nombre del solicitante"
-                    className={`w-full bg-white border ${errors.representativeName ? 'border-red-500' : 'border-blue-200'} rounded-lg px-3 py-1 text-sm font-bold text-black focus:ring-2 focus:ring-blue-500`}
-                  />
-               </div>
-               <div>
-                  <label className="text-[10px] font-black text-blue-600 uppercase">Empresa</label>
-                  <p className="font-bold text-black">{appointment.companyName}</p>
-               </div>
-               <div>
-                  <label className="text-[10px] font-black text-blue-600 uppercase">Asesor Asignado</label>
-                  <p className="font-bold text-black">
-                    {currentUser ? `${currentUser.first_name} ${currentUser.last_name}` : 'Cargando...'}
-                  </p>
-               </div>
-               <div>
-                  <label className="text-[10px] font-black text-blue-600 uppercase">Fecha y Hora</label>
-                  <p className="font-bold text-black">
-                    {formatDateTime(appointment.date, appointment.startTime)}
-                  </p>
-               </div>
-               <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="text-[10px] font-black text-blue-600 uppercase">Tiempo Ejecutado</label>
-                    {errors.executedTime && <span className="text-[9px] font-bold text-red-500 uppercase">{errors.executedTime}</span>}
-                  </div>
-                  <input 
-                    type="text"
-                    value={formData.executedTime}
-                    onChange={(e) => {
-                      setFormData({...formData, executedTime: e.target.value});
-                      if (errors.executedTime) setErrors({...errors, executedTime: ''});
-                    }}
-                    className={`w-full bg-white border ${errors.executedTime ? 'border-red-500' : 'border-blue-200'} rounded-lg px-3 py-1 text-sm font-bold text-black focus:ring-2 focus:ring-blue-500`}
-                  />
-               </div>
+                   <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-1">Empresa</label>
+                   <p className="font-black text-black text-base">{appointment.companyName}</p>
+                </div>
+                <div>
+                   <label className="text-[10px] font-black text-black uppercase tracking-widest block mb-1">Asesor Asignado</label>
+                   <p className="font-black text-black text-base">
+                     {currentUser ? `${currentUser.first_name} ${currentUser.last_name}` : 'Cargando...'}
+                   </p>
+                </div>
+                <div>
+                   <div className="flex justify-between items-center mb-1">
+                     <label className="text-[10px] font-black text-black uppercase tracking-widest">Tiempo Ejecutado (Minutos)</label>
+                     {errors.executedTimeMinutes && <span className="text-[9px] font-bold text-red-600 uppercase">{errors.executedTimeMinutes}</span>}
+                   </div>
+                   <div className="relative">
+                     <input 
+                       type="number"
+                       value={formData.executedTimeMinutes}
+                       onChange={(e) => {
+                         const val = parseInt(e.target.value) || 0;
+                         setFormData({...formData, executedTimeMinutes: val});
+                         if (errors.executedTimeMinutes) setErrors({...errors, executedTimeMinutes: ''});
+                       }}
+                       className={`w-full bg-white border ${errors.executedTimeMinutes ? 'border-red-500' : 'border-gray-400'} rounded-lg px-3 py-1.5 text-sm font-black text-black focus:ring-2 focus:ring-blue-900 outline-none`}
+                     />
+                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400 uppercase pointer-events-none">MIN</span>
+                   </div>
+                   <p className="mt-1 text-[10px] font-bold text-blue-600 uppercase tracking-tight italic">
+                     Convertido: {formatMinutesToHours(formData.executedTimeMinutes)}
+                   </p>
+                </div>
             </div>
 
             {/* Temas Tratados */}
@@ -601,15 +594,14 @@ export default function AdvisoryActModal({
                   <p className="text-xs font-bold text-gray-400 mt-1 uppercase pdf-subtitle">BPM Consulting S.A.S BIC • Soluciones de Inocuidad</p>
                </div>
 
-               {/* Grid de Información */}
-               <div className="grid grid-cols-2 gap-y-4 text-sm font-medium border-b border-gray-100 pb-6 pdf-info-grid">
-                  <div className="flex flex-col pdf-info-item"><span className="text-[10px] font-black text-gray-400 uppercase pdf-label">ID Asesoría</span><span className="text-gray-900 font-bold pdf-value">#{formData.advisoryId || '---'}</span></div>
-                  <div className="flex flex-col pdf-info-item"><span className="text-[10px] font-black text-gray-400 uppercase pdf-label">Fecha y Hora</span><span className="text-gray-900 font-bold pdf-value">{formatDateTime(appointment.date, appointment.startTime)}</span></div>
-                  <div className="flex flex-col pdf-info-item"><span className="text-[10px] font-black text-gray-400 uppercase pdf-label">Solicitante</span><span className="text-gray-900 font-bold pdf-value">{formData.representativeName || '---'}</span></div>
-                  <div className="flex flex-col pdf-info-item"><span className="text-[10px] font-black text-gray-400 uppercase pdf-label">Empresa</span><span className="text-gray-900 font-bold pdf-value">{appointment.companyName}</span></div>
-                  <div className="flex flex-col pdf-info-item"><span className="text-[10px] font-black text-gray-400 uppercase pdf-label">Asesor Asignado</span><span className="text-gray-900 font-bold pdf-value">{currentUser ? `${currentUser.first_name} ${currentUser.last_name}` : '...'}</span></div>
-                  <div className="flex flex-col pdf-info-item"><span className="text-[10px] font-black text-gray-400 uppercase pdf-label">Tiempo Ejecutado</span><span className="text-gray-900 font-bold text-blue-800 pdf-value">{formData.executedTime}</span></div>
-               </div>
+                {/* Grid de Información */}
+                <div className="grid grid-cols-2 gap-y-4 text-sm font-medium border-b border-gray-100 pb-6 pdf-info-grid">
+                   <div className="flex flex-col pdf-info-item"><span className="text-[10px] font-black text-gray-400 uppercase pdf-label">Fecha y Hora</span><span className="text-gray-900 font-bold pdf-value">{formatDateTime(appointment.date, appointment.startTime)}</span></div>
+                   <div className="flex flex-col pdf-info-item"><span className="text-[10px] font-black text-gray-400 uppercase pdf-label">Empresa</span><span className="text-gray-900 font-bold pdf-value">{appointment.companyName}</span></div>
+                   <div className="flex flex-col pdf-info-item"><span className="text-[10px] font-black text-gray-400 uppercase pdf-label">Solicitante</span><span className="text-gray-900 font-bold pdf-value">{formData.representativeName || '---'}</span></div>
+                   <div className="flex flex-col pdf-info-item"><span className="text-[10px] font-black text-gray-400 uppercase pdf-label">Asesor Asignado</span><span className="text-gray-900 font-bold pdf-value">{currentUser ? `${currentUser.first_name} ${currentUser.last_name}` : '...'}</span></div>
+                   <div className="flex flex-col pdf-info-item"><span className="text-[10px] font-black text-gray-400 uppercase pdf-label">Tiempo Ejecutado</span><span className="text-gray-900 font-bold text-blue-800 pdf-value">{formatMinutesToHours(formData.executedTimeMinutes)}</span></div>
+                </div>
 
                {/* Contenido Dinámico */}
                <div className="space-y-6">
