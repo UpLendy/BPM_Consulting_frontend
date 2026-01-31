@@ -15,6 +15,42 @@ export const authService = {
     return response.json();
   },
 
+  async forgotPassword(email: string): Promise<any> {
+    const response = await fetch(`${API_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    // We return the response even if not OK so the UI can handle the specific error message if needed,
+    // or we can throw here. Usually better to check response.ok.
+    // Given the previous pattern, let's throw if generic error but try to parse json for details if possible.
+    if (!response.ok) {
+      throw new Error('Error al solicitar recuperación de contraseña');
+    }
+
+    return response.json();
+  },
+
+  async resetPassword(data: any): Promise<any> {
+    const response = await fetch(`${API_URL}/auth/reset-password`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al restablecer la contraseña');
+    }
+
+    return response.json();
+  },
+
   logout() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
