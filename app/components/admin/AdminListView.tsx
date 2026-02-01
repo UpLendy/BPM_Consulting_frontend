@@ -6,8 +6,7 @@ import FilterButtons from './FilterButtons';
 import EmptyState from './EmptyState';
 import { AppointmentCard } from '@/app/components/appointments';
 import {
-  ViewAppointmentModal,
-  ConfirmDeleteModal
+  ViewAppointmentModal
 } from '@/app/components/modals';
 import Pagination from '@/app/components/common/Pagination';
 import { Appointment, AppointmentStatus, AppointmentType, PaginatedResponse } from '@/app/types';
@@ -17,7 +16,6 @@ interface AdminListViewProps {
   meta?: PaginatedResponse<Appointment>['meta'];
   allAppointments?: Appointment[]; // Full list for counts (Legacy)
   globalCounts?: any; // New global stats
-  onDelete?: (appointmentId: string) => void;
   filters?: {
       status: AppointmentStatus | 'all';
       type: AppointmentType | 'all';
@@ -31,14 +29,12 @@ export default function AdminListView({
   meta,
   allAppointments = [],
   globalCounts,
-  onDelete,
   filters = { status: 'all', type: 'all', page: 1 },
   onFilterChange
 }: AdminListViewProps) {
   // State
   const [searchQuery, setSearchQuery] = useState('');
   const [viewModalOpen, setViewModalOpen] = useState(false);
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
 
   // Filter and search logic (Client-side Search only)
@@ -90,18 +86,6 @@ export default function AdminListView({
   const handleView = (appointment: Appointment) => {
     setSelectedAppointment(appointment);
     setViewModalOpen(true);
-  };
-
-  const handleDeleteClick = (appointment: Appointment) => {
-    setSelectedAppointment(appointment);
-    setDeleteModalOpen(true);
-  };
-
-  const handleDeleteConfirm = () => {
-    if (selectedAppointment && onDelete) {
-      onDelete(selectedAppointment.id);
-      setDeleteModalOpen(false); // Close modal
-    }
   };
 
    const handlePageChange = (page: number) => {
@@ -157,7 +141,6 @@ export default function AdminListView({
                              key={apt.id}
                              appointment={apt}
                              onView={() => handleView(apt)}
-                             onDelete={() => handleDeleteClick(apt)}
                           />
                       ))}
                    </div>
@@ -183,13 +166,6 @@ export default function AdminListView({
         isOpen={viewModalOpen}
         onClose={() => setViewModalOpen(false)}
         appointment={selectedAppointment}
-      />
-
-      <ConfirmDeleteModal
-        isOpen={deleteModalOpen}
-        onClose={() => setDeleteModalOpen(false)}
-        onConfirm={handleDeleteConfirm}
-        message={`¿Estás seguro de que deseas eliminar la cita para ${selectedAppointment?.companyName}?`}
       />
     </div>
   );

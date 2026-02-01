@@ -14,7 +14,7 @@ import {
   CreateAppointmentModal,
   DayScheduleModal
 } from '@/app/components/modals';
-import { Appointment, TimeSlot, CreateAppointmentDTO } from '@/app/types';
+import { Appointment, TimeSlot, CreateAppointmentDTO, AppointmentStatus } from '@/app/types';
 
 interface EmpresarioCalendarViewProps {
   empresaId: string;
@@ -64,7 +64,7 @@ export default function EmpresarioCalendarView({
 
   // Filter appointments of assigned engineer
   const engineerAppointments = useMemo(() => {
-    return appointments; 
+    return appointments.filter(apt => apt.status !== AppointmentStatus.CANCELADA); 
   }, [appointments]);
 
   // Identify MY appointments (this empresa)

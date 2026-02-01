@@ -188,6 +188,20 @@ export default function Header({
                               }
                           } catch (e) { /* ignore */ }
                        }
+
+                       // 3. Cancellation Notifications
+                       if (apt.status === 'CANCELADA') {
+                           const canceller = apt.updatedByName || 'un usuario';
+                           newNotifications.push({
+                               id: `cancel-${apt.id}`,
+                               title: 'Cita Cancelada',
+                               message: `La cita del ${startTime.toLocaleDateString()} ha sido cancelada por ${canceller}.`,
+                               date: new Date(apt.updatedAt || apt.date),
+                               type: 'error',
+                               link: '/gestion-citas',
+                               category: 'appointment'
+                           });
+                       }
                   }));
 
                   newNotifications.sort((a, b) => b.date.getTime() - a.date.getTime());
