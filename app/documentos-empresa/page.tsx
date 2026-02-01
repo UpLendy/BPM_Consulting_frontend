@@ -129,7 +129,7 @@ export default function DocumentosEmpresaPage() {
                             });
                         }
                     } catch (err) {
-                        console.warn(`Could not load validation for appointment ${apt.id}`, err);
+                        // Silent fallback
                     }
                 }));
 

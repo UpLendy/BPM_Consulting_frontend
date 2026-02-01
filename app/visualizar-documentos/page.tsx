@@ -42,7 +42,7 @@ export default function VisualizarDocumentosPage() {
               }
             }
           } catch (err) {
-            console.warn('Error fetching global fallback success rate', err);
+            // Error silently ignored or handled by lack of rate
           }
         }
 
@@ -55,8 +55,6 @@ export default function VisualizarDocumentosPage() {
           
           // Filter completed appointments
           const completedAppointments = appointments.filter(a => a.status === 'COMPLETADA');
-          
-          console.log('Completed appointments:', completedAppointments);
           
           // Get validation for each completed appointment
           await Promise.all(completedAppointments.map(async (apt) => {
@@ -77,11 +75,10 @@ export default function VisualizarDocumentosPage() {
                       // Apply fallback if this specific appt has no evaluation yet
                       successRate = globalFallbackRate;
                     }
-                  } catch (evalErr) {
-                    // Apply fallback on error too
-                    successRate = globalFallbackRate;
-                    console.warn(`Could not load specific evaluation for appointment ${apt.id}, using fallback`, evalErr);
-                  }
+                    } catch (evalErr) {
+                      // Apply fallback on error too
+                      successRate = globalFallbackRate;
+                    }
 
                   // Fetch Record if exists
                   let recordUrl = null;
@@ -91,7 +88,7 @@ export default function VisualizarDocumentosPage() {
                       recordUrl = recordRes.data?.url;
                     }
                   } catch (recErr) {
-                    console.warn(`No record found for appointment ${apt.id}`);
+                    // Silent fallback
                   }
 
                   validationsList.push({
@@ -110,13 +107,12 @@ export default function VisualizarDocumentosPage() {
                 }
               }
             } catch (err) {
-              console.warn(`Could not load validation for appointment ${apt.id}`, err);
+              // Ignore validation errors
             }
           }));
 
           // Sort by date
           validationsList.sort((a: any, b: any) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
-          console.log('Validations loaded:', validationsList);
           setValidations(validationsList);
         }
       } catch (error) {

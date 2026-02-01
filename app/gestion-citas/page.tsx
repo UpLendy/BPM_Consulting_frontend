@@ -57,7 +57,6 @@ export default function GestionCitasPage() {
       const user: AuthUser = JSON.parse(userStr);
       setCurrentUser(user);
     } catch (error) {
-      console.error('Error parsing user:', error);
       router.push('/login');
     } finally {
       setIsLoading(false);
@@ -95,10 +94,7 @@ export default function GestionCitasPage() {
              if (adminFilters.status !== 'all') filters.estado = adminFilters.status;
              if (adminFilters.type !== 'all') filters.tipo = adminFilters.type;
              
-             // Fetch filtered list (paginated)
-             console.log('DEBUG - Fetching filtered appointments with:', filters);
              const filteredRes = await appointmentService.getAllAppointments(filters);
-             console.log('DEBUG - Filtered response:', filteredRes);
              
              // Fetch global stats for counts
              const statsRes = await appointmentService.getAppointmentStats();
@@ -114,7 +110,6 @@ export default function GestionCitasPage() {
              setAllAppointments(filteredData);
         }
       } catch (error) {
-        console.error('Error fetching appointments:', error);
       }
     };
 
@@ -160,7 +155,6 @@ export default function GestionCitasPage() {
         throw new Error(response.error || 'Error al crear la cita');
       }
     } catch (error: any) {
-      console.error('Error creating appointment:', error);
       // For errors, we could also use a nicer modal, but let's stick to replacing the success alert first.
       // Keeping alert for error is mostly acceptable if rare, but let's assume user wants "nice" overall.
       // Ideally use a toast for error, but prompts specifically mentioned "confirmacion de cita creada".

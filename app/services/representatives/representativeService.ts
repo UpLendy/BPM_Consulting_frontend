@@ -72,7 +72,6 @@ export const representativeService = {
 
         if (existingRep) {
             // Representative already exists
-            console.log('✅ Representante ya existe');
 
             // Validate if trying to change company (not allowed - 1:1 relationship)
             if (companyId && existingRep.companyId && existingRep.companyId !== companyId) {
@@ -83,13 +82,11 @@ export const representativeService = {
 
             // If trying to assign to the same company or no company specified, return existing
             if (!companyId || existingRep.companyId === companyId) {
-                console.log('ℹ️ Representante ya asignado a esta empresa');
                 return existingRep;
             }
         }
 
         // Create new representative
-        console.log('🆕 Creando nuevo representante');
         return await this.createRepresentative({
             userId,
             phone_number: phoneNumber,

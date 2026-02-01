@@ -256,13 +256,12 @@ export default function VisitRegistrationModal({
   // Load user info and fetch visit data (last visit if editing, current if read-only)
   useEffect(() => {
     const init = async () => {
-      // Load user
       const userStr = localStorage.getItem('user');
       if (userStr) {
         try {
           setCurrentUser(JSON.parse(userStr));
         } catch (e) {
-          console.error(e);
+          console.error('Error parsing user data:', e);
         }
       }
 
@@ -271,36 +270,21 @@ export default function VisitRegistrationModal({
           setIsLoadingLastVisit(true);
           
           if (readOnly) {
-            console.log('DEBUG - VisitRegistrationModal [ReadOnly]: Loading evaluation for:', appointment.id);
             const response = await appointmentService.getVisitEvaluation(appointment.id);
-            console.log('DEBUG - API Response:', response);
-            
-            // Extract from any level (Backend sometimes returns { success, data: { ... } } or just { ... })
             const root = response?.data || response;
-            
-            // Detailed check for formData
             const foundFormData = root?.formData || root?.data?.formData;
             
             if (foundFormData) {
               setFormData(foundFormData);
-              console.log('DEBUG - Full Evaluation Loaded');
-            } else {
-              console.warn('DEBUG - Evaluation is LIMITED. No formData provided by Backend for this role.');
-              // We keep formData empty so it shows "Sin hallazgos" or empty fields correctly
             }
           } else {
-            // 1. Try to load CURRENT appointment evaluation (to see if it was already partially filled)
-            console.log('DEBUG - VisitRegistrationModal [Edit]: Checking for existing data in current appointment:', appointment.id);
             const currentEvalRes = await appointmentService.getVisitEvaluation(appointment.id);
             const currentRoot = currentEvalRes?.data || currentEvalRes;
             const currentFormData = currentRoot?.formData || currentRoot?.data?.formData;
 
             if (currentFormData && Object.keys(currentFormData).length > 0) {
-              console.log('DEBUG - VisitRegistrationModal [Edit]: Resuming existing evaluation data');
               setFormData(currentFormData);
             } else {
-              // 2. FALLBACK to previous visit if current is empty
-              console.log('DEBUG - VisitRegistrationModal [Edit]: Current evaluation is empty. Fetching last visit as baseline.');
               const response = await appointmentService.getAppointmentById(appointment.id);
               const fullApt = (response as any).data || response;
               const foundCompanyId = fullApt?.empresaId || fullApt?.empresa_id || fullApt?.companyId;
@@ -312,7 +296,6 @@ export default function VisitRegistrationModal({
                   const lastRoot = evalRes?.data || evalRes;
                   const prevFormData = lastRoot?.formData || lastRoot?.data?.formData;
                   if (prevFormData) {
-                    console.log('DEBUG - VisitRegistrationModal [Edit]: Loaded baseline from last visit:', lastApt.id);
                     setFormData(prevFormData);
                   }
                 }
@@ -390,13 +373,12 @@ export default function VisitRegistrationModal({
 
       if (response.success) {
         setIsSuccess(true);
-        // Esperamos un momento para que el usuario vea el éxito antes de cerrar
         setTimeout(() => {
           setIsSuccess(false);
           setShowConfirmation(false);
           if (onSuccess) onSuccess();
           onClose();
-        }, 2000);
+        }, 1500);
       } else {
         setSaveError(response.error || 'Error al guardar el registro');
       }
@@ -665,7 +647,7 @@ export default function VisitRegistrationModal({
 
                     <div className="space-y-4">
                         {SECTIONS.map(section => {
-                            // Find all items in this section that have data in formData
+                            // Group selected items by section for the summary
                             const allItemsInData = section.subsections.flatMap(sub => 
                                 sub.items.filter(item => formData[item.id])
                             );
