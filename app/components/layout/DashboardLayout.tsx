@@ -20,14 +20,18 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         window.location.href = '/login';
     }
     
-    // Restore sidebar state
+    // Check if we are on mobile to decide default state
+    const isMobile = window.innerWidth < 1024;
+    
+    // Restore sidebar state if not mobile
     const storedState = localStorage.getItem('sidebarOpen');
-    if (storedState !== null) {
+    if (storedState !== null && !isMobile) {
       setIsSidebarOpen(storedState === 'true');
+    } else if (isMobile) {
+      setIsSidebarOpen(false); // Always start closed on mobile
     }
     
     // Enable transitions after initial render and state restoration
-    // Use a small timeout to ensure the initial state is applied without transition
     setTimeout(() => {
         setIsMounting(false);
     }, 100);

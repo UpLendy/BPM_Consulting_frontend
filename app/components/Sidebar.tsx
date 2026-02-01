@@ -137,66 +137,79 @@ export default function Sidebar({ isOpen = true, onClose, transitionEnabled = tr
   });
 
   return (
-    <aside className={`${isOpen ? 'w-64' : 'w-20'} h-screen bg-[#3f4771] flex flex-col justify-between text-white transition-all ${transitionEnabled ? 'duration-300' : 'duration-0'} overflow-hidden`}>
-      {/* Top Section */}
-      <div>
-        <div className="p-6 border-b border-[#4a5180] min-h-[81px] flex items-center">
-          {isOpen ? (
-            <div className="w-full flex justify-center">
-              <img src="/logoBPM.png" alt="BPM Consulting" className="h-10 w-auto" />
-            </div>
-          ) : (
-             /* Ajuste fino: Recortar el ancho a 26px para ocultar la "C" sobrante */
-             <div className="w-[26px] h-8 relative overflow-hidden">
-               <img 
-                 src="/logoBPM.png" 
-                 alt="BPM" 
-                 className="h-[16px] w-auto max-w-none absolute left-0 top-1/2 -translate-y-1/2" 
-               />
-            </div>
-          )}
+    <>
+      {/* Mobile Overlay */}
+      {isOpen && (
+        <div 
+          className="lg:hidden fixed inset-0 bg-black/50 z-40 transition-opacity duration-300"
+          onClick={onClose}
+        />
+      )}
+
+      <aside className={`
+        fixed lg:relative inset-y-0 left-0 z-50
+        ${isOpen ? 'translate-x-0 w-64' : '-translate-x-full lg:translate-x-0 w-64 lg:w-20'}
+        h-full bg-[#3f4771] flex flex-col justify-between text-white 
+        transition-all ${transitionEnabled ? 'duration-300' : 'duration-0'} 
+        overflow-hidden
+      `}>
+        {/* Top Section */}
+        <div>
+          <div className="p-6 border-b border-[#4a5180] min-h-[81px] flex items-center justify-between">
+            {isOpen ? (
+              <div className="w-full flex justify-center">
+                <img src="/logoBPM.png" alt="BPM Consulting" className="h-10 w-auto" />
+              </div>
+            ) : (
+               <div className="w-[26px] h-8 relative overflow-hidden hidden lg:block">
+                 <img 
+                   src="/logoBPM.png" 
+                   alt="BPM" 
+                   className="h-[16px] w-auto max-w-none absolute left-0 top-1/2 -translate-y-1/2" 
+                 />
+              </div>
+            )}
+            
+            {/* Mobile Close Button */}
+            <button 
+              onClick={onClose}
+              className="lg:hidden p-2 hover:bg-[#4a5180] rounded-lg transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Menu Items */}
+          <nav className="mt-6 px-3">
+            {allowedMenuItems.map((item) => (
+              <button
+                key={item.key}
+                onClick={() => handleMenuClick(item.path)}
+                className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
+                  isActive(item.path) ? 'bg-[#4a5180]' : ''
+                }`}
+              >
+                <span className="text-2xl shrink-0">{item.icon}</span>
+                {isOpen && <span className="text-sm font-medium truncate">{item.label}</span>}
+              </button>
+            ))}
+          </nav>
         </div>
 
-        {/* Menu Items */}
-        <nav className="mt-6 px-3">
-          {allowedMenuItems.map((item) => (
-            <button
-              key={item.key}
-              onClick={() => handleMenuClick(item.path)}
-              className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
-                isActive(item.path) ? 'bg-[#4a5180]' : ''
-              }`}
-            >
-              <span className="text-2xl shrink-0">{item.icon}</span>
-              {isOpen && <span className="text-sm font-medium truncate">{item.label}</span>}
-            </button>
-          ))}
-        </nav>
-      </div>
-
-      {/* Bottom Section */}
-      <div className="p-3 border-t border-[#4a5180]">
-        {/* Ajustes (Hidden for now)
-        <button
-          onClick={() => handleMenuClick('/ajustes')}
-          className={`w-full flex items-center gap-4 px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-[#4a5180] ${
-            isActive('/ajustes') ? 'bg-[#4a5180]' : ''
-          }`}
-        >
-          <span className="text-2xl shrink-0">⚙️</span>
-          {isOpen && <span className="text-sm font-medium truncate">Ajustes</span>}
-        </button>
-        */}
-
-        {/* Cerrar Sesión */}
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center gap-4 px-4 py-3 rounded-lg transition-colors hover:bg-red-600"
-        >
-          <span className="text-2xl shrink-0">🚪</span>
-          {isOpen && <span className="text-sm font-medium truncate">Cerrar Sesión</span>}
-        </button>
-      </div>
-    </aside>
+        {/* Bottom Section */}
+        <div className="p-3 border-t border-[#4a5180]">
+          {/* Cerrar Sesión */}
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-4 px-4 py-3 rounded-lg transition-colors hover:bg-red-600"
+          >
+            <span className="text-2xl shrink-0">🚪</span>
+            {isOpen && <span className="text-sm font-medium truncate">Cerrar Sesión</span>}
+          </button>
+        </div>
+      </aside>
+    </>
   );
 }
