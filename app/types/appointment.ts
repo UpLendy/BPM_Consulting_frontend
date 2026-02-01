@@ -19,6 +19,8 @@ export interface Appointment {
     status: AppointmentStatus;
     companyName?: string;
     engineerName?: string;
+    updatedByName?: string;
+    statusUpdateReason?: string;
     // Keeping internal IDs if backend provides them or mapping needed
     empresaId?: string; // Optional if not returned directly but inferred
     ingenieroId?: string;

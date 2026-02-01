@@ -140,10 +140,7 @@ export default function GestionCitasPage() {
     }
   };
 
-  const handleDeleteAppointment = (appointmentId: string) => {
-    setAppointments(appointments.filter((apt) => apt.id !== appointmentId));
-    setAllAppointments(allAppointments.filter((apt) => apt.id !== appointmentId));
-  };
+
 
   const handleCreateAppointment = async (data: CreateAppointmentDTO) => {
     if (!currentUser) return;
@@ -194,7 +191,6 @@ export default function GestionCitasPage() {
             meta={paginationMeta}
             allAppointments={allAppointments}
             globalCounts={globalStats}
-            onDelete={handleDeleteAppointment}
             filters={adminFilters}
             onFilterChange={(newFilters) => setAdminFilters(prev => ({ ...prev, ...newFilters }))}
           />

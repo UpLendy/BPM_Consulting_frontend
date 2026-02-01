@@ -6,7 +6,7 @@ import { getDisplayTime } from '@/app/components/calendar/utils';
 import { appointmentService } from '@/app/services/appointments';
 import { IngenieroAppointmentCell } from '@/app/components/calendar/cells';
 import { ViewAppointmentModal, DayScheduleModal } from '@/app/components/modals';
-import { Appointment, TimeSlot } from '@/app/types';
+import { Appointment, TimeSlot, AppointmentStatus } from '@/app/types';
 
 interface IngenieroCalendarViewProps {
   ingenieroId: string;
@@ -35,9 +35,11 @@ export default function IngenieroCalendarView({
     setViewModalOpen(true);
   };
   
-  // No need for separate OWN check if parent filters for us
   const myAppointments = useMemo(() => {
-    return appointments.filter((apt) => !apt.ingenieroId || apt.ingenieroId === ingenieroId);
+    return appointments.filter((apt) => 
+      (!apt.ingenieroId || apt.ingenieroId === ingenieroId) && 
+      apt.status !== AppointmentStatus.CANCELADA
+    );
   }, [appointments, ingenieroId]);
 
   // Convert appointments to TimeSlots for calendar

@@ -672,5 +672,27 @@ export const appointmentService = {
 
         const data = await response.json();
         return { success: true, data };
+    },
+
+    /**
+     * Cancel an appointment
+     */
+    async cancelAppointment(id: string): Promise<ServiceResponse> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/appointments/${id}/cancel`, {
+            method: 'DELETE',
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            const error = await getErrorMessage(response, 'Error al cancelar la cita');
+            return { success: false, error };
+        }
+
+        const result = await response.json();
+        return { success: true, data: result };
     }
 };
