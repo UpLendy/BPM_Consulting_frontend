@@ -80,8 +80,6 @@ export default function ValidationReviewModal({
   const loadDocuments = async () => {
     setIsLoading(true);
     try {
-      console.log('Fetching documents for validation:', validationId);
-      
       // Parallel fetch for documents and potentially the Acta (Record)
       const tasks: [Promise<any>, Promise<any>?] = [
         appointmentService.getValidationDocuments(validationId)
@@ -149,15 +147,10 @@ export default function ValidationReviewModal({
   };
 
   const loadEvaluation = async () => {
-    if (!appointmentId) {
-      console.warn('ValidationReviewModal: No appointmentId provided for evaluation');
-      return;
-    }
+    if (!appointmentId) return;
     
     try {
-      console.log('ValidationReviewModal: Fetching evaluation for appointment:', appointmentId);
       const response = await appointmentService.getVisitEvaluation(appointmentId);
-      console.log('ValidationReviewModal: Evaluation API Response:', response);
       
       // Extract data handling potential wrappers { success, data, ... }
       const evalData = response?.success === true ? (response.data || response) : response;

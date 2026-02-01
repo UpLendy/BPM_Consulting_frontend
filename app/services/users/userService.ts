@@ -60,7 +60,6 @@ export const userService = {
 
         // Invalidate users cache on creation
         clearCacheKey(USERS_CACHE_KEY);
-        console.log('🗑️ [CACHE] Caché de usuarios limpiado (nuevo usuario creado)');
 
         return response.json();
     },
@@ -90,7 +89,6 @@ export const userService = {
 
         // Invalidate users cache on update
         clearCacheKey(USERS_CACHE_KEY);
-        console.log('🗑️ [CACHE] Caché de usuarios limpiado (usuario actualizado)');
 
         return response.json();
     },
@@ -118,7 +116,6 @@ export const userService = {
 
         // Invalidate users cache on delete
         clearCacheKey(USERS_CACHE_KEY);
-        console.log('🗑️ [CACHE] Caché de usuarios limpiado (usuario eliminado)');
 
         return response.json();
     },
@@ -132,12 +129,9 @@ export const userService = {
         const cached = getCache(USERS_CACHE_KEY);
 
         if (cached && (now - cached.timestamp < CACHE_TTL)) {
-            const remainingTime = Math.round((CACHE_TTL - (now - cached.timestamp)) / 1000 / 60);
-            console.log(`✅ [CACHE] Usuarios cargados desde caché (válido por ${remainingTime} minutos más)`);
             return cached.data;
         }
 
-        console.log('🔄 [API] Consultando usuarios desde el servidor...');
         const token = localStorage.getItem('token');
         const response = await fetch(`${API_URL}/users`, {
             method: 'GET',
@@ -156,7 +150,6 @@ export const userService = {
 
         const data = await response.json();
         setCache(USERS_CACHE_KEY, data);
-        console.log(`💾 [CACHE] ${data.length} usuarios guardados en caché por 5 minutos`);
         return data;
     },
 
@@ -169,12 +162,9 @@ export const userService = {
         const cached = getCache(ROLES_CACHE_KEY);
 
         if (cached && (now - cached.timestamp < CACHE_TTL)) {
-            const remainingTime = Math.round((CACHE_TTL - (now - cached.timestamp)) / 1000 / 60);
-            console.log(`✅ [CACHE] Roles cargados desde caché (válido por ${remainingTime} minutos más)`);
             return cached.data;
         }
 
-        console.log('🔄 [API] Consultando roles desde el servidor...');
         const token = localStorage.getItem('token');
         const response = await fetch(`${API_URL}/roles`, {
             method: 'GET',
@@ -190,7 +180,6 @@ export const userService = {
 
         const data = await response.json();
         setCache(ROLES_CACHE_KEY, data);
-        console.log(`💾 [CACHE] ${data.length} roles guardados en caché por 5 minutos`);
         return data;
     },
 
@@ -200,6 +189,5 @@ export const userService = {
     clearCache() {
         clearCacheKey(USERS_CACHE_KEY);
         clearCacheKey(ROLES_CACHE_KEY);
-        console.log('🗑️ [CACHE] Todo el caché limpiado manualmente');
     }
 };

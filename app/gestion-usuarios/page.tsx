@@ -82,7 +82,6 @@ export default function GestionUsuariosPage() {
             .map(rep => rep.userId)
         );
         setUsersWithAssignments(assignedUserIds);
-        console.log(`👥 Usuarios con empresa asignada: ${assignedUserIds.size}`);
       } catch (err: any) {
         console.error('Error fetching data:', err);
         setError('No se pudieron cargar los datos.');
@@ -121,7 +120,6 @@ export default function GestionUsuariosPage() {
           );
 
           setFilteredCompanies(availableCompanies);
-          console.log(`📋 Empresas disponibles para representante: ${availableCompanies.length} de ${companies.length}`);
         } catch (err) {
           console.error('Error filtering companies:', err);
           setFilteredCompanies(companies);
@@ -143,7 +141,6 @@ export default function GestionUsuariosPage() {
           );
 
           setFilteredCompanies(availableCompanies);
-          console.log(`📋 Empresas disponibles para ingeniero: ${availableCompanies.length} de ${companies.length}`);
         } catch (err) {
           console.error('Error filtering companies for engineer:', err);
           setFilteredCompanies(companies);
@@ -218,7 +215,6 @@ export default function GestionUsuariosPage() {
           if (engineer) {
             // Delete engineer record
             await engineerService.deleteEngineer(engineer.id);
-            console.log('✅ Ingeniero eliminado:', engineer.id);
           }
         } catch (engineerError) {
           console.error('Error eliminando ingeniero:', engineerError);

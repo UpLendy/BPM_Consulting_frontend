@@ -59,7 +59,6 @@ export const companyService = {
 
         // Invalidate companies cache on creation
         clearCacheKey(COMPANIES_CACHE_KEY);
-        console.log('🗑️ [CACHE] Caché de empresas limpiado (nueva empresa creada)');
 
         return response.json();
     },
@@ -73,12 +72,9 @@ export const companyService = {
         const cached = getCache(COMPANIES_CACHE_KEY);
 
         if (cached && (now - cached.timestamp < CACHE_TTL)) {
-            const remainingTime = Math.round((CACHE_TTL - (now - cached.timestamp)) / 1000 / 60);
-            console.log(`✅ [CACHE] Empresas cargadas desde caché (válido por ${remainingTime} minutos más)`);
             return cached.data;
         }
 
-        console.log('🔄 [API] Consultando empresas desde el servidor...');
         const token = localStorage.getItem('token');
         const response = await fetch(`${API_URL}/companies`, {
             method: 'GET',
@@ -94,7 +90,6 @@ export const companyService = {
 
         const data = await response.json();
         setCache(COMPANIES_CACHE_KEY, data);
-        console.log(`💾 [CACHE] ${data.length} empresas guardadas en caché por 5 minutos`);
         return data;
     },
 
@@ -103,6 +98,5 @@ export const companyService = {
      */
     clearCache() {
         clearCacheKey(COMPANIES_CACHE_KEY);
-        console.log('🗑️ [CACHE] Caché de empresas limpiado manualmente');
     }
 };

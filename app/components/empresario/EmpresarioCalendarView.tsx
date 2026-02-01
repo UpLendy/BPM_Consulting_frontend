@@ -47,11 +47,9 @@ export default function EmpresarioCalendarView({
     const fetchMyAppointments = async () => {
         try {
             // Fetch appointments where I am the representative (Paginated)
-            const response = await appointmentService.getMyAppointments(); // Use defaults to avoid strict backend validation error (string vs int)
+            const response = await appointmentService.getMyAppointments(); 
             if (response.data && response.data.length > 0) {
                 const ids = new Set(response.data.map((a: Appointment) => String(a.id)));
-                console.log('--- API My Appointments Fetched (Empresario View) ---');
-                console.log('Owned IDs:', Array.from(ids));
                 setOwnedAppointmentIds(ids);
             }
         } catch (e) {

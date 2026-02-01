@@ -32,9 +32,10 @@ export default function ReportsPage() {
     companiesCount: 0,
     asesoriasCount: 0,
     auditoriasCount: 0,
+    capacitacionesCount: 0,
     engineersCount: 0,
     totalEngineers: 0, 
-    documentsPending: 30 
+    documentsPending: 0 
   });
   const [chartData, setChartData] = useState<any[]>([]);
   const [activeEngineers, setActiveEngineers] = useState<string[]>([]);
@@ -71,11 +72,13 @@ export default function ReportsPage() {
 
         const asesorias = appointments.filter((a: Appointment) => a.appointmentType === AppointmentType.ASESORIA).length;
         const auditorias = appointments.filter((a: Appointment) => a.appointmentType === AppointmentType.AUDITORIA).length;
+        const capacitaciones = appointments.filter((a: Appointment) => a.appointmentType === AppointmentType.CAPACITACION).length;
 
         setStats({
           companiesCount: companies.length,
           asesoriasCount: asesorias,
           auditoriasCount: auditorias,
+          capacitacionesCount: capacitaciones,
           engineersCount: engineers.length,
           totalEngineers: engineers.length,
           documentsPending: (globalStatsRes.success && globalStatsRes.data?.validations?.EN_REVISION) 
@@ -278,8 +281,19 @@ export default function ReportsPage() {
               </button>
             </div>
 
+            {/* Capacitaciones */}
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between h-32">
+              <div>
+                <h3 className="text-3xl font-bold text-gray-900">
+                  {loading ? '...' : stats.capacitacionesCount}
+                </h3>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mt-1">CAPACITACIONES</p>
+              </div>
+              <div className="text-4xl">👨‍🏫</div>
+            </div>
+
             {/* Ingenieros (Second Row) */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between h-32 lg:col-span-3">
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between h-32 lg:col-span-2">
               <div className="flex items-center gap-8 w-full justify-center">
                 <div className="text-center">
                   <h3 className="text-3xl font-bold text-gray-900">
