@@ -44,7 +44,6 @@ export default function LoginForm() {
         {/* Logo y título */}
         <div className="text-center mb-8">
           <img src="/logoBPM.png" alt="BPM Consulting" className="h-20 w-auto mx-auto" />
-          <p className="text-xs text-blue-900 mt-2">LÍDERES DEL EJE CAFETERO</p>
           <p className="text-xs text-blue-900">Un camino sin parar a la industria alimentaria</p>
         </div>
 
