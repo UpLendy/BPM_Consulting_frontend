@@ -4,6 +4,7 @@ import { Appointment } from '@/app/types';
 import AppointmentBadge from './AppointmentBadge';
 import AppointmentTypeIcon from './AppointmentTypeIcon';
 import { getDisplayTime } from '@/app/components/calendar/utils';
+import { formatShortDate } from '@/app/utils/dateUtils';
 
 interface AppointmentCardProps {
   appointment: Appointment;
@@ -20,12 +21,8 @@ export default function AppointmentCard({
   onDelete,
   className = ''
 }: AppointmentCardProps) {
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString('es-ES', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
+  const formatDate = (date: any) => {
+    return formatShortDate(date);
   };
   
   return (
