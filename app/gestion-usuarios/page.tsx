@@ -35,6 +35,15 @@ export default function GestionUsuariosPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [paginationMeta, setPaginationMeta] = useState({
+    total: 0,
+    page: 1,
+    limit: 10,
+    totalPages: 0,
+    hasNextPage: false,
+    hasPreviousPage: false
+  });
 
 
   // Assignment Modal State
@@ -64,15 +73,16 @@ export default function GestionUsuariosPage() {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        const [usersResponse, companiesData, representativesData] = await Promise.all([
-          userService.getAllUsers(),
+        const usersResponse = await userService.getAllUsers({ page: currentPage, limit: 10 });
+        const [companiesData, representativesData] = await Promise.all([
           companyService.getAllCompanies(),
           representativeService.getAllRepresentatives()
         ]);
         
-        // Handle potential paginated response
-        const usersList = Array.isArray(usersResponse) ? usersResponse : (usersResponse as any)?.data || [];
-        setUsers(usersList);
+        // El backend ahora devuelve los datos paginados correctamente
+        setUsers(usersResponse.data || []);
+        if (usersResponse.meta) setPaginationMeta(usersResponse.meta);
+        
         setCompanies(companiesData);
 
         // Track which users already have representative assignments
@@ -91,7 +101,9 @@ export default function GestionUsuariosPage() {
     };
 
     fetchData();
-  }, []);
+  }, [currentPage]); // Recargar cuando cambie la página
+
+
 
   // Filter companies based on selected user's role
   useEffect(() => {
@@ -177,13 +189,15 @@ export default function GestionUsuariosPage() {
   const handleEditSuccess = async () => {
     // Refresh user list
     try {
-      const usersData = await userService.getAllUsers();
-      const usersList = Array.isArray(usersData) ? usersData : (usersData as any)?.data || [];
-      setUsers(usersList);
+      const usersData = await userService.getAllUsers({ page: currentPage, limit: 10 });
+      setUsers(usersData.data || []);
+      if (usersData.meta) setPaginationMeta(usersData.meta);
     } catch (err) {
       console.error('Error refreshing users:', err);
     }
   };
+
+
   
   const openDeleteModal = (user: UserListData) => {
     setSelectedUserForDelete(user);
@@ -228,9 +242,10 @@ export default function GestionUsuariosPage() {
       setSuccess(`Usuario ${selectedUserForDelete.first_name} ${selectedUserForDelete.last_name} eliminado correctamente.`);
       
       // Refresh user list
-      const usersData = await userService.getAllUsers();
-      const usersList = Array.isArray(usersData) ? usersData : (usersData as any)?.data || [];
-      setUsers(usersList);
+      const usersData = await userService.getAllUsers({ page: currentPage, limit: 10 });
+      setUsers(usersData.data || []);
+      if (usersData.meta) setPaginationMeta(usersData.meta);
+
       
       // Close modal after short delay
       setTimeout(() => {
@@ -294,6 +309,11 @@ export default function GestionUsuariosPage() {
     (user.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (user.id_number || '').includes(searchTerm)
   );
+
+  // La paginación ahora la dictan los metadatos del backend
+  const { totalPages, total: totalItems, limit: itemsPerPage } = paginationMeta;
+
+
 
   return (
     <RoleGuard allowedRoles={['admin', 'administrador']}>
@@ -450,7 +470,78 @@ export default function GestionUsuariosPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination UI */}
+          {!isLoading && totalPages > 1 && (
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+              <div className="flex-1 flex justify-between sm:hidden">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Anterior
+                </button>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Siguiente
+                </button>
+              </div>
+              <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between font-inter">
+                <div>
+                  <p className="text-sm text-gray-700">
+                    Mostrando <span className="font-bold">{(currentPage - 1) * itemsPerPage + 1}</span> a <span className="font-bold">{Math.min(currentPage * itemsPerPage, totalItems)}</span> de{' '}
+                    <span className="font-bold">{totalItems}</span> usuarios
+                  </p>
+                </div>
+                <div>
+                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      <span className="sr-only">Anterior</span>
+                      <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                    
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                          currentPage === pageNum
+                            ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                            : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    ))}
+
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                      className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      <span className="sr-only">Siguiente</span>
+                      <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </nav>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
+
       </div>
 
       {/* Assignment Modal */}
