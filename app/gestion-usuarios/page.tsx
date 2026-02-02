@@ -73,7 +73,15 @@ export default function GestionUsuariosPage() {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        const usersResponse = await userService.getAllUsers({ page: currentPage, limit: 10 });
+        // Si hay búsqueda, pedimos un límite grande (100) para encontrar a todos localmente
+        // Si no hay búsqueda, pedimos los 10 normales de la página actual
+        const fetchLimit = searchTerm ? 100 : 10;
+        const fetchPage = searchTerm ? 1 : currentPage;
+
+        const usersResponse = await userService.getAllUsers({ 
+          page: fetchPage, 
+          limit: fetchLimit
+        });
         const [companiesData, representativesData] = await Promise.all([
           companyService.getAllCompanies(),
           representativeService.getAllRepresentatives()
@@ -101,7 +109,12 @@ export default function GestionUsuariosPage() {
     };
 
     fetchData();
-  }, [currentPage]); // Recargar cuando cambie la página
+  }, [currentPage, searchTerm]); // Recargar cuando cambie la página o el término de búsqueda
+
+  // Reset page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
 
 
@@ -303,12 +316,11 @@ export default function GestionUsuariosPage() {
     }
   };
 
-  const usersArray = Array.isArray(users) ? users : [];
-  const filteredUsers = usersArray.filter(user => 
+  const filteredUsers = Array.isArray(users) ? users.filter(user => 
     `${user.first_name || ''} ${user.last_name || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (user.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (user.id_number || '').includes(searchTerm)
-  );
+  ) : [];
 
   // La paginación ahora la dictan los metadatos del backend
   const { totalPages, total: totalItems, limit: itemsPerPage } = paginationMeta;
