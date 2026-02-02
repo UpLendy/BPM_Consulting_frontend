@@ -11,7 +11,7 @@ import { mapBackendRoleToFrontend } from '@/app/types/auth';
 import { appointmentService } from '@/app/services/appointments';
 import { authService } from '@/app/services/authService';
 
-import { BaseModal } from '@/app/components/modals';
+import { BaseModal, ConfirmDeleteModal } from '@/app/components/modals';
 
 interface AuthUser {
   id: string;
@@ -35,6 +35,12 @@ export default function GestionCitasPage() {
   
   // Success Modal State
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState({ title: '', message: '' });
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [appointmentToDelete, setAppointmentToDelete] = useState<Appointment | null>(null);
   
   // Admin Filters
   const [adminFilters, setAdminFilters] = useState<{
@@ -42,6 +48,7 @@ export default function GestionCitasPage() {
     type: AppointmentType | 'all';
     page: number;
   }>({ status: 'all', type: 'all', page: 1 });
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Read user from localStorage on mount
   useEffect(() => {
@@ -114,7 +121,7 @@ export default function GestionCitasPage() {
     };
 
     fetchAppointments();
-  }, [currentUser, adminFilters]);
+  }, [currentUser, adminFilters, refreshKey]);
 
   // Map backend role to frontend UserRole enum
   const getFrontendRole = (): UserRole => {
@@ -137,6 +144,37 @@ export default function GestionCitasPage() {
 
 
 
+  const handleDeleteAppointment = (appointment: Appointment) => {
+    setAppointmentToDelete(appointment);
+    setIsConfirmModalOpen(true);
+  };
+
+  const confirmCancelAppointment = async () => {
+    if (!appointmentToDelete) return;
+
+    try {
+      const response = await appointmentService.cancelAppointment(appointmentToDelete.id);
+      if (response.success) {
+        setRefreshKey(prev => prev + 1);
+        setSuccessMessage({ 
+          title: '¡Cita Cancelada!', 
+          message: 'La cita ha sido cancelada exitosamente.' 
+        });
+        setShowSuccessModal(true);
+        setTimeout(() => setShowSuccessModal(false), 3000);
+      } else {
+        setErrorMessage(response.error || 'Error al cancelar la cita');
+        setShowErrorModal(true);
+      }
+    } catch (error: any) {
+      setErrorMessage(error.message || 'Ocurrió un error inesperado al cancelar la cita');
+      setShowErrorModal(true);
+    } finally {
+      setIsConfirmModalOpen(false);
+      setAppointmentToDelete(null);
+    }
+  };
+
   const handleCreateAppointment = async (data: CreateAppointmentDTO) => {
     if (!currentUser) return;
 
@@ -147,18 +185,20 @@ export default function GestionCitasPage() {
       });
 
       if (response.success && response.data) {
-        setAppointments([...appointments, response.data]);
-        setShowSuccessModal(true); // Show nice modal instead of alert
+        setRefreshKey(prev => prev + 1);
+        setSuccessMessage({ 
+          title: '¡Cita Agendada!', 
+          message: 'Tu cita ha sido programada exitosamente en el sistema.' 
+        });
+        setShowSuccessModal(true);
         // Reset modal after 3 seconds optionally, or let user close it
         setTimeout(() => setShowSuccessModal(false), 3000);
       } else {
         throw new Error(response.error || 'Error al crear la cita');
       }
     } catch (error: any) {
-      // For errors, we could also use a nicer modal, but let's stick to replacing the success alert first.
-      // Keeping alert for error is mostly acceptable if rare, but let's assume user wants "nice" overall.
-      // Ideally use a toast for error, but prompts specifically mentioned "confirmacion de cita creada".
-      alert(error.message || 'Error al crear la cita. Por favor intente nuevamente.');
+      setErrorMessage(error.message || 'Error al crear la cita. Por favor intente nuevamente.');
+      setShowErrorModal(true);
     }
   };
 
@@ -187,6 +227,7 @@ export default function GestionCitasPage() {
             globalCounts={globalStats}
             filters={adminFilters}
             onFilterChange={(newFilters) => setAdminFilters(prev => ({ ...prev, ...newFilters }))}
+            onDelete={handleDeleteAppointment}
           />
         );
 
@@ -238,8 +279,8 @@ export default function GestionCitasPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                 </svg>
             </div>
-            <h3 className="text-xl font-black text-gray-900 mb-2 font-inter">¡Cita Agendada!</h3>
-            <p className="text-gray-600 font-medium mb-6">Tu cita ha sido programada exitosamente en el sistema.</p>
+            <h3 className="text-xl font-black text-gray-900 mb-2 font-inter">{successMessage.title}</h3>
+            <p className="text-gray-600 font-medium mb-6">{successMessage.message}</p>
             <button
                 onClick={() => setShowSuccessModal(false)}
                 className="px-6 py-2 bg-green-600 text-white font-bold rounded-lg shadow-sm hover:bg-green-700 transition-colors"
@@ -248,6 +289,41 @@ export default function GestionCitasPage() {
             </button>
         </div>
       </BaseModal>
+
+      {/* Error Modal */}
+      <BaseModal
+        isOpen={showErrorModal}
+        onClose={() => setShowErrorModal(false)}
+        title="Error"
+        size="sm"
+      >
+        <div className="flex flex-col items-center justify-center p-6 text-center">
+            <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4">
+                <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </div>
+            <h3 className="text-xl font-black text-gray-900 mb-2 font-inter">Ups, algo salió mal</h3>
+            <p className="text-gray-600 font-medium mb-6">{errorMessage}</p>
+            <button
+                onClick={() => setShowErrorModal(false)}
+                className="px-6 py-2 bg-gray-900 text-white font-bold rounded-lg shadow-sm hover:bg-gray-800 transition-colors"
+            >
+                Cerrar
+            </button>
+        </div>
+      </BaseModal>
+
+      {/* Confirm Cancellation Modal */}
+      <ConfirmDeleteModal
+        isOpen={isConfirmModalOpen}
+        onClose={() => setIsConfirmModalOpen(false)}
+        onConfirm={confirmCancelAppointment}
+        title="Cancelar Cita"
+        message={`¿Estás seguro de que deseas cancelar la cita de ${appointmentToDelete?.companyName}? Esta acción marcará la cita como cancelada.`}
+        confirmText="Sí, cancelar cita"
+        cancelText="No, mantener"
+      />
     </DashboardLayout>
   );
 }

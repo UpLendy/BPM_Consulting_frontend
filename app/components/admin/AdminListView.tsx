@@ -22,6 +22,7 @@ interface AdminListViewProps {
       page?: number;
   };
   onFilterChange?: (newFilters: { status?: AppointmentStatus | 'all'; type?: AppointmentType | 'all'; page?: number }) => void;
+  onDelete?: (appointment: Appointment) => void;
 }
 
 export default function AdminListView({
@@ -30,7 +31,8 @@ export default function AdminListView({
   allAppointments = [],
   globalCounts,
   filters = { status: 'all', type: 'all', page: 1 },
-  onFilterChange
+  onFilterChange,
+  onDelete
 }: AdminListViewProps) {
   // State
   const [searchQuery, setSearchQuery] = useState('');
@@ -141,6 +143,7 @@ export default function AdminListView({
                              key={apt.id}
                              appointment={apt}
                              onView={() => handleView(apt)}
+                             onDelete={onDelete}
                           />
                       ))}
                    </div>
