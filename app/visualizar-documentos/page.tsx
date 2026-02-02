@@ -6,6 +6,7 @@ import { DashboardLayout } from '@/app/components/layout';
 import { authService } from '@/app/services/authService';
 import { appointmentService } from '@/app/services/appointments/appointmentService';
 import ValidationReviewModal from '@/app/components/modals/ValidationReviewModal';
+import { formatShortDate } from '@/app/utils/dateUtils';
 
 export default function VisualizarDocumentosPage() {
   const router = useRouter();
@@ -96,7 +97,7 @@ export default function VisualizarDocumentosPage() {
                     appointmentId: apt.id,
                     companyName: apt.companyName || user.companyName || 'Mi Empresa',
                     engineerName: validation.reviewedByName || apt.engineerName || 'Ingeniero',
-                    date: new Date(apt.date).toLocaleDateString('es-ES'),
+                    date: formatShortDate(apt.date),
                     description: validation.message || validation.status || 'Validación de Cita',
                     status: validation.status,
                     docCount: validation.documentsCount || 0,

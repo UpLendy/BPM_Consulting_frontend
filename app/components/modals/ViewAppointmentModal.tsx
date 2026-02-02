@@ -4,6 +4,7 @@ import { getDisplayTime } from '@/app/components/calendar/utils';
 import { Appointment, AppointmentStatus, AppointmentType } from '@/app/types';
 import { AppointmentBadge, AppointmentTypeIcon } from '@/app/components/appointments';
 import { appointmentService } from '@/app/services/appointments/appointmentService';
+import { formatLongDate } from '@/app/utils/dateUtils';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
 
 interface ViewAppointmentModalProps {
@@ -46,13 +47,8 @@ export default function ViewAppointmentModal({
 
   if (!appointment) return null;
 
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleDateString('es-ES', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    });
+  const formatDate = (date: any) => {
+    return formatLongDate(date);
   };
 
   const refreshAppointment = async () => {
