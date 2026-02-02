@@ -38,8 +38,8 @@ export default function RegistrarEmpresaPage() {
       setIsLoading(false);
       return;
     }
-    if (formData.nit.length < 9 || formData.nit.length > 15) {
-      setError('El NIT debe tener entre 9 y 15 caracteres');
+    if (formData.nit.length < 5 || formData.nit.length > 15) {
+      setError('El NIT debe tener entre 5 y 15 caracteres');
       setIsLoading(false);
       return;
     }
@@ -120,9 +120,9 @@ export default function RegistrarEmpresaPage() {
                 required
                 type="text"
                 name="nit"
-                minLength={9}
+                minLength={5}
                 maxLength={15}
-                placeholder="Ej: 900123456-7"
+                placeholder="Ej: 900.123.456-7"
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-inter text-gray-900"
                 value={formData.nit}
                 onChange={handleChange}
