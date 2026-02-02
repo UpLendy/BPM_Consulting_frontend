@@ -69,8 +69,8 @@ export default function RegistrarUsuariosPage() {
       setIsLoading(false);
       return;
     }
-    if (formData.id_number.length !== 10) {
-      setError('El número de identificación debe tener exactamente 10 dígitos');
+    if (formData.id_number.length < 5 || formData.id_number.length > 15) {
+      setError('El número de identificación debe tener entre 5 y 15 caracteres');
       setIsLoading(false);
       return;
     }
