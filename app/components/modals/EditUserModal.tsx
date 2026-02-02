@@ -89,8 +89,8 @@ export default function EditUserModal({
       newErrors.last_name = 'Mínimo 2 caracteres';
     }
 
-    if (formState.id_number && formState.id_number.length !== 10) {
-      newErrors.id_number = 'Debe tener 10 dígitos';
+    if (formState.id_number && (formState.id_number.length < 5 || formState.id_number.length > 15)) {
+      newErrors.id_number = 'Debe tener entre 5 y 15 dígitos';
     }
 
     setErrors(newErrors);
