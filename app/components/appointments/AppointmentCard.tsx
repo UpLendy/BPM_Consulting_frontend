@@ -114,7 +114,7 @@ export default function AppointmentCard({
           </button>
         )}
         
-        {onDelete && (
+        {onDelete && appointment.status !== 'COMPLETADA' && appointment.status !== 'CANCELADA' && (
           <button
             onClick={() => onDelete(appointment)}
             className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors ml-auto"
