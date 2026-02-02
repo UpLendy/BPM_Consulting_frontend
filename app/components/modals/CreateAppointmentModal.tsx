@@ -173,12 +173,6 @@ export default function CreateAppointmentModal({
       const endTotalMinutes = endH * 60 + endM;
       const durationMinutes = endTotalMinutes - startTotalMinutes;
 
-      if (startTotalMinutes < 300) {
-          newErrors.startTime = 'La hora de inicio mínima es a las 5:00 AM';
-      } else if (startTotalMinutes > 1140) {
-          newErrors.startTime = 'La última cita permitida inicia a las 7:00 PM';
-      }
-
       if (durationMinutes < 0) {
         newErrors.endTime = 'La hora de fin debe ser posterior a la hora de inicio';
       } else if (durationMinutes < 120) {
