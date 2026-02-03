@@ -1,4 +1,4 @@
-import { CreateAppointmentDTO, Appointment, AppointmentFilters, PaginatedResponse } from '@/app/types';
+import { CreateAppointmentDTO, Appointment, AppointmentFilters, PaginatedResponse, RescheduleAppointmentDTO } from '@/app/types';
 import { authService } from '@/app/services/authService';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -270,6 +270,29 @@ export const appointmentService = {
             return { data: [], meta: { total: 0, page: 1, limit: 10, totalPages: 0, hasNextPage: false, hasPreviousPage: false } };
         }
         return response.json();
+    },
+
+    /**
+     * Reschedule appointment
+     */
+    async rescheduleAppointment(id: string, data: RescheduleAppointmentDTO): Promise<ServiceResponse<Appointment>> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/appointments/${id}/reschedule`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(data)
+        });
+
+        if (!response.ok) {
+            const error = await getErrorMessage(response, 'Error al reprogramar la cita');
+            return { success: false, error };
+        }
+        const result = await response.json();
+        return { success: true, data: result };
     },
 
     /**
@@ -694,24 +717,6 @@ export const appointmentService = {
 
         const result = await response.json();
         return { success: true, data: result };
-    },
-
-    async getAppointmentStats(): Promise<ServiceResponse<any>> {
-        const token = localStorage.getItem('token');
-        const response = await fetch(`${API_URL}/appointments/stats`, {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json',
-                'Authorization': `Bearer ${token}`
-            }
-        });
-
-        if (!response.ok) {
-            return { success: false, error: 'Error fetching stats' };
-        }
-
-        const data = await response.json();
-        return { success: true, data };
     },
 
     /**

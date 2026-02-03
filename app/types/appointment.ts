@@ -59,6 +59,19 @@ export interface UpdateAppointmentDTO {
 }
 
 /**
+ * Reschedule Appointment DTO
+ */
+export interface RescheduleAppointmentDTO {
+    description: string;
+    appointmentType: AppointmentType;
+    date: string; // YYYY-MM-DD
+    startTime: string; // ISO
+    endTime: string; // ISO
+    location: string;
+    engineerId: string;
+}
+
+/**
  * Appointment filters (for admin search/filter)
  */
 export interface AppointmentFilters {

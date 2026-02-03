@@ -35,14 +35,14 @@ export default function CreateAppointmentModal({
 
   const getSafeDateStr = (dateInput: any) => {
     if (!dateInput) return '';
-    if (dateInput instanceof Date) {
-        const y = dateInput.getFullYear();
-        const m = String(dateInput.getMonth() + 1).padStart(2, '0');
-        const d = String(dateInput.getDate()).padStart(2, '0');
-        return `${y}-${m}-${d}`;
-    }
-    if (typeof dateInput === 'string') return dateInput.split('T')[0];
-    return '';
+    const date = new Date(dateInput);
+    if (isNaN(date.getTime())) return '';
+    
+    // Use UTC methods to avoid timezone shifts pulling midnight to the previous day
+    const y = date.getUTCFullYear();
+    const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(date.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   };
 
   const [formState, setFormState] = useState({
@@ -221,8 +221,15 @@ export default function CreateAppointmentModal({
     e.preventDefault();
     if (validate()) {
       const dateStr = getSafeDateStr(formState.date);
-      const startTimeISO = `${dateStr}T${formState.startTime}:00.000Z`;
-      const endTimeISO = `${dateStr}T${formState.endTime}:00.000Z`;
+      const [y, m, d] = dateStr.split('-').map(Number);
+      
+      const [sh, sm] = formState.startTime.split(':').map(Number);
+      const localStart = new Date(y, m - 1, d, sh, sm);
+      const startTimeISO = localStart.toISOString();
+
+      const [eh, em] = formState.endTime.split(':').map(Number);
+      const localEnd = new Date(y, m - 1, d, eh, em);
+      const endTimeISO = localEnd.toISOString();
 
       const dto: CreateAppointmentDTO = {
         description: formState.description,

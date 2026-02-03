@@ -6,7 +6,7 @@ import { DashboardLayout } from '@/app/components/layout';
 import { AdminListView } from '@/app/components/admin';
 import { IngenieroCalendarView } from '@/app/components/ingeniero';
 import { EmpresarioCalendarView } from '@/app/components/empresario';
-import { UserRole, Appointment, AppointmentType, AppointmentStatus, TimeSlot, CreateAppointmentDTO, AppointmentFilters, PaginatedResponse } from '@/app/types';
+import { UserRole, Appointment, AppointmentType, AppointmentStatus, TimeSlot, CreateAppointmentDTO, RescheduleAppointmentDTO, AppointmentFilters, PaginatedResponse } from '@/app/types';
 import { mapBackendRoleToFrontend } from '@/app/types/auth';
 import { appointmentService } from '@/app/services/appointments';
 import { authService } from '@/app/services/authService';
@@ -31,7 +31,6 @@ export default function GestionCitasPage() {
   const [engineerId, setEngineerId] = useState<string | null>(null);
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
   const [paginationMeta, setPaginationMeta] = useState<PaginatedResponse<Appointment>['meta'] | undefined>(undefined);
-  const [globalStats, setGlobalStats] = useState<any>(null);
   
   // Success Modal State
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -139,12 +138,6 @@ export default function GestionCitasPage() {
              
              const filteredRes = await appointmentService.getAllAppointments(filters);
              
-             // Fetch global stats for counts
-             const statsRes = await appointmentService.getAppointmentStats();
-             if (statsRes.success) {
-                setGlobalStats(statsRes.data);
-             }
-             
              const filteredData = (filteredRes?.data || (Array.isArray(filteredRes) ? filteredRes : [])) as Appointment[];
 
              setAppointments(filteredData);
@@ -243,6 +236,27 @@ export default function GestionCitasPage() {
     }
   };
 
+  const handleReschedule = async (id: string, data: RescheduleAppointmentDTO) => {
+    try {
+      const response = await appointmentService.rescheduleAppointment(id, data);
+      if (response.success) {
+        setRefreshKey(prev => prev + 1);
+        setSuccessMessage({ 
+          title: '¡Cita Actualizada!', 
+          message: 'La cita ha sido reprogramada exitosamente.' 
+        });
+        setShowSuccessModal(true);
+        setTimeout(() => setShowSuccessModal(false), 3000);
+      } else {
+        setErrorMessage(response.error || 'Error al reprogramar la cita');
+        setShowErrorModal(true);
+      }
+    } catch (error: any) {
+      setErrorMessage(error.message || 'Ocurrió un error inesperado al reprogramar la cita');
+      setShowErrorModal(true);
+    }
+  };
+
   // Render view based on role
   const renderView = () => {
     if (isLoading || !currentUser) {
@@ -265,10 +279,11 @@ export default function GestionCitasPage() {
             appointments={appointments}
             meta={paginationMeta}
             allAppointments={allAppointments}
-            globalCounts={globalStats}
             filters={adminFilters}
             onFilterChange={(newFilters) => setAdminFilters(prev => ({ ...prev, ...newFilters }))}
             onDelete={handleDeleteAppointment}
+            onReschedule={handleReschedule}
+            isAdmin={getFrontendRole() === UserRole.ADMIN}
           />
         );
 
