@@ -15,6 +15,23 @@ export const authService = {
     return response.json();
   },
 
+  async register(data: { email: string; first_name: string; last_name: string; password: string; id_number: string }): Promise<any> {
+    const response = await fetch(`${API_URL}/auth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al registrar el usuario');
+    }
+
+    return response.json();
+  },
+
   async forgotPassword(email: string): Promise<any> {
     const response = await fetch(`${API_URL}/auth/forgot-password`, {
       method: 'POST',
