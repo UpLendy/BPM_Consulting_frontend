@@ -8,6 +8,7 @@ import { authService } from '@/app/services/authService';
 import { Appointment } from '@/app/types';
 import { getDisplayTime } from '@/app/components/calendar/utils';
 import VisitRegistrationModal from '../components/visita/VisitRegistrationModal';
+import { formatLongDate } from '@/app/utils/dateUtils';
 
 export default function RegistroVisitaPage() {
   const router = useRouter();
@@ -103,7 +104,7 @@ export default function RegistroVisitaPage() {
                       {apt.companyName || 'Empresa Sin Nombre'}
                     </h3>
                     <p className="text-sm text-gray-500 mt-1">
-                      {new Date(apt.date).toLocaleDateString('es-ES', { dateStyle: 'full' })} 
+                      {formatLongDate(apt.date)} 
                       {' • '} 
                       {getDisplayTime(apt.startTime)} - {getDisplayTime(apt.endTime)}
                     </p>

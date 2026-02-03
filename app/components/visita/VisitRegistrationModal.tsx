@@ -5,6 +5,7 @@ import BaseModal from '@/app/components/modals/BaseModal';
 import { Appointment } from '@/app/types';
 import { appointmentService } from '@/app/services/appointments/appointmentService';
 import { HiCheckCircle } from 'react-icons/hi';
+import { formatShortDate } from '@/app/utils/dateUtils';
 
 interface VisitRegistrationModalProps {
   isOpen: boolean;
@@ -404,7 +405,7 @@ export default function VisitRegistrationModal({
                <div>
                    <span className="block text-gray-700 text-xs font-black uppercase">Fecha</span>
                    <span className="font-black text-black">
-                       {new Date(appointment.date).toLocaleDateString()}
+                       {formatShortDate(appointment.date)}
                    </span>
                </div>
                 <div>

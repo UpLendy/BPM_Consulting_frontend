@@ -8,7 +8,7 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "BPM Consulting - Líderes del Eje Cafetero",
+  title: "BPM Consulting - Ingenieros de alimentos",
   description: "Sistema de gestión BPM Consulting - Un camino sin parar a la industria alimentaria",
 };
 
