@@ -60,11 +60,10 @@ export default function ReportsPage() {
     const fetchStats = async () => {
       try {
         setLoading(true);
-        const [companies, appointmentsRes, engineers, globalStatsRes, valRes] = await Promise.all([
+        const [companies, appointmentsRes, engineers, valRes] = await Promise.all([
           companyService.getAllCompanies(),
           appointmentService.getAllAppointments({}),
           engineerService.getAllEngineers(),
-          appointmentService.getAppointmentStats(),
           appointmentService.getAllValidations({ status: 'EN_REVISION', limit: 1 })
         ]);
 
@@ -81,9 +80,7 @@ export default function ReportsPage() {
           capacitacionesCount: capacitaciones,
           engineersCount: engineers.length,
           totalEngineers: engineers.length,
-          documentsPending: (globalStatsRes.success && globalStatsRes.data?.validations?.EN_REVISION) 
-            || (valRes.success && (valRes.data?.meta?.total ?? valRes.data?.total ?? 0)) 
-            || 0
+          documentsPending: (valRes.success && (valRes.data?.meta?.total ?? valRes.data?.total ?? 0)) || 0
         });
 
         // Process Chart Data

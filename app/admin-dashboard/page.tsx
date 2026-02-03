@@ -44,16 +44,18 @@ export default function AdminDashboardPage() {
         setLoading(true);
         
         // Parallel fetch for chart data and global stats
-        const [aptRes, statsRes] = await Promise.all([
+        const [aptRes, valRes] = await Promise.all([
           appointmentService.getAllAppointments({}),
-          appointmentService.getAppointmentStats()
+          appointmentService.getAllValidations({ status: 'EN_REVISION', limit: 1 })
         ]);
 
         const apps = aptRes?.data || [];
         processChartData(apps);
 
-        if (statsRes.success) {
-           setStats(statsRes.data);
+        if (valRes.success) {
+           setStats({
+             en_revision: valRes.data?.meta?.total ?? valRes.data?.total ?? 0
+           });
         }
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
