@@ -7,6 +7,7 @@ import { appointmentService } from '@/app/services/appointments/appointmentServi
 import { authService } from '@/app/services/authService';
 import { Appointment } from '@/app/types';
 import { HiDocumentText, HiPencilAlt } from 'react-icons/hi';
+import { formatLongDate } from '@/app/utils/dateUtils';
 import AdvisoryActModal from '@/app/components/visita/AdvisoryActModal';
 import BaseModal from '@/app/components/modals/BaseModal';
 import { HiExclamation, HiCheckCircle } from 'react-icons/hi';
@@ -132,7 +133,7 @@ export default function GenerarActaPage() {
                     Vista para: {apt.companyName}
                   </h3>
                   <p className="text-gray-400 text-sm mt-1">
-                    {new Date(apt.date).toLocaleDateString('es-ES', { dateStyle: 'full' })} • {apt.location || 'Sede Principal'}
+                    {formatLongDate(apt.date)} • {apt.location || 'Sede Principal'}
                   </p>
                 </div>
 
