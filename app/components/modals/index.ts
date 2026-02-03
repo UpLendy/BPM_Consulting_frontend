@@ -8,3 +8,4 @@ export { default as CreateAppointmentModal } from './CreateAppointmentModal';
 export { default as ConfirmDeleteModal } from './ConfirmDeleteModal';
 export { default as DayScheduleModal } from './DayScheduleModal';
 export { default as EditUserModal } from './EditUserModal';
+export { default as RescheduleAppointmentModal } from './RescheduleAppointmentModal';

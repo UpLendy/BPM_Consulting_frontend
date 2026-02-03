@@ -27,6 +27,7 @@ export type {
     Appointment,
     CreateAppointmentDTO,
     UpdateAppointmentDTO,
+    RescheduleAppointmentDTO,
     AppointmentFilters,
     PaginatedResponse
 } from './appointment';

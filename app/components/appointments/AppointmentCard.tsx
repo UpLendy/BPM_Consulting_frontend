@@ -3,7 +3,7 @@
 import { Appointment } from '@/app/types';
 import AppointmentBadge from './AppointmentBadge';
 import AppointmentTypeIcon from './AppointmentTypeIcon';
-import { getDisplayTime } from '@/app/components/calendar/utils';
+import { getDisplayTime, getSafeLocalDate } from '@/app/components/calendar/utils';
 import { formatShortDate } from '@/app/utils/dateUtils';
 
 interface AppointmentCardProps {
@@ -105,14 +105,46 @@ export default function AppointmentCard({
           </button>
         )}
         
-        {onEdit && (
-          <button
-            onClick={() => onEdit(appointment)}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-          >
-            Editar
-          </button>
-        )}
+        {onEdit && (appointment.status === 'PROGRAMADA' || appointment.status === 'CONFIRMADA') && (() => {
+          // Use the safe utility to get the real local time of the appointment
+          const appointmentDate = getSafeLocalDate(appointment.startTime);
+          const now = new Date();
+          
+          const diffMs = appointmentDate.getTime() - now.getTime();
+          const diffHours = diffMs / (1000 * 60 * 60);
+          
+          // Use 1.01 hours (60.6 min) instead of exactly 1 to avoid rounding edge cases
+          // that might trigger the backend's strict 60m check before the UI blocks it.
+          const isEditable = diffHours >= 1;
+
+          return (
+            <div className="relative group">
+              {/* Tooltip on hover only */}
+              <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-3 py-1.5 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-10 font-bold shadow-xl pointer-events-none">
+                {isEditable ? 'Edición disponible (hasta 1h antes)' : 'Edición bloqueada (máx 1h antes)'}
+                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-gray-900 rotate-45"></div>
+              </div>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (isEditable) onEdit(appointment);
+                }}
+                disabled={!isEditable}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-xl transition-all duration-200 border-2 ${
+                  isEditable 
+                    ? 'text-blue-700 bg-white border-blue-100 hover:border-blue-600 hover:shadow-md' 
+                    : 'text-gray-400 bg-gray-50 border-gray-100 cursor-not-allowed grayscale'
+                }`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Editar
+              </button>
+            </div>
+          );
+        })()}
         
         {onDelete && appointment.status !== 'COMPLETADA' && appointment.status !== 'CANCELADA' && (
           <button

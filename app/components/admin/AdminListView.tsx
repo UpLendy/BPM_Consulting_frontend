@@ -6,62 +6,62 @@ import FilterButtons from './FilterButtons';
 import EmptyState from './EmptyState';
 import { AppointmentCard } from '@/app/components/appointments';
 import {
-  ViewAppointmentModal
+  ViewAppointmentModal,
+  RescheduleAppointmentModal
 } from '@/app/components/modals';
 import Pagination from '@/app/components/common/Pagination';
-import { Appointment, AppointmentStatus, AppointmentType, PaginatedResponse } from '@/app/types';
+import { Appointment, AppointmentStatus, AppointmentType, PaginatedResponse, RescheduleAppointmentDTO } from '@/app/types';
 
 interface AdminListViewProps {
   appointments: Appointment[];
+  allAppointments?: Appointment[];
   meta?: PaginatedResponse<Appointment>['meta'];
-  allAppointments?: Appointment[]; // Full list for counts (Legacy)
-  globalCounts?: any; // New global stats
-  filters?: {
-      status: AppointmentStatus | 'all';
-      type: AppointmentType | 'all';
-      page?: number;
+  filters: {
+    status: AppointmentStatus | 'all';
+    type: AppointmentType | 'all';
+    page: number;
   };
-  onFilterChange?: (newFilters: { status?: AppointmentStatus | 'all'; type?: AppointmentType | 'all'; page?: number }) => void;
+  onFilterChange?: (filters: any) => void;
   onDelete?: (appointment: Appointment) => void;
+  onReschedule?: (id: string, data: RescheduleAppointmentDTO) => void;
+  isAdmin?: boolean;
 }
 
 export default function AdminListView({
   appointments,
-  meta,
   allAppointments = [],
-  globalCounts,
-  filters = { status: 'all', type: 'all', page: 1 },
+  meta,
+  filters,
   onFilterChange,
-  onDelete
+  onDelete,
+  onReschedule,
+  isAdmin = false
 }: AdminListViewProps) {
   // State
   const [searchQuery, setSearchQuery] = useState('');
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
 
+  // Reschedule State
+  const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false);
+  const [appointmentToReschedule, setAppointmentToReschedule] = useState<Appointment | null>(null);
+
   // Filter and search logic (Client-side Search only)
   const filteredAppointments = useMemo(() => {
+    if (!searchQuery.trim()) return appointments;
+
+    const query = searchQuery.toLowerCase();
     return appointments.filter((apt) => {
-      // Search query (empresa, ingeniero, descripcion)
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        const matchesEmpresa = (apt.companyName || '').toLowerCase().includes(query);
-        const matchesIngeniero = (apt.engineerName || '').toLowerCase().includes(query);
+        const matchesEmpresa = apt.companyName?.toLowerCase().includes(query);
+        const matchesIngeniero = apt.engineerName?.toLowerCase().includes(query);
         const matchesDescripcion = apt.description.toLowerCase().includes(query);
 
-        if (!matchesEmpresa && !matchesIngeniero && !matchesDescripcion) {
-          return false;
-        }
-      }
-
-      return true;
+        return matchesEmpresa || matchesIngeniero || matchesDescripcion;
     });
   }, [appointments, searchQuery]);
 
   // Calculate counts for filters (Based on ALL appointments, so they don't change with filters)
   const appointmentCounts = useMemo(() => {
-    if (globalCounts) return globalCounts;
-
     const dataSource = allAppointments.length > 0 ? allAppointments : appointments;
     return {
       all: dataSource.length,
@@ -74,7 +74,7 @@ export default function AdminListView({
       auditoria: dataSource.filter((a) => a.appointmentType === AppointmentType.AUDITORIA).length,
       seguimiento: dataSource.filter((a) => a.appointmentType === AppointmentType.SEGUIMIENTO).length
     };
-  }, [allAppointments, appointments, globalCounts]);
+  }, [allAppointments, appointments]);
 
   const handleStatusChange = (status: AppointmentStatus | 'all') => {
       if (onFilterChange) onFilterChange({ ...filters, status });
@@ -83,11 +83,16 @@ export default function AdminListView({
   const handleTypeChange = (type: AppointmentType | 'all') => {
       if (onFilterChange) onFilterChange({ ...filters, type });
   };
-    
+
    // Handlers
   const handleView = (appointment: Appointment) => {
     setSelectedAppointment(appointment);
     setViewModalOpen(true);
+  };
+
+  const handleEditClick = (appointment: Appointment) => {
+    setAppointmentToReschedule(appointment);
+    setRescheduleModalOpen(true);
   };
 
    const handlePageChange = (page: number) => {
@@ -107,10 +112,10 @@ export default function AdminListView({
               {meta ? `${meta.total} citas encontradas` : `${filteredAppointments.length} citas encontradas`}
             </span>
           </div>
-          
+
           <div className="flex space-x-4">
              <div className="flex-1">
-                  <SearchBar 
+                  <SearchBar
                     value={searchQuery}
                     onChange={setSearchQuery}
                   />
@@ -122,7 +127,7 @@ export default function AdminListView({
       <div className="flex flex-1 overflow-hidden relative">
          {/* Sidebar / Top Filters */}
          <div className="w-64 bg-white border-r border-gray-200 p-4 hidden md:block overflow-y-auto">
-            <FilterButtons 
+            <FilterButtons
                 selectedStatus={filters.status}
                 selectedType={filters.type}
                 onStatusChange={handleStatusChange}
@@ -139,10 +144,11 @@ export default function AdminListView({
                ) : (
                    <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
                       {filteredAppointments.map((apt: Appointment) => (
-                          <AppointmentCard 
+                          <AppointmentCard
                              key={apt.id}
                              appointment={apt}
                              onView={() => handleView(apt)}
+                             onEdit={() => handleEditClick(apt)}
                              onDelete={onDelete}
                           />
                       ))}
@@ -152,14 +158,16 @@ export default function AdminListView({
 
             {/* Pagination */}
             {meta && (
-                <Pagination 
-                   currentPage={meta.page}
-                   totalPages={meta.totalPages}
-                   onPageChange={handlePageChange}
-                   hasNextPage={meta.hasNextPage}
-                   hasPreviousPage={meta.hasPreviousPage}
-                   totalItems={meta.total}
-                />
+                <div className="bg-white border-t border-gray-200 px-6 py-4">
+                    <Pagination
+                       currentPage={meta.page}
+                       totalPages={meta.totalPages}
+                       onPageChange={handlePageChange}
+                       hasNextPage={meta.hasNextPage}
+                       hasPreviousPage={meta.hasPreviousPage}
+                       totalItems={meta.total}
+                    />
+                </div>
             )}
          </div>
       </div>
@@ -169,6 +177,19 @@ export default function AdminListView({
         isOpen={viewModalOpen}
         onClose={() => setViewModalOpen(false)}
         appointment={selectedAppointment}
+      />
+
+      <RescheduleAppointmentModal
+        isOpen={rescheduleModalOpen}
+        onClose={() => setRescheduleModalOpen(false)}
+        appointment={appointmentToReschedule}
+        isAdmin={isAdmin}
+        onReschedule={(data) => {
+          if (appointmentToReschedule && onReschedule) {
+            onReschedule(appointmentToReschedule.id, data);
+            setRescheduleModalOpen(false);
+          }
+        }}
       />
     </div>
   );

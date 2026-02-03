@@ -154,13 +154,45 @@ export function getDayNames(short: boolean = true): string[] {
  */
 export function getDisplayTime(isoString: string): string {
     if (!isoString) return '';
+
     try {
-        // We want strict "HH:mm" from the string itself, ignoring browser timezone.
-        // Assumes format YYYY-MM-DDTHH:mm:ss.sssZ or similar
-        const timePart = isoString.split('T')[1];
-        if (!timePart) return '';
-        return timePart.substring(0, 5);
+        const date = new Date(isoString);
+        if (isNaN(date.getTime())) return '';
+
+        // LEGACY CHECK: Appointments created before Feb 3 2026 
+        // were saved using "Nominal UTC" (Face-value + 'Z').
+        // We detect this to avoid shifting old data.
+        const cutoff = new Date('2026-02-03T04:00:00Z');
+        if (date < cutoff) {
+            const timePart = isoString.split('T')[1];
+            return timePart?.substring(0, 5) || '';
+        }
+
+        // NEW STYLE: Real UTC. Calculate local display.
+        const h = String(date.getHours()).padStart(2, '0');
+        const m = String(date.getMinutes()).padStart(2, '0');
+        return `${h}:${m}`;
     } catch (e) {
         return '';
     }
+}
+
+/**
+ * Parses an ISO string into a local Date object, 
+ * correctly handling legacy "Nominal UTC" vs new "Real UTC".
+ */
+export function getSafeLocalDate(isoString: string): Date {
+    if (!isoString) return new Date();
+
+    const date = new Date(isoString);
+    const cutoff = new Date('2026-02-03T04:00:00Z');
+
+    if (date < cutoff) {
+        // Legacy: "2026-01-01T02:00:00.000Z" means 2 AM Local
+        // We strip the Z and parse as local to get the correct wall-clock comparison.
+        return new Date(isoString.replace('Z', ''));
+    }
+
+    // New: Already real UTC, Date(iso) correctly converts to Local.
+    return date;
 }
