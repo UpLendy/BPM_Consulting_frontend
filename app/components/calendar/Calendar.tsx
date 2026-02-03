@@ -13,6 +13,7 @@ export default function Calendar({
   onSlotClick,
   onDayClick,
   renderDayContent,
+  onMonthChange,
   className = ''
 }: CalendarProps) {
   const [currentDate, setCurrentDate] = useState(selectedDate);
@@ -20,17 +21,20 @@ export default function Calendar({
   const handlePrevMonth = () => {
     const newDate = subtractMonths(currentDate, 1);
     setCurrentDate(newDate);
+    if (onMonthChange) onMonthChange(newDate);
   };
   
   const handleNextMonth = () => {
     const newDate = addMonths(currentDate, 1);
     setCurrentDate(newDate);
+    if (onMonthChange) onMonthChange(newDate);
   };
   
   const handleToday = () => {
     const today = new Date();
     setCurrentDate(today);
     onDateChange(today);
+    if (onMonthChange) onMonthChange(today);
   };
   
   const handleDayClick = (date: Date) => {

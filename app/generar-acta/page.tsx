@@ -35,8 +35,10 @@ export default function GenerarActaPage() {
       const engineerId = profile?.user?.engineerId || user.id;
 
       const response = await appointmentService.getAppointmentsByEngineer(engineerId);
-      if (response.success) {
-        setAppointments((response.data || []).filter(a => (a.status as string) === 'EN_PROGRESO' || a.status === 'EN_REVISION'));
+      if (response.success && response.data) {
+        const appointmentsData = response.data;
+        const appointmentsArray = Array.isArray(appointmentsData) ? appointmentsData : (appointmentsData.data || []);
+        setAppointments(appointmentsArray.filter(a => (a.status as string) === 'EN_PROGRESO' || a.status === 'EN_REVISION'));
       }
     } catch (error) {
       console.error('Error fetching appointments:', error);

@@ -85,9 +85,19 @@ export const appointmentService = {
     /**
      * Get appointments for a specific engineer
      */
-    async getAppointmentsByEngineer(engineerId: string): Promise<ServiceResponse<Appointment[]>> {
+    async getAppointmentsByEngineer(engineerId: string, filters?: AppointmentFilters): Promise<ServiceResponse<PaginatedResponse<Appointment>>> {
         const token = localStorage.getItem('token');
-        const response = await fetch(`${API_URL}/appointments/engineer/${engineerId}`, {
+        const params = new URLSearchParams();
+
+        if (filters) {
+            if (filters.page) params.append('page', Math.floor(filters.page).toString());
+            if (filters.limit) params.append('limit', Math.floor(filters.limit).toString());
+            if (filters.fechaInicio) params.append('date_from', filters.fechaInicio.toISOString());
+            if (filters.fechaFin) params.append('date_to', filters.fechaFin.toISOString());
+            if (filters.estado && (filters.estado as any) !== 'all') params.append('status', filters.estado);
+        }
+
+        const response = await fetch(`${API_URL}/appointments/engineer/${engineerId}?${params.toString()}`, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
@@ -101,16 +111,28 @@ export const appointmentService = {
         }
 
         const responseData = await response.json();
-        const data = Array.isArray(responseData) ? responseData : (responseData.data || []);
-        return { success: true, data };
+        const paginatedData: PaginatedResponse<Appointment> = Array.isArray(responseData)
+            ? { data: responseData, meta: { total: responseData.length, page: 1, limit: responseData.length || 10, totalPages: 1, hasNextPage: false, hasPreviousPage: false } }
+            : responseData;
+
+        return { success: true, data: paginatedData };
     },
 
     /**
      * Get appointments for a specific company
      */
-    async getAppointmentsByCompany(companyId: string): Promise<ServiceResponse<Appointment[]>> {
+    async getAppointmentsByCompany(companyId: string, filters?: AppointmentFilters): Promise<ServiceResponse<PaginatedResponse<Appointment>>> {
         const token = localStorage.getItem('token');
-        const response = await fetch(`${API_URL}/appointments/company/${companyId}`, {
+        const params = new URLSearchParams();
+
+        if (filters) {
+            if (filters.page) params.append('page', Math.floor(filters.page).toString());
+            if (filters.limit) params.append('limit', Math.floor(filters.limit).toString());
+            if (filters.fechaInicio) params.append('date_from', filters.fechaInicio.toISOString());
+            if (filters.fechaFin) params.append('date_to', filters.fechaFin.toISOString());
+        }
+
+        const response = await fetch(`${API_URL}/appointments/company/${companyId}?${params.toString()}`, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
@@ -124,8 +146,11 @@ export const appointmentService = {
         }
 
         const responseData = await response.json();
-        const data = Array.isArray(responseData) ? responseData : (responseData.data || []);
-        return { success: true, data };
+        const paginatedData: PaginatedResponse<Appointment> = Array.isArray(responseData)
+            ? { data: responseData, meta: { total: responseData.length, page: 1, limit: responseData.length || 10, totalPages: 1, hasNextPage: false, hasPreviousPage: false } }
+            : responseData;
+
+        return { success: true, data: paginatedData };
     },
 
     /**
@@ -152,9 +177,18 @@ export const appointmentService = {
     /**
      * Get appointments for the assigned engineer of the logged-in company
      */
-    async getCompanyEngineerAppointments(): Promise<Appointment[]> {
+    async getCompanyEngineerAppointments(filters?: AppointmentFilters): Promise<ServiceResponse<PaginatedResponse<Appointment>>> {
         const token = localStorage.getItem('token');
-        const response = await fetch(`${API_URL}/appointments/my-company/engineer-appointments`, {
+        const params = new URLSearchParams();
+
+        if (filters) {
+            if (filters.page) params.append('page', Math.floor(filters.page).toString());
+            if (filters.limit) params.append('limit', Math.floor(filters.limit).toString());
+            if (filters.fechaInicio) params.append('date_from', filters.fechaInicio.toISOString());
+            if (filters.fechaFin) params.append('date_to', filters.fechaFin.toISOString());
+        }
+
+        const response = await fetch(`${API_URL}/appointments/my-company/engineer-appointments?${params.toString()}`, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
@@ -163,18 +197,22 @@ export const appointmentService = {
         });
 
         if (!response.ok) {
-            if (response.status === 401) authService.handleUnauthorized();
-            return [];
+            const error = await getErrorMessage(response, 'Error al obtener las citas');
+            return { success: false, error };
         }
 
         const responseData = await response.json();
-        return Array.isArray(responseData) ? responseData : (responseData.data || []);
+        const paginatedData: PaginatedResponse<Appointment> = Array.isArray(responseData)
+            ? { data: responseData, meta: { total: responseData.length, page: 1, limit: responseData.length || 10, totalPages: 1, hasNextPage: false, hasPreviousPage: false } }
+            : responseData;
+
+        return { success: true, data: paginatedData };
     },
 
     /**
      * Get my appointments as representative
      */
-    async getMyAppointments(filters?: { page?: number; limit?: number }): Promise<PaginatedResponse<Appointment>> {
+    async getMyAppointments(filters?: AppointmentFilters): Promise<PaginatedResponse<Appointment>> {
         const token = localStorage.getItem('token');
 
         const params = new URLSearchParams();
@@ -183,6 +221,8 @@ export const appointmentService = {
         if (filters) {
             if (filters.page) params.append('page', Math.floor(filters.page).toString());
             if (filters.limit) params.append('limit', Math.floor(filters.limit).toString());
+            if (filters.fechaInicio) params.append('date_from', filters.fechaInicio.toISOString());
+            if (filters.fechaFin) params.append('date_to', filters.fechaFin.toISOString());
         }
 
         const response = await fetch(`${API_URL}/appointments/my-appointments?${params.toString()}`, {

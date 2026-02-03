@@ -70,24 +70,48 @@ export default function GestionUsuariosPage() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
+    let shouldKeepLoading = false;
+
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        // Si hay búsqueda, pedimos un límite grande (100) para encontrar a todos localmente
-        // Si no hay búsqueda, pedimos los 10 normales de la página actual
-        const fetchLimit = searchTerm ? 100 : 10;
-        const fetchPage = searchTerm ? 1 : currentPage;
+        // Pedimos los 10 normales de la página actual
+        const fetchLimit = 10;
+        const fetchPage = currentPage;
 
         const usersResponse = await userService.getAllUsers({ 
           page: fetchPage, 
           limit: fetchLimit
         });
+
+        if (!isMounted) return;
+
+        // Si hay búsqueda, verificamos si hay algún resultado en esta página
+        if (searchTerm) {
+          const hasMatches = (usersResponse.data || []).some((user: any) => 
+            `${user.first_name || ''} ${user.last_name || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (user.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (user.id_number || '').includes(searchTerm)
+          );
+
+          if (!hasMatches && usersResponse.meta?.hasNextPage) {
+            // No hay resultados en esta página, pero hay más. 
+            // Avanzamos automáticamente manteniendo el estado de carga.
+            shouldKeepLoading = true;
+            setCurrentPage(prev => prev + 1);
+            return;
+          }
+        }
+
         const [companiesData, representativesData] = await Promise.all([
           companyService.getAllCompanies(),
           representativeService.getAllRepresentatives()
         ]);
         
-        // El backend ahora devuelve los datos paginados correctamente
+        if (!isMounted) return;
+
+        // El backend devuelve los datos paginados correctamente
         setUsers(usersResponse.data || []);
         if (usersResponse.meta) setPaginationMeta(usersResponse.meta);
         
@@ -96,19 +120,24 @@ export default function GestionUsuariosPage() {
         // Track which users already have representative assignments
         const assignedUserIds = new Set(
           representativesData
-            .filter(rep => rep.companyId) // Only those with a company assigned
+            .filter(rep => rep.companyId)
             .map(rep => rep.userId)
         );
         setUsersWithAssignments(assignedUserIds);
       } catch (err: any) {
-        console.error('Error fetching data:', err);
-        setError('No se pudieron cargar los datos.');
+        if (isMounted) {
+          console.error('Error fetching data:', err);
+          setError('No se pudieron cargar los datos.');
+        }
       } finally {
-        setIsLoading(false);
+        if (isMounted && !shouldKeepLoading) {
+          setIsLoading(false);
+        }
       }
     };
 
     fetchData();
+    return () => { isMounted = false; };
   }, [currentPage, searchTerm]); // Recargar cuando cambie la página o el término de búsqueda
 
   // Reset page when search changes
@@ -484,7 +513,7 @@ export default function GestionUsuariosPage() {
           </div>
 
           {/* Pagination UI */}
-          {!isLoading && totalPages > 1 && (
+          {!isLoading && !searchTerm && totalPages > 1 && (
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
               <div className="flex-1 flex justify-between sm:hidden">
                 <button

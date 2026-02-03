@@ -10,6 +10,7 @@ export interface CalendarProps {
     onSlotClick?: (slot: TimeSlot) => void;
     onDayClick?: (date: Date) => void;
     renderDayContent?: (date: Date, slots: TimeSlot[]) => React.ReactNode;
+    onMonthChange?: (date: Date) => void;
     className?: string;
 }
 

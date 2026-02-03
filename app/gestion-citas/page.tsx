@@ -49,6 +49,7 @@ export default function GestionCitasPage() {
     page: number;
   }>({ status: 'all', type: 'all', page: 1 });
   const [refreshKey, setRefreshKey] = useState(0);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
 
   // Read user from localStorage on mount
   useEffect(() => {
@@ -85,18 +86,53 @@ export default function GestionCitasPage() {
             setEngineerId(discoveredId);
         }
 
+        // Helper to fetch all pages (max 5 pages of 100 items each = 500 items)
+        const fetchAllItems = async (serviceFn: Function, firstArg?: string) => {
+            let allItems: Appointment[] = [];
+            let page = 1;
+            let hasMore = true;
+            
+            // Calculate date range for current month
+            const fechaInicio = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+            const fechaFin = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0, 23, 59, 59);
+
+            while (hasMore && page <= 5) {
+                const filters = { 
+                    page, 
+                    limit: 100,
+                    fechaInicio,
+                    fechaFin
+                };
+                
+                const response = firstArg 
+                    ? await serviceFn(firstArg, filters)
+                    : await serviceFn(filters);
+                
+                if (response.success && response.data) {
+                    const data = response.data.data || [];
+                    allItems = [...allItems, ...data];
+                    
+                    hasMore = response.data.meta?.hasNextPage || false;
+                } else {
+                    hasMore = false;
+                }
+                page++;
+            }
+            return allItems;
+        }
+
         if (currentUser.role === 'company') {
-             const response = await appointmentService.getCompanyEngineerAppointments();
-             setAppointments(Array.isArray(response) ? response : (response as any).data || []);
+             const allData = await fetchAllItems(appointmentService.getCompanyEngineerAppointments.bind(appointmentService));
+             setAppointments(allData);
         } else if (currentUser.role === 'engineer') {
-             const response = await appointmentService.getAppointmentsByEngineer(engineerIdToUse);
-             setAppointments(Array.isArray(response) ? response : (response as any).data || []);
+             const allData = await fetchAllItems(appointmentService.getAppointmentsByEngineer.bind(appointmentService), engineerIdToUse);
+             setAppointments(allData);
         } else if (currentUser.role === 'admin') {
              const filters: AppointmentFilters = {};
              
-             // Only add page if > 1 and limit if != 10 to avoid string conversion issues on backend
+             // Admin view keeps limit 10 and doesn't auto-fetch all pages
              if (adminFilters.page > 1) filters.page = adminFilters.page;
-             // We omit limit entirely if we want backend default
+             filters.limit = 10;
              
              if (adminFilters.status !== 'all') filters.estado = adminFilters.status;
              if (adminFilters.type !== 'all') filters.tipo = adminFilters.type;
@@ -117,11 +153,16 @@ export default function GestionCitasPage() {
              setAllAppointments(filteredData);
         }
       } catch (error) {
+          console.error('Error fetching appointments:', error);
       }
     };
 
     fetchAppointments();
-  }, [currentUser, adminFilters, refreshKey]);
+  }, [currentUser, adminFilters, refreshKey, currentMonth]);
+
+  const handleMonthChange = (date: Date) => {
+      setCurrentMonth(date);
+  };
 
   // Map backend role to frontend UserRole enum
   const getFrontendRole = (): UserRole => {
@@ -236,6 +277,7 @@ export default function GestionCitasPage() {
           <IngenieroCalendarView
             ingenieroId={engineerId || currentUser.id}
             appointments={appointments}
+            onMonthChange={handleMonthChange}
           />
         );
 
@@ -247,6 +289,8 @@ export default function GestionCitasPage() {
             appointments={appointments}
             availableSlots={availableSlots}
             onCreateAppointment={handleCreateAppointment}
+            onMonthChange={handleMonthChange}
+            currentMonth={currentMonth}
           />
         );
 
