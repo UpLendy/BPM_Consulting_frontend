@@ -41,7 +41,8 @@ export default function RegistroVisitaPage() {
         // Let's filter client-side for active/relevant ones if needed. 
         // Showing all for visibility as requested.
         if (response.success && response.data) {
-          setAppointments(response.data);
+          const appointmentsData = response.data;
+          setAppointments(Array.isArray(appointmentsData) ? appointmentsData : (appointmentsData.data || []));
         } else {
           console.error('Failed to fetch appointments:', response.error);
           setAppointments([]);

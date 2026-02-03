@@ -25,6 +25,8 @@ export interface Appointment {
     empresaId?: string; // Optional if not returned directly but inferred
     ingenieroId?: string;
     representativeId?: string; // ID of the representative (user causing the appointment or owning it contextually)
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 /**

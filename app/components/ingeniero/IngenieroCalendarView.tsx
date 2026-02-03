@@ -11,11 +11,13 @@ import { Appointment, TimeSlot, AppointmentStatus } from '@/app/types';
 interface IngenieroCalendarViewProps {
   ingenieroId: string;
   appointments: Appointment[]; // All appointments, will be filtered
+  onMonthChange?: (date: Date) => void;
 }
 
 export default function IngenieroCalendarView({
   ingenieroId,
-  appointments
+  appointments,
+  onMonthChange
 }: IngenieroCalendarViewProps) {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewModalOpen, setViewModalOpen] = useState(false);
@@ -131,6 +133,7 @@ export default function IngenieroCalendarView({
             onDateChange={setSelectedDate}
             onDayClick={handleDayClick}
             slots={slots}
+            onMonthChange={onMonthChange}
             onSlotClick={(slot) => {
                 if (slot.appointmentId) {
                     const apt = myAppointments.find(a => String(a.id) === String(slot.appointmentId));

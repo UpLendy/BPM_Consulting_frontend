@@ -102,10 +102,11 @@ export default function DocumentosEmpresaPage() {
                 const aptResponse = await appointmentService.getAppointmentsByEngineer(targetId);
                 
                 if (aptResponse.success && aptResponse.data) {
-                const appointments = aptResponse.data;
+                const appointmentsData = aptResponse.data;
+                const appointments = Array.isArray(appointmentsData) ? appointmentsData : (appointmentsData.data || []);
                 const validationsList: any[] = [];
                 
-                const completedAppointments = appointments.filter(a => a.status === 'COMPLETADA');
+                const completedAppointments = appointments.filter((a: any) => a.status === 'COMPLETADA');
                 
                 await Promise.all(completedAppointments.map(async (apt) => {
                     try {

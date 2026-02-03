@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { mapBackendRoleToFrontend, BackendRole } from '@/app/types/auth';
 import { authService } from '@/app/services/authService';
 import { appointmentService } from '@/app/services/appointments/appointmentService';
+import { Appointment } from '@/app/types';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -38,6 +39,7 @@ export default function Header({
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const notifRef = useRef<HTMLDivElement>(null);
+  const cachedEngineerId = useRef<string | null>(null);
 
   useEffect(() => {
     try {
@@ -76,15 +78,30 @@ export default function Header({
               if (role === 'admin') {
                   res = await appointmentService.getAllAppointments({ limit: 20 });
               } else if (role === 'engineer') {
-                  const profile = await authService.getProfile();
-                  const engineerId = profile?.user?.engineerId || profile?.id || user.id;
-                  res = await appointmentService.getAppointmentsByEngineer(engineerId);
+                  // Optimize: Fetch profile only if not cached to reduce /me requests
+                  if (!cachedEngineerId.current) {
+                      const profile = await authService.getProfile();
+                      cachedEngineerId.current = profile?.user?.engineerId || profile?.id || user.id;
+                  }
+                  res = await appointmentService.getAppointmentsByEngineer(cachedEngineerId.current as string, { limit: 100 });
               } else {
                   // Empresa
-                  res = await appointmentService.getMyAppointments({ limit: 20 });
+                  res = await appointmentService.getMyAppointments({ limit: 100 });
               }
               
-              const data = res?.data || (Array.isArray(res) ? res : []);
+              // Handle new ServiceResponse structure
+              let data: Appointment[] = [];
+              if (res && 'success' in res) {
+                  // It's a ServiceResponse
+                  if (res.success && res.data) {
+                      data = res.data.data || [];
+                  }
+              } else if (res && 'data' in res) {
+                  // It's already a PaginatedResponse or array-like
+                  data = (res as any).data || [];
+              } else if (Array.isArray(res)) {
+                  data = res;
+              }
               
               if (data) {
                   const newNotifications: Notification[] = [];
@@ -214,7 +231,7 @@ export default function Header({
       };
 
       fetchNotifications();
-      const interval = setInterval(fetchNotifications, 30000);
+      const interval = setInterval(fetchNotifications, 300000); // Poll every 5 minutes
       return () => clearInterval(interval);
   }, [userData]);
 

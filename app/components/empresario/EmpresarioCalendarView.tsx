@@ -22,6 +22,8 @@ interface EmpresarioCalendarViewProps {
   appointments: Appointment[]; // All appointments for the assigned engineer
   availableSlots: TimeSlot[]; // Available time slots from backend
   onCreateAppointment?: (data: CreateAppointmentDTO) => void;
+  onMonthChange?: (date: Date) => void;
+  currentMonth: Date;
 }
 
 export default function EmpresarioCalendarView({
@@ -29,7 +31,9 @@ export default function EmpresarioCalendarView({
   ingenieroAsignadoId,
   appointments,
   availableSlots,
-  onCreateAppointment
+  onCreateAppointment,
+  onMonthChange,
+  currentMonth
 }: EmpresarioCalendarViewProps) {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewModalOpen, setViewModalOpen] = useState(false);
@@ -46,19 +50,38 @@ export default function EmpresarioCalendarView({
   useEffect(() => {
     const fetchMyAppointments = async () => {
         try {
-            // Fetch appointments where I am the representative (Paginated)
-            const response = await appointmentService.getMyAppointments(); 
-            if (response.data && response.data.length > 0) {
-                const ids = new Set(response.data.map((a: Appointment) => String(a.id)));
-                setOwnedAppointmentIds(ids);
+            let allMyIds = new Set<string>();
+            let page = 1;
+            let hasMore = true;
+            
+            // Calculate date range for current month
+            const fechaInicio = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+            const fechaFin = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0, 23, 59, 59);
+
+            while (hasMore && page <= 5) {
+                const response = await appointmentService.getMyAppointments({ 
+                    page, 
+                    limit: 100,
+                    fechaInicio,
+                    fechaFin
+                });
+                
+                if (response.data && response.data.length > 0) {
+                    response.data.forEach((a: Appointment) => allMyIds.add(String(a.id)));
+                }
+                
+                hasMore = response.meta?.hasNextPage || false;
+                page++;
             }
+            
+            setOwnedAppointmentIds(allMyIds);
         } catch (e) {
             console.error('Error fetching my appointments for verification', e);
         }
     };
     
     fetchMyAppointments();
-  }, []);
+  }, [currentMonth]); // Re-fetch when month changes
 
   // Filter appointments of assigned engineer
   const engineerAppointments = useMemo(() => {
@@ -205,6 +228,7 @@ export default function EmpresarioCalendarView({
             // Add onDayClick handler
             onDayClick={handleDayClick}
             slots={mySlots}
+            onMonthChange={onMonthChange}
             renderDayContent={renderDayContent}
           />
         </div>
