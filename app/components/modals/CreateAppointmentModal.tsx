@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import BaseModal from './BaseModal';
-import { CreateAppointmentDTO, AppointmentType, Appointment, AppointmentStatus } from '@/app/types';
+import { CreateAppointmentDTO, AppointmentType, Appointment, AppointmentStatus, Company } from '@/app/types';
 import { getDisplayTime } from '@/app/components/calendar/utils';
+import { companyService } from '@/app/services/companies/companyService';
+import { engineerService } from '@/app/services/engineers/engineerService';
 
 interface CreateAppointmentModalProps {
   isOpen: boolean;
@@ -14,6 +16,7 @@ interface CreateAppointmentModalProps {
   empresarioId?: string;
   ingenieroId?: string;
   existingAppointments?: Appointment[];
+  isEngineer?: boolean;
 }
 
 export default function CreateAppointmentModal({
@@ -24,7 +27,8 @@ export default function CreateAppointmentModal({
   prefilledTime,
   empresarioId,
   ingenieroId,
-  existingAppointments = []
+  existingAppointments = [],
+  isEngineer = false
 }: CreateAppointmentModalProps) {
   const getInitialEndTime = (start: string) => {
     const [h, m] = start.split(':').map(Number);
@@ -35,24 +39,48 @@ export default function CreateAppointmentModal({
 
   const getSafeDateStr = (dateInput: any) => {
     if (!dateInput) return '';
+    if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) return dateInput;
+    
     const date = new Date(dateInput);
     if (isNaN(date.getTime())) return '';
     
-    // Use UTC methods to avoid timezone shifts pulling midnight to the previous day
-    const y = date.getUTCFullYear();
-    const m = String(date.getUTCMonth() + 1).padStart(2, '0');
-    const d = String(date.getUTCDate()).padStart(2, '0');
+    // Para objetos Date (como prefilledDate o new Date()), usamos la fecha local
+    // para que coincida con lo que el usuario ve en su calendario
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   };
 
   const [formState, setFormState] = useState({
-    date: prefilledDate || new Date(),
+    date: getSafeDateStr(prefilledDate || new Date()),
     startTime: prefilledTime || '09:00',
     endTime: getInitialEndTime(prefilledTime || '09:00'),
     description: '',
     appointmentType: AppointmentType.ASESORIA,
-    location: ''
+    location: '',
+    companyId: empresarioId || ''
   });
+
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [loadingCompanies, setLoadingCompanies] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && isEngineer && ingenieroId) {
+      const fetchCompanies = async () => {
+        setLoadingCompanies(true);
+        try {
+          const data = await engineerService.getEngineerCompanies(ingenieroId);
+          setCompanies(data);
+        } catch (error) {
+          console.error('Error fetching companies:', error);
+        } finally {
+          setLoadingCompanies(false);
+        }
+      };
+      fetchCompanies();
+    }
+  }, [isOpen, isEngineer, ingenieroId]);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   
@@ -81,16 +109,17 @@ export default function CreateAppointmentModal({
       }
 
       setFormState({
-        date: prefilledDate || new Date(),
+        date: getSafeDateStr(prefilledDate || new Date()),
         startTime: initialStart,
         endTime: getInitialEndTime(initialStart),
         description: '',
         appointmentType: AppointmentType.ASESORIA,
-        location: ''
+        location: '',
+        companyId: empresarioId || ''
       });
       setErrors({});
     }
-  }, [isOpen, prefilledDate, prefilledTime, existingAppointments]);
+  }, [isOpen, prefilledDate, prefilledTime, existingAppointments, empresarioId]);
 
   const adjustEndTime = (minutes: number) => {
     const [startH, startM] = formState.startTime.split(':').map(Number);
@@ -148,13 +177,12 @@ export default function CreateAppointmentModal({
         setTimeout(() => setTransportWarning(null), 5000);
     } else {
         setTransportWarning(null);
+        setFormState(prev => ({
+          ...prev,
+          startTime: adjustedStart,
+          endTime: getInitialEndTime(adjustedStart)
+        }));
     }
-
-    setFormState(prev => ({
-      ...prev,
-      startTime: adjustedStart,
-      endTime: getInitialEndTime(adjustedStart)
-    }));
   };
 
   const validate = (): boolean => {
@@ -164,6 +192,7 @@ export default function CreateAppointmentModal({
     if (!formState.endTime) newErrors.endTime = 'Hora de fin es requerida';
     if (!formState.description) newErrors.description = 'Descripción es requerida';
     if (!formState.location) newErrors.location = 'Ubicación es requerida';
+    if (isEngineer && !formState.companyId) newErrors.companyId = 'Debes seleccionar una empresa';
 
     if (formState.startTime && formState.endTime) {
       const [startH, startM] = formState.startTime.split(':').map(Number);
@@ -220,26 +249,32 @@ export default function CreateAppointmentModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validate()) {
-      const dateStr = getSafeDateStr(formState.date);
+      const dateStr = formState.date; // Ya es un string YYYY-MM-DD
       const [y, m, d] = dateStr.split('-').map(Number);
       
       const [sh, sm] = formState.startTime.split(':').map(Number);
-      const localStart = new Date(y, m - 1, d, sh, sm);
-      const startTimeISO = localStart.toISOString();
-
+      // Usamos Date.UTC para que los números ingresados se mantengan, 
+      // y luego removemos la 'Z' para que se trate como hora local (Colombia)
+      const nominalStart = new Date(Date.UTC(y, m - 1, d, sh, sm, 0, 0));
+      
       const [eh, em] = formState.endTime.split(':').map(Number);
-      const localEnd = new Date(y, m - 1, d, eh, em);
-      const endTimeISO = localEnd.toISOString();
+      const nominalEnd = new Date(Date.UTC(y, m - 1, d, eh, em, 0, 0));
+      
+      // Manejar cruce de medianoche (ej: 11 PM a 1 AM)
+      if (nominalEnd < nominalStart) {
+        nominalEnd.setUTCDate(nominalEnd.getUTCDate() + 1);
+      }
 
       const dto: CreateAppointmentDTO = {
         description: formState.description,
         appointmentType: formState.appointmentType,
         date: dateStr,
-        startTime: startTimeISO,
-        endTime: endTimeISO,
+        startTime: `${nominalStart.toISOString().split('.')[0]}-05:00`, 
+        endTime: `${nominalEnd.toISOString().split('.')[0]}-05:00`,     
         location: formState.location,
-        empresaId: empresarioId,
-        ingenieroId: ingenieroId
+        empresaId: empresarioId || formState.companyId,
+        ingenieroId: ingenieroId || undefined,
+        companyId: formState.companyId
       };
 
       onSubmit(dto);
@@ -249,12 +284,13 @@ export default function CreateAppointmentModal({
 
   const handleClose = () => {
     setFormState({
-      date: prefilledDate || new Date(),
+      date: getSafeDateStr(prefilledDate || new Date()),
       startTime: prefilledTime || '09:00',
       endTime: getInitialEndTime(prefilledTime || '09:00'),
       description: '',
       appointmentType: AppointmentType.ASESORIA,
-      location: ''
+      location: '',
+      companyId: empresarioId || ''
     });
     setErrors({});
     onClose();
@@ -268,6 +304,35 @@ export default function CreateAppointmentModal({
       size="lg"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
+        {isEngineer && (
+          <div>
+            <label className="block text-sm font-bold text-gray-900 mb-1">
+              Empresa *
+            </label>
+            {loadingCompanies ? (
+              <div className="w-full h-10 bg-gray-50 animate-pulse rounded-lg border border-gray-200"></div>
+            ) : (
+              <select
+                value={formState.companyId}
+                onChange={(e) => setFormState({ ...formState, companyId: e.target.value })}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white ${
+                  errors.companyId ? 'border-red-500' : 'border-gray-300'
+                }`}
+                required
+              >
+                <option value="">Selecciona una empresa</option>
+                {companies.map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            {errors.companyId && (
+              <p className="mt-1 text-xs text-red-600">{errors.companyId}</p>
+            )}
+          </div>
+        )}
         <div>
           <label className="block text-sm font-bold text-gray-900 mb-2">
             Tipo de Cita *
@@ -316,8 +381,8 @@ export default function CreateAppointmentModal({
           </label>
           <input
             type="date"
-            value={getSafeDateStr(formState.date)}
-            onChange={(e) => setFormState({ ...formState, date: new Date(e.target.value) })}
+            value={formState.date}
+            onChange={(e) => setFormState({ ...formState, date: e.target.value })}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
             required
           />

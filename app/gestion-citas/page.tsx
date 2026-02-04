@@ -236,6 +236,29 @@ export default function GestionCitasPage() {
     }
   };
 
+  const handleCreateAppointmentByEngineer = async (data: CreateAppointmentDTO) => {
+    if (!currentUser) return;
+
+    try {
+      const response = await appointmentService.createAppointmentByEngineer(data);
+
+      if (response.success && response.data) {
+        setRefreshKey(prev => prev + 1);
+        setSuccessMessage({ 
+          title: '¡Cita Agendada!', 
+          message: 'La cita ha sido programada exitosamente con la empresa.' 
+        });
+        setShowSuccessModal(true);
+        setTimeout(() => setShowSuccessModal(false), 3000);
+      } else {
+        throw new Error(response.error || 'Error al crear la cita');
+      }
+    } catch (error: any) {
+      setErrorMessage(error.message || 'Error al crear la cita. Por favor intente nuevamente.');
+      setShowErrorModal(true);
+    }
+  };
+
   const handleReschedule = async (id: string, data: RescheduleAppointmentDTO) => {
     try {
       const response = await appointmentService.rescheduleAppointment(id, data);
@@ -293,6 +316,7 @@ export default function GestionCitasPage() {
             ingenieroId={engineerId || currentUser.id}
             appointments={appointments}
             onMonthChange={handleMonthChange}
+            onCreateAppointment={handleCreateAppointmentByEngineer}
           />
         );
 

@@ -153,5 +153,29 @@ export const engineerService = {
         }
 
         return response.json();
+    },
+
+    /**
+     * Get companies assigned to an engineer
+     * GET /api/v1/engineers/{id}/companies
+     */
+    async getEngineerCompanies(engineerId: string): Promise<any[]> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/engineers/${engineerId}/companies`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                authService.handleUnauthorized();
+            }
+            return [];
+        }
+
+        return response.json();
     }
 };
