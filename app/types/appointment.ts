@@ -43,6 +43,7 @@ export interface CreateAppointmentDTO {
     // Optional fields for internal logic if needed, but backend payload is strictly the above
     empresaId?: string;
     ingenieroId?: string;
+    companyId?: string;
 }
 
 /**

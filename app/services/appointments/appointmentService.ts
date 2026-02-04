@@ -61,6 +61,29 @@ export const appointmentService = {
     },
 
     /**
+     * Create a new appointment as an engineer
+     */
+    async createAppointmentByEngineer(data: CreateAppointmentDTO): Promise<ServiceResponse<Appointment>> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/appointments/by-engineer/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+            const error = await getErrorMessage(response, 'Error al crear la cita');
+            return { success: false, error };
+        }
+
+        const result = await response.json();
+        return { success: true, data: result };
+    },
+
+    /**
      * Get a specific appointment by ID
      */
     async getAppointmentById(id: string): Promise<ServiceResponse<Appointment>> {

@@ -5,25 +5,29 @@ import Calendar from '@/app/components/calendar/Calendar';
 import { getDisplayTime } from '@/app/components/calendar/utils';
 import { appointmentService } from '@/app/services/appointments';
 import { IngenieroAppointmentCell } from '@/app/components/calendar/cells';
-import { ViewAppointmentModal, DayScheduleModal } from '@/app/components/modals';
-import { Appointment, TimeSlot, AppointmentStatus } from '@/app/types';
+import { ViewAppointmentModal, DayScheduleModal, CreateAppointmentModal } from '@/app/components/modals';
+import { Appointment, TimeSlot, AppointmentStatus, CreateAppointmentDTO } from '@/app/types';
 
 interface IngenieroCalendarViewProps {
   ingenieroId: string;
   appointments: Appointment[]; // All appointments, will be filtered
   onMonthChange?: (date: Date) => void;
+  onCreateAppointment?: (data: CreateAppointmentDTO) => Promise<void>;
 }
 
 export default function IngenieroCalendarView({
   ingenieroId,
   appointments,
-  onMonthChange
+  onMonthChange,
+  onCreateAppointment
 }: IngenieroCalendarViewProps) {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [dayModalOpen, setDayModalOpen] = useState(false);
   const [selectedDay, setSelectedDay] = useState(new Date());
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [prefilledTime, setPrefilledTime] = useState<string | undefined>(undefined);
 
   // New handler for clicking on a day cell
   const handleDayClick = (date: Date) => {
@@ -35,6 +39,11 @@ export default function IngenieroCalendarView({
   const handleViewAppointment = (apt: Appointment) => {
     setSelectedAppointment(apt);
     setViewModalOpen(true);
+  };
+
+  const handleSelectSlot = (time: string) => {
+    setPrefilledTime(time);
+    setCreateModalOpen(true);
   };
   
   const myAppointments = useMemo(() => {
@@ -152,7 +161,23 @@ export default function IngenieroCalendarView({
         date={selectedDay}
         appointments={myAppointments}
         onViewAppointment={handleViewAppointment}
-        // onSelectSlot is NOT provided here, hiding the booking section
+        onSelectSlot={handleSelectSlot}
+      />
+
+      <CreateAppointmentModal
+        isOpen={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onSubmit={async (data) => {
+          if (onCreateAppointment) {
+            await onCreateAppointment(data);
+            setCreateModalOpen(false);
+          }
+        }}
+        prefilledDate={selectedDay}
+        prefilledTime={prefilledTime}
+        ingenieroId={ingenieroId}
+        existingAppointments={appointments}
+        isEngineer={true}
       />
 
       <ViewAppointmentModal
