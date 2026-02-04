@@ -251,7 +251,12 @@ export default function AdvisoryActModal({
       }
 
       // 3. Finalize
-      const companyName = (appointment.companyName || 'Empresa').replace(/\s+/g, '_');
+      const companyName = (appointment.companyName || 'Empresa')
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "") // Eliminar acentos
+        .replace(/\s+/g, '_')
+        .replace(/[^a-zA-Z0-9._-]/g, '_'); // Solo caracteres seguros
+      
       const dateStr = new Date(appointment.date).toISOString().split('T')[0];
       const fileName = `acta_asesoria_${companyName}_${dateStr}`;
       const pdfBlob = pdf.output('blob');
