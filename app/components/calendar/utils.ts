@@ -152,29 +152,17 @@ export function getDayNames(short: boolean = true): string[] {
  * treating the UTC time face-value as the desired local display time.
  * "2026-01-09T09:00:00.000Z" -> "09:00"
  */
-export function getDisplayTime(isoString: string): string {
+export function getDisplayTime(isoString: string | Date): string {
     if (!isoString) return '';
 
-    try {
-        const date = new Date(isoString);
-        if (isNaN(date.getTime())) return '';
+    // Si es un objeto Date, lo forzamos a su representación ISO UTC para mantener la hora nominal
+    const str = typeof isoString === 'object' ? isoString.toISOString() : String(isoString);
 
-        // LEGACY CHECK: Appointments created before Feb 3 2026 
-        // were saved using "Nominal UTC" (Face-value + 'Z').
-        // We detect this to avoid shifting old data.
-        const cutoff = new Date('2026-02-03T04:00:00Z');
-        if (date < cutoff) {
-            const timePart = isoString.split('T')[1];
-            return timePart?.substring(0, 5) || '';
-        }
+    // Buscamos el patrón HH:mm después de la T o al inicio
+    const match = str.match(/T(\d{2}:\d{2})/) || str.match(/^(\d{2}:\d{2})/);
+    const result = match ? match[1] : '';
 
-        // NEW STYLE: Real UTC. Calculate local display.
-        const h = String(date.getHours()).padStart(2, '0');
-        const m = String(date.getMinutes()).padStart(2, '0');
-        return `${h}:${m}`;
-    } catch (e) {
-        return '';
-    }
+    return result;
 }
 
 /**
@@ -184,15 +172,12 @@ export function getDisplayTime(isoString: string): string {
 export function getSafeLocalDate(isoString: string): Date {
     if (!isoString) return new Date();
 
-    const date = new Date(isoString);
-    const cutoff = new Date('2026-02-03T04:00:00Z');
+    // Tratamos siempre el string como hora local para evitar desfases
+    // Eliminamos la 'Z' o cualquier offset para que el constructor de Date
+    // lo tome como hora de la máquina local (Nominal).
+    const nominalString = isoString.includes('T')
+        ? isoString.replace(/Z$|[+-]\d{2}:\d{2}$/, '')
+        : isoString;
 
-    if (date < cutoff) {
-        // Legacy: "2026-01-01T02:00:00.000Z" means 2 AM Local
-        // We strip the Z and parse as local to get the correct wall-clock comparison.
-        return new Date(isoString.replace('Z', ''));
-    }
-
-    // New: Already real UTC, Date(iso) correctly converts to Local.
-    return date;
+    return new Date(nominalString);
 }
