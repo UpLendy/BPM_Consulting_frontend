@@ -13,6 +13,7 @@ interface ViewAppointmentModalProps {
   appointment: Appointment | null;
 }
 
+
 export default function ViewAppointmentModal({
   isOpen,
   onClose,
