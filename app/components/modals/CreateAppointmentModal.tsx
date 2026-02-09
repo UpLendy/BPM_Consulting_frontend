@@ -39,7 +39,15 @@ export default function CreateAppointmentModal({
 
   const getSafeDateStr = (dateInput: any) => {
     if (!dateInput) return '';
+    
+    // Si ya es un string YYYY-MM-DD lo devolvemos tal cual
     if (typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)) return dateInput;
+    
+    // Si es un ISO string con tiempo (ej: 2026-02-12T...), extraemos solo la fecha
+    // sin importar la zona horaria para evitar desfases (Nominal Date).
+    if (typeof dateInput === 'string' && dateInput.includes('T')) {
+      return dateInput.split('T')[0];
+    }
     
     const date = new Date(dateInput);
     if (isNaN(date.getTime())) return '';
