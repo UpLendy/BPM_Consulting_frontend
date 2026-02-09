@@ -5,16 +5,17 @@ import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/app/components/layout';
 import { appointmentService } from '@/app/services/appointments/appointmentService';
 import { authService } from '@/app/services/authService';
-import { Appointment } from '@/app/types';
-import { HiDocumentText, HiPencilAlt } from 'react-icons/hi';
+import { Appointment, AppointmentStatus, PaginatedResponse } from '@/app/types';
+import { HiDocumentText } from 'react-icons/hi';
 import { formatLongDate } from '@/app/utils/dateUtils';
 import AdvisoryActModal from '@/app/components/visita/AdvisoryActModal';
 import BaseModal from '@/app/components/modals/BaseModal';
-import { HiExclamation, HiCheckCircle } from 'react-icons/hi';
+import { HiExclamation } from 'react-icons/hi';
 
 export default function GenerarActaPage() {
   const router = useRouter();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [allAppointments, setAllAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [activeModal, setActiveModal] = useState<'act' | 'sign' | null>(null);
@@ -22,8 +23,12 @@ export default function GenerarActaPage() {
   const [error, setError] = useState<string | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [idToFinalize, setIdToFinalize] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [paginationMeta, setPaginationMeta] = useState<PaginatedResponse<Appointment>['meta'] | undefined>(undefined);
+  const itemsPerPage = 10;
 
   const fetchAppointments = async () => {
+    setLoading(true);
     try {
       const userStr = localStorage.getItem('user');
       if (!userStr) {
@@ -35,14 +40,57 @@ export default function GenerarActaPage() {
       const profile = await authService.getProfile();
       const engineerId = profile?.user?.engineerId || user.id;
 
-      const response = await appointmentService.getAppointmentsByEngineer(engineerId);
-      if (response.success && response.data) {
-        const appointmentsData = response.data;
-        const appointmentsArray = Array.isArray(appointmentsData) ? appointmentsData : (appointmentsData.data || []);
-        setAppointments(appointmentsArray.filter(a => (a.status as string) === 'EN_PROGRESO' || a.status === 'EN_REVISION'));
+      // Fetch ALL appointments (we'll paginate client-side)
+      let allFetchedAppointments: Appointment[] = [];
+      let page = 1;
+      let hasMore = true;
+
+      // Fetch all pages
+      while (hasMore && page <= 10) { // Max 10 pages to prevent infinite loop
+        const response = await appointmentService.getAppointmentsByEngineer(engineerId, {
+          page,
+          limit: 100 // Fetch 100 per page to minimize requests
+        });
+        
+        if (response.success && response.data) {
+          const pageData = response.data.data || [];
+          allFetchedAppointments = [...allFetchedAppointments, ...pageData];
+          hasMore = response.data.meta?.hasNextPage || false;
+          page++;
+        } else {
+          hasMore = false;
+        }
       }
+
+      // Filter ONLY EN_PROGRESO appointments
+      const inProgressAppointments = allFetchedAppointments.filter(
+        (apt: Appointment) => apt.status === AppointmentStatus.EN_PROGRESO
+      );
+      
+      // Sort by date (most recent first)
+      const sortedAppointments = inProgressAppointments.sort((a, b) => {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        return dateB - dateA; // Descending order (newest first)
+      });
+
+      setAllAppointments(sortedAppointments);
+      
+      // Calculate pagination metadata
+      const total = sortedAppointments.length;
+      const totalPages = Math.ceil(total / itemsPerPage);
+      setPaginationMeta({
+        total,
+        page: currentPage,
+        limit: itemsPerPage,
+        totalPages,
+        hasNextPage: currentPage < totalPages,
+        hasPreviousPage: currentPage > 1
+      });
+
     } catch (error) {
       console.error('Error fetching appointments:', error);
+      setAllAppointments([]);
     } finally {
       setLoading(false);
     }
@@ -51,6 +99,28 @@ export default function GenerarActaPage() {
   useEffect(() => {
     fetchAppointments();
   }, [router]);
+
+  // Update displayed appointments when page changes
+  useEffect(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedAppointments = allAppointments.slice(startIndex, endIndex);
+    setAppointments(paginatedAppointments);
+
+    // Update pagination meta for current page
+    if (allAppointments.length > 0) {
+      const total = allAppointments.length;
+      const totalPages = Math.ceil(total / itemsPerPage);
+      setPaginationMeta({
+        total,
+        page: currentPage,
+        limit: itemsPerPage,
+        totalPages,
+        hasNextPage: currentPage < totalPages,
+        hasPreviousPage: currentPage > 1
+      });
+    }
+  }, [currentPage, allAppointments]);
 
   const handleFinalizeAppointment = (id: string) => {
     setIdToFinalize(id);
@@ -78,6 +148,11 @@ export default function GenerarActaPage() {
     
     setFinishing(null);
     setIdToFinalize(null);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -119,46 +194,76 @@ export default function GenerarActaPage() {
         ) : appointments.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-2xl border border-gray-200 border-dashed">
             <HiDocumentText className="w-16 h-16 text-gray-200 mx-auto mb-4" />
-            <p className="text-gray-500 font-medium">No hay citas pendientes para generar acta.</p>
+            <p className="text-gray-500 font-medium">No hay citas en progreso para generar acta.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-8">
-            {appointments.map((apt) => (
-              <div 
-                key={apt.id}
-                className="bg-white rounded-3xl p-10 shadow-sm border border-gray-100 flex flex-col items-center"
-              >
-                <div className="w-full mb-8 text-center">
-                  <h3 className="text-xl font-bold text-gray-800 uppercase tracking-tight">
-                    Vista para: {apt.companyName}
-                  </h3>
-                  <p className="text-gray-400 text-sm mt-1">
-                    {formatLongDate(apt.date)} • {apt.location || 'Sede Principal'}
-                  </p>
-                </div>
+          <>
+            <div className="grid grid-cols-1 gap-8">
+              {appointments.map((apt) => (
+                <div 
+                  key={apt.id}
+                  className="bg-white rounded-3xl p-10 shadow-sm border border-gray-100 flex flex-col items-center"
+                >
+                  <div className="w-full mb-8 text-center">
+                    <h3 className="text-xl font-bold text-gray-800 uppercase tracking-tight">
+                      Vista para: {apt.companyName}
+                    </h3>
+                    <p className="text-gray-400 text-sm mt-1">
+                      {formatLongDate(apt.date)} • {apt.location || 'Sede Principal'}
+                    </p>
+                  </div>
 
-                <div className="flex flex-col sm:flex-row gap-8 w-full max-w-3xl justify-center">
-                  <button 
-                    onClick={() => {
-                      setSelectedAppointment(apt);
-                      setActiveModal('act');
-                    }}
-                    disabled={finishing === apt.id}
-                    className="flex-1 min-w-[280px] h-[140px] bg-[#525298] text-white text-4xl font-medium rounded-2xl hover:bg-[#434380] shadow-2xl shadow-blue-900/10 transition-all flex items-center justify-center disabled:opacity-50"
+                  <div className="flex flex-col sm:flex-row gap-8 w-full max-w-3xl justify-center">
+                    <button 
+                      onClick={() => {
+                        setSelectedAppointment(apt);
+                        setActiveModal('act');
+                      }}
+                      disabled={finishing === apt.id}
+                      className="flex-1 min-w-[280px] h-[140px] bg-[#525298] text-white text-4xl font-medium rounded-2xl hover:bg-[#434380] shadow-2xl shadow-blue-900/10 transition-all flex items-center justify-center disabled:opacity-50"
+                    >
+                      Generar acta
+                    </button>
+                    <button 
+                      onClick={() => handleFinalizeAppointment(apt.id)}
+                      disabled={finishing === apt.id}
+                      className="flex-1 min-w-[280px] h-[140px] bg-emerald-600 text-white text-4xl font-medium rounded-2xl hover:bg-emerald-700 shadow-2xl shadow-emerald-900/10 transition-all flex items-center justify-center disabled:opacity-50"
+                    >
+                      {finishing === apt.id ? 'Finalizando...' : 'Finalizar cita'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Pagination Controls */}
+            {paginationMeta && paginationMeta.totalPages > 1 && (
+              <div className="mt-8 flex items-center justify-between bg-white px-6 py-4 rounded-xl border border-gray-200">
+                <div className="text-sm text-gray-600">
+                  Mostrando página <span className="font-bold">{paginationMeta.page}</span> de{' '}
+                  <span className="font-bold">{paginationMeta.totalPages}</span>
+                  {' • '}
+                  <span className="font-bold">{paginationMeta.total}</span> citas en total
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={!paginationMeta.hasPreviousPage}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    Generar acta
+                    ← Anterior
                   </button>
-                  <button 
-                    onClick={() => handleFinalizeAppointment(apt.id)}
-                    disabled={finishing === apt.id}
-                    className="flex-1 min-w-[280px] h-[140px] bg-emerald-600 text-white text-4xl font-medium rounded-2xl hover:bg-emerald-700 shadow-2xl shadow-emerald-900/10 transition-all flex items-center justify-center disabled:opacity-50"
+                  <button
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={!paginationMeta.hasNextPage}
+                    className="px-4 py-2 bg-[#525298] text-white rounded-lg text-sm font-medium hover:bg-[#434380] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    {finishing === apt.id ? 'Finalizando...' : 'Finalizar cita'}
+                    Siguiente →
                   </button>
                 </div>
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
 
         {selectedAppointment && (
@@ -169,6 +274,7 @@ export default function GenerarActaPage() {
               setActiveModal(null);
               setSelectedAppointment(null);
             }}
+            onSuccess={fetchAppointments}
             appointment={selectedAppointment}
           />
         )}
