@@ -743,6 +743,27 @@ export const appointmentService = {
     },
 
     /**
+     * Delete a validation document
+     */
+    async deleteDocument(validationId: string, documentId: string): Promise<ServiceResponse> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/validations/${validationId}/documents/${documentId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            const error = await getErrorMessage(response, 'Error al eliminar el documento');
+            return { success: false, error };
+        }
+
+        const result = await response.json();
+        return { success: true, data: result };
+    },
+
+    /**
      * Cancel an appointment
      */
     async cancelAppointment(id: string): Promise<ServiceResponse> {
