@@ -93,49 +93,66 @@ export default function DocumentosEmpresaPage() {
                      console.error('Admin fetch error', e);
                  }
             } else {            
-                // ... existing engineer fetch logic ...
+                // Engineer fetch logic with pagination
                 if (!targetId) {
                     setIsLoading(false);
                     return;
                 }
 
-                const aptResponse = await appointmentService.getAppointmentsByEngineer(targetId);
-                
-                if (aptResponse.success && aptResponse.data) {
-                const appointmentsData = aptResponse.data;
-                const appointments = Array.isArray(appointmentsData) ? appointmentsData : (appointmentsData.data || []);
-                const validationsList: any[] = [];
-                
-                const completedAppointments = appointments.filter((a: any) => a.status === 'COMPLETADA');
-                
-                await Promise.all(completedAppointments.map(async (apt) => {
-                    try {
-                        const valResponse = await appointmentService.getAppointmentValidation(apt.id);
-                        if (valResponse.success && valResponse.data) {
-                            const validation = valResponse.data;
-                            
-                            // Using documentsCount directly from validation object response
-                            const docCount = validation.documentsCount || 0;
+                // Fetch ALL appointments with pagination
+                let allAppointments: any[] = [];
+                let page = 1;
+                let hasMore = true;
 
-                            validationsList.push({
-                                id: validation.id,
-                                appointmentId: apt.id,
-                                companyName: apt.companyName || user.companyName || 'Mi Empresa',
-                                engineerName: validation.reviewedByName || apt.engineerName || 'Ingeniero Asignado',
-                                date: new Date(apt.date).toLocaleDateString('es-ES'),
-                                description: validation.message || (validation.status || '').replace(/_/g, ' ') || 'Validación de Cita',
-                                status: validation.status,
-                                docCount: docCount, 
-                                rawDate: apt.date 
-                            });
-                        }
-                    } catch (err) {
-                        // Silent fallback
+                while (hasMore && page <= 10) { // Max 10 pages to prevent infinite loop
+                    const aptResponse = await appointmentService.getAppointmentsByEngineer(targetId, {
+                        page,
+                        limit: 100 // Fetch 100 per page to minimize requests
+                    });
+                    
+                    if (aptResponse.success && aptResponse.data) {
+                        const pageData = aptResponse.data.data || [];
+                        allAppointments = [...allAppointments, ...pageData];
+                        hasMore = aptResponse.data.meta?.hasNextPage || false;
+                        page++;
+                    } else {
+                        hasMore = false;
                     }
-                }));
+                }
+                
+                if (allAppointments.length > 0) {
+                    const validationsList: any[] = [];
+                    
+                    const completedAppointments = allAppointments.filter((a: any) => a.status === 'COMPLETADA');
+                    
+                    await Promise.all(completedAppointments.map(async (apt) => {
+                        try {
+                            const valResponse = await appointmentService.getAppointmentValidation(apt.id);
+                            if (valResponse.success && valResponse.data) {
+                                const validation = valResponse.data;
+                                
+                                // Using documentsCount directly from validation object response
+                                const docCount = validation.documentsCount || 0;
 
-                validationsList.sort((a: any, b: any) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
-                setDocs(validationsList);
+                                validationsList.push({
+                                    id: validation.id,
+                                    appointmentId: apt.id,
+                                    companyName: apt.companyName || user.companyName || 'Mi Empresa',
+                                    engineerName: validation.reviewedByName || apt.engineerName || 'Ingeniero Asignado',
+                                    date: new Date(apt.date).toLocaleDateString('es-ES'),
+                                    description: validation.message || (validation.status || '').replace(/_/g, ' ') || 'Validación de Cita',
+                                    status: validation.status,
+                                    docCount: docCount, 
+                                    rawDate: apt.date 
+                                });
+                            }
+                        } catch (err) {
+                            // Silent fallback
+                        }
+                    }));
+
+                    validationsList.sort((a: any, b: any) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
+                    setDocs(validationsList);
                 }
             }
         } catch (error) {
