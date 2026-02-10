@@ -5,6 +5,7 @@ import BaseModal from './BaseModal';
 import { appointmentService } from '@/app/services/appointments/appointmentService';
 import VisitRegistrationModal from '../visita/VisitRegistrationModal';
 import { Appointment } from '@/app/types';
+import ConfirmationModal from './ConfirmationModal';
 
 interface ValidationReviewModalProps {
   isOpen: boolean;
@@ -41,6 +42,10 @@ export default function ValidationReviewModal({
   const [selectedPreview, setSelectedPreview] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+  
+  // Delete document state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (statusMessage) {
@@ -71,6 +76,7 @@ export default function ValidationReviewModal({
         setSelectedPreview(null);
         setIsRejecting(false);
         setRejectionReason('');
+        setShowDeleteConfirm(false);
       } else {
         console.error('ValidationReviewModal: Missing validationId');
       }
@@ -248,6 +254,40 @@ export default function ValidationReviewModal({
           setStatusMessage({ type: 'error', text: 'Error al procesar el rechazo' });
       } finally {
           setActionProcessing(false);
+      }
+  };
+
+  const handleDeleteDocument = async () => {
+      if (!activeDoc) return;
+      
+      setIsDeleting(true);
+      try {
+          const response = await appointmentService.deleteDocument(validationId, activeDoc.id);
+          
+          if (response.success) {
+              // Remove document from list
+              setDocuments(prev => prev.filter(d => d.id !== activeDoc.id));
+              setStatusMessage({ type: 'success', text: 'Documento eliminado correctamente' });
+              
+              // Clear active document and preview
+              setActiveDoc(null);
+              setSelectedPreview(null);
+              setShowDeleteConfirm(false);
+              
+              // Select first remaining document if any
+              const remainingDocs = documents.filter(d => d.id !== activeDoc.id);
+              if (remainingDocs.length > 0) {
+                  handleSelectDoc(remainingDocs[0]);
+              }
+          } else {
+              setStatusMessage({ type: 'error', text: 'Error al eliminar: ' + response.error });
+          }
+      } catch (error) {
+          console.error(error);
+          setStatusMessage({ type: 'error', text: 'Error al eliminar el documento' });
+      } finally {
+          setIsDeleting(false);
+          setShowDeleteConfirm(false);
       }
   };
 
@@ -437,6 +477,13 @@ export default function ValidationReviewModal({
                              {!isRejecting ? (
                                  <>
                                     <button 
+                                        onClick={() => setShowDeleteConfirm(true)}
+                                        disabled={actionProcessing}
+                                        className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
+                                    >
+                                        Eliminar
+                                    </button>
+                                    <button 
                                         onClick={() => setIsRejecting(true)}
                                         disabled={actionProcessing || activeDoc.status === 'RECHAZADO'}
                                         className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors
@@ -515,6 +562,19 @@ export default function ValidationReviewModal({
             readOnly={true}
           />
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDeleteDocument}
+        title="Eliminar Documento"
+        message={`¿Estás seguro de que deseas eliminar el documento "${activeDoc?.fileName}"? Esta acción no se puede deshacer.`}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        isLoading={isDeleting}
+        variant="danger"
+      />
     </BaseModal>
   );
 }
