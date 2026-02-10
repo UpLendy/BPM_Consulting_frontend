@@ -6,6 +6,7 @@ import { appointmentService } from '@/app/services/appointments/appointmentServi
 import VisitRegistrationModal from '../visita/VisitRegistrationModal';
 import { Appointment } from '@/app/types';
 import ConfirmationModal from './ConfirmationModal';
+import { formatFileName } from '@/app/utils/fileUtils';
 
 interface ValidationReviewModalProps {
   isOpen: boolean;
@@ -422,8 +423,8 @@ export default function ValidationReviewModal({
                                     )}
                                 </div>
                                 <div className="min-w-0">
-                                    <p className={`text-sm font-black truncate ${doc.isActa ? 'text-blue-700' : 'text-black'}`} title={doc.fileName || doc.originalName}>
-                                        {doc.fileName || doc.originalName || 'Documento sin nombre'}
+                                    <p className={`text-sm font-black truncate ${doc.isActa ? 'text-blue-700' : 'text-black'}`} title={formatFileName(doc.fileName || doc.originalName)}>
+                                        {formatFileName(doc.fileName || doc.originalName) || 'Documento sin nombre'}
                                     </p>
                                     <div className="flex items-center gap-2 mt-0.5">
                                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border
@@ -472,8 +473,8 @@ export default function ValidationReviewModal({
             {activeDoc && !readOnly && !activeDoc.isActa && (
                 <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col gap-3">
                     <div className="flex justify-between items-center">
-                        <h4 className="font-medium text-gray-900">Revisión: {activeDoc.fileName}</h4>
-                        <div className="flex gap-2">
+                        <h4 className="font-medium text-gray-900 min-w-0 break-words flex-1">Revisión: {formatFileName(activeDoc.fileName)}</h4>
+                        <div className="flex gap-2 flex-shrink-0 flex-wrap">
                              {!isRejecting ? (
                                  <>
                                     <button 
@@ -542,7 +543,7 @@ export default function ValidationReviewModal({
             {/* Read Only Info Bar */}
             {activeDoc && readOnly && (
                 <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex justify-between items-center">
-                    <h4 className="font-medium text-gray-900">Visualizando: {activeDoc.fileName}</h4>
+                    <h4 className="font-medium text-gray-900">Visualizando: {formatFileName(activeDoc.fileName)}</h4>
                     <span className={`text-xs px-2 py-1 rounded font-bold
                         ${activeDoc.status === 'APROBADO' ? 'bg-green-100 text-green-700' : 
                           activeDoc.status === 'RECHAZADO' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`}>
@@ -569,11 +570,10 @@ export default function ValidationReviewModal({
         onClose={() => setShowDeleteConfirm(false)}
         onConfirm={handleDeleteDocument}
         title="Eliminar Documento"
-        message={`¿Estás seguro de que deseas eliminar el documento "${activeDoc?.fileName}"? Esta acción no se puede deshacer.`}
-        confirmText="Eliminar"
-        cancelText="Cancelar"
-        isLoading={isDeleting}
-        variant="danger"
+        message={`¿Estás seguro de que deseas eliminar el documento "${formatFileName(activeDoc?.fileName || '')}"? Esta acción no se puede deshacer.`}
+        confirmLabel="Eliminar"
+        cancelLabel="Cancelar"
+        isProcessing={isDeleting}
       />
     </BaseModal>
   );
