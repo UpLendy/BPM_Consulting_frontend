@@ -3,6 +3,7 @@
 import { useState, useRef, ChangeEvent, useEffect } from 'react';
 import BaseModal from '../modals/BaseModal';
 import { appointmentService } from '@/app/services/appointments/appointmentService';
+import { formatFileName } from '@/app/utils/fileUtils';
 
 interface ValidationUploadModalProps {
   isOpen: boolean;
@@ -336,7 +337,7 @@ export default function ValidationUploadModal({
                             <div key={doc.id} className="border border-red-200 rounded-lg p-4 bg-white shadow-sm">
                                 <div className="flex justify-between items-start mb-3">
                                     <div>
-                                        <h5 className="font-medium text-gray-900">{doc.fileName || doc.originalName || 'Documento'}</h5>
+                                        <h5 className="font-medium text-gray-900">{formatFileName(doc.fileName || doc.originalName) || 'Documento'}</h5>
                                         <p className="text-xs text-gray-500 bg-gray-100 inline-block px-1.5 py-0.5 rounded mt-1">
                                             {doc.documentType || 'Tipo Desconocido'}
                                         </p>
