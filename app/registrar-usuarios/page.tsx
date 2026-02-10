@@ -59,7 +59,8 @@ export default function RegistrarUsuariosPage() {
       setIsLoading(false);
       return;
     }
-    if (formData.last_name.length < 2 || formData.last_name.length > 50) {
+    // Apellido es opcional, solo validar si se proporciona
+    if (formData.last_name && (formData.last_name.length < 2 || formData.last_name.length > 50)) {
       setError('El apellido debe tener entre 2 y 50 caracteres');
       setIsLoading(false);
       return;
@@ -81,7 +82,13 @@ export default function RegistrarUsuariosPage() {
     }
 
     try {
-      await userService.createUser(formData);
+      // Si el apellido está vacío, enviar el año actual al backend
+      const dataToSend = {
+        ...formData,
+        last_name: formData.last_name.trim() || new Date().getFullYear().toString()
+      };
+      
+      await userService.createUser(dataToSend);
       setSuccess(true);
       setFormData({
         email: '',
@@ -153,9 +160,10 @@ export default function RegistrarUsuariosPage() {
 
             {/* Last Name */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2 font-inter">Apellidos</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2 font-inter">
+                Apellidos <span className="text-gray-400 text-xs font-normal">(Opcional)</span>
+              </label>
               <input
-                required
                 type="text"
                 name="last_name"
                 placeholder="Pérez"

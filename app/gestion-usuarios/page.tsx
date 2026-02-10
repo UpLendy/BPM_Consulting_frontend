@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/app/components/layout';
 import { userService } from '@/app/services/users/userService';
 import { companyService } from '@/app/services/companies/companyService';
+import { formatUserFullName } from '@/app/utils/userUtils';
 import { engineerService } from '@/app/services/engineers/engineerService';
 import { representativeService } from '@/app/services/representatives/representativeService';
 import { Company, UserBackend } from '@/app/types';
@@ -90,7 +91,7 @@ export default function GestionUsuariosPage() {
         // Si hay búsqueda, verificamos si hay algún resultado en esta página
         if (searchTerm) {
           const hasMatches = (usersResponse.data || []).some((user: any) => 
-            `${user.first_name || ''} ${user.last_name || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            formatUserFullName(user.first_name || '', user.last_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
             (user.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
             (user.id_number || '').includes(searchTerm)
           );
@@ -281,7 +282,7 @@ export default function GestionUsuariosPage() {
       // Delete user
       await userService.deleteUser(selectedUserForDelete.id);
       
-      setSuccess(`Usuario ${selectedUserForDelete.first_name} ${selectedUserForDelete.last_name} eliminado correctamente.`);
+      setSuccess(`Usuario ${formatUserFullName(selectedUserForDelete.first_name, selectedUserForDelete.last_name)} eliminado correctamente.`);
       
       // Refresh user list
       const usersData = await userService.getAllUsers({ page: currentPage, limit: 10 });
@@ -346,7 +347,7 @@ export default function GestionUsuariosPage() {
   };
 
   const filteredUsers = Array.isArray(users) ? users.filter(user => 
-    `${user.first_name || ''} ${user.last_name || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    formatUserFullName(user.first_name || '', user.last_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (user.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (user.id_number || '').includes(searchTerm)
   ) : [];
@@ -424,7 +425,7 @@ export default function GestionUsuariosPage() {
                     <tr key={user.id} className="hover:bg-gray-50/50 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex flex-col">
-                          <span className="text-sm font-bold text-gray-900 font-inter">{user.first_name} {user.last_name}</span>
+                          <span className="text-sm font-bold text-gray-900 font-inter">{formatUserFullName(user.first_name, user.last_name)}</span>
                           <span className="text-xs text-gray-500 font-inter">{user.email}</span>
                         </div>
                       </td>
@@ -615,7 +616,7 @@ export default function GestionUsuariosPage() {
 
               <div>
                 <p className="text-sm text-gray-600 mb-4 font-inter">
-                  Asignar una empresa a {selectedUser?.role?.name?.toLowerCase() === 'company' || selectedUser?.role?.name?.toLowerCase() === 'empresa' || selectedUser?.role?.name?.toLowerCase() === 'empresario' ? 'el representante' : 'el ingeniero'} <span className="font-bold text-gray-900">{selectedUser?.first_name} {selectedUser?.last_name}</span>.
+                  Asignar una empresa a {selectedUser?.role?.name?.toLowerCase() === 'company' || selectedUser?.role?.name?.toLowerCase() === 'empresa' || selectedUser?.role?.name?.toLowerCase() === 'empresario' ? 'el representante' : 'el ingeniero'} <span className="font-bold text-gray-900">{selectedUser && formatUserFullName(selectedUser.first_name, selectedUser.last_name)}</span>.
                 </p>
 
                 {/* Phone Number - Only for Company representatives */}
@@ -733,7 +734,7 @@ export default function GestionUsuariosPage() {
               <p className="text-sm text-gray-600 font-inter">
                 ¿Estás seguro de que deseas eliminar al usuario{' '}
                 <span className="font-bold text-gray-900">
-                  {selectedUserForDelete?.first_name} {selectedUserForDelete?.last_name}
+                  {selectedUserForDelete && formatUserFullName(selectedUserForDelete.first_name, selectedUserForDelete.last_name)}
                 </span>?
               </p>
 
