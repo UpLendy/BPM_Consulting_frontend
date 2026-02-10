@@ -5,6 +5,7 @@ import { appointmentService } from '@/app/services/appointments/appointmentServi
 import { Appointment } from '@/app/types';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { formatUserFullName } from '@/app/utils/userUtils';
 
 interface HeaderProps {
   userName?: string;
@@ -32,7 +33,7 @@ export default function Header({
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
-  const [userData, setUserData] = useState<{ name: string; role: string; rawRole: string } | null>(null);
+  const [user, setUser] = useState<any>(null); // Changed from userData to user, and type to any for now
   
   // Notification State
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -42,34 +43,25 @@ export default function Header({
   const cachedEngineerId = useRef<string | null>(null);
 
   useEffect(() => {
-    try {
       const userStr = localStorage.getItem('user');
       if (userStr) {
-        const user = JSON.parse(userStr);
-        const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email;
-        const mappedRole = mapBackendRoleToFrontend(user.role as BackendRole);
-        const displayRole = mappedRole.charAt(0).toUpperCase() + mappedRole.slice(1);
-        
-        setUserData({
-          name: fullName,
-          role: displayRole,
-          rawRole: mappedRole
-        });
-      }
+      try {
+        setUser(JSON.parse(userStr));
     } catch (e) {
-      console.error('Error loading user data in Header', e);
+        console.error('Error parsing user data:', e);
+      }
     }
   }, []);
 
   // Fetch Notifications and categorize
   useEffect(() => {
       const fetchNotifications = async () => {
-          if (!userData) return;
+          if (!user) return; // Changed from userData to user
           
           const userStr = localStorage.getItem('user');
           if (!userStr) return;
-          const user = JSON.parse(userStr);
-          const role = user.role;
+          const currentUser = JSON.parse(userStr); // Renamed to avoid conflict with `user` state
+          const role = currentUser.role; // Changed from user.role to currentUser.role
 
           if (role !== 'engineer' && role !== 'admin' && role !== 'company') return;
 
@@ -233,7 +225,7 @@ export default function Header({
       fetchNotifications();
       const interval = setInterval(fetchNotifications, 300000); // Poll every 5 minutes
       return () => clearInterval(interval);
-  }, [userData]);
+  }, [user]);
 
   useEffect(() => {
       function handleClickOutside(event: MouseEvent) {
@@ -245,8 +237,9 @@ export default function Header({
       return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [notifRef]);
 
-  const userName = propUserName || userData?.name || 'Cargando...';
-  const userRole = propUserRole || userData?.role || '...';
+  // Derive userName and userRole from user state
+  const userName = propUserName || (user ? formatUserFullName(user.first_name || '', user.last_name || '') : null) || user?.email || 'Cargando...';
+  const userRole = propUserRole || (user ? mapBackendRoleToFrontend(user.role as BackendRole).charAt(0).toUpperCase() + mapBackendRoleToFrontend(user.role as BackendRole).slice(1) : null) || '...';
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
