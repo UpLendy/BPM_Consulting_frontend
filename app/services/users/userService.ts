@@ -118,6 +118,24 @@ export const userService = {
         }
     },
 
+    async getUserById(userId: string): Promise<any> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/users/${userId}`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) authService.handleUnauthorized();
+            throw new Error('Error al obtener el usuario');
+        }
+
+        return response.json();
+    },
+
     async getRoles(): Promise<any[]> {
         const now = Date.now();
         const cached = getCache(ROLES_CACHE_KEY);
