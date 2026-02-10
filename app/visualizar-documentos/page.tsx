@@ -47,15 +47,32 @@ export default function VisualizarDocumentosPage() {
           }
         }
 
-        // 2. Use my-appointments endpoint without parameters to avoid parsing issues
-        const aptResponse = await appointmentService.getMyAppointments();
+        // 2. Fetch ALL appointments with pagination
+        let allAppointments: any[] = [];
+        let page = 1;
+        let hasMore = true;
+
+        while (hasMore && page <= 10) { // Max 10 pages to prevent infinite loop
+          const aptResponse = await appointmentService.getMyAppointments({
+            page,
+            limit: 100 // Fetch 100 per page to minimize requests
+          });
+          
+          if (aptResponse && aptResponse.data) {
+            const pageData = aptResponse.data || [];
+            allAppointments = [...allAppointments, ...pageData];
+            hasMore = aptResponse.meta?.hasNextPage || false;
+            page++;
+          } else {
+            hasMore = false;
+          }
+        }
         
-        if (aptResponse && aptResponse.data) {
-          const appointments = aptResponse.data;
+        if (allAppointments.length > 0) {
           const validationsList: any[] = [];
           
           // Filter completed appointments
-          const completedAppointments = appointments.filter(a => a.status === 'COMPLETADA');
+          const completedAppointments = allAppointments.filter(a => a.status === 'COMPLETADA');
           
           // Get validation for each completed appointment
           await Promise.all(completedAppointments.map(async (apt) => {
@@ -112,7 +129,7 @@ export default function VisualizarDocumentosPage() {
             }
           }));
 
-          // Sort by date
+          // Sort by date (most recent first)
           validationsList.sort((a: any, b: any) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
           setValidations(validationsList);
         }
