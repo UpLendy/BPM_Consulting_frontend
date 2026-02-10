@@ -7,9 +7,9 @@ import { authService } from '@/app/services/authService';
 import DocCard from '@/app/components/documentos/DocCard';
 import { appointmentService } from '@/app/services/appointments/appointmentService';
 import ValidationUploadModal from '@/app/components/documentos/ValidationUploadModal';
-
 import ValidationReviewModal from '@/app/components/modals/ValidationReviewModal';
 import ConfirmationModal from '@/app/components/modals/ConfirmationModal';
+import { formatShortDate } from '@/app/utils/dateUtils';
 
 export default function DocumentosEmpresaPage() {
   const router = useRouter();
@@ -81,7 +81,7 @@ export default function DocumentosEmpresaPage() {
                              appointmentId: val.appointmentId || val.appointment?.id,
                              companyName: val.companyName || val.appointment?.companyName || 'Empresa', 
                              engineerName: val.reviewedByName || val.appointment?.engineerName || 'Ingeniero',
-                             date: val.updatedAt ? new Date(val.updatedAt).toLocaleDateString('es-ES') : new Date().toLocaleDateString('es-ES'),
+                             date: formatShortDate(val.updatedAt || val.createdAt),
                              description: val.message || 'Validación en Revisión',
                              status: val.status,
                              docCount: val.documentsCount || 0,
@@ -139,7 +139,7 @@ export default function DocumentosEmpresaPage() {
                                     appointmentId: apt.id,
                                     companyName: apt.companyName || user.companyName || 'Mi Empresa',
                                     engineerName: validation.reviewedByName || apt.engineerName || 'Ingeniero Asignado',
-                                    date: new Date(apt.date).toLocaleDateString('es-ES'),
+                                    date: formatShortDate(apt.date),
                                     description: validation.message || (validation.status || '').replace(/_/g, ' ') || 'Validación de Cita',
                                     status: validation.status,
                                     docCount: docCount, 
