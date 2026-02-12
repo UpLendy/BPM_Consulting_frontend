@@ -30,12 +30,14 @@ export default function DocumentosEmpresaPage() {
       isProcessing: boolean;
       warning?: string;
       isConfirmDisabled?: boolean;
+      actionType?: 'standard' | 'no_docs';
   }>({
       isOpen: false,
       doc: null,
       isProcessing: false,
       warning: '',
-      isConfirmDisabled: false
+      isConfirmDisabled: false,
+      actionType: 'standard'
   });
 
   /* Fetch Data Function - Reusable for Refresh */
@@ -76,16 +78,35 @@ export default function DocumentosEmpresaPage() {
                          const validationsData = valResponse.data;
                          const items = Array.isArray(validationsData) ? validationsData : (validationsData.data || []);
                          
-                         const mappedList = items.map((val: any) => ({
-                             id: val.id,
-                             appointmentId: val.appointmentId || val.appointment?.id,
-                             companyName: val.companyName || val.appointment?.companyName || 'Empresa', 
-                             engineerName: val.reviewedByName || val.appointment?.engineerName || 'Ingeniero',
-                             date: formatShortDate(val.updatedAt || val.createdAt),
-                             description: val.message || 'Validación en Revisión',
-                             status: val.status,
-                             docCount: val.documentsCount || 0,
-                             rawDate: val.updatedAt || val.createdAt
+                        const mappedList = await Promise.all(items.map(async (val: any) => {
+                             let actaStatus = null;
+                             // If validation is APPROVED, we check Acta status to know if we can complete
+                             if (val.status === 'APROBADO') {
+                                 const aptId = val.appointmentId || val.appointment?.id;
+                                 if (aptId) {
+                                     try {
+                                         const recordRes = await appointmentService.getAppointmentRecord(aptId);
+                                         if (recordRes.success && recordRes.data) {
+                                             actaStatus = recordRes.data.status;
+                                         }
+                                     } catch (e) {
+                                         console.error("Error fetching acta status for validation", val.id, e);
+                                     }
+                                 }
+                             }
+
+                             return {
+                                 id: val.id,
+                                 appointmentId: val.appointmentId || val.appointment?.id,
+                                 companyName: val.companyName || val.appointment?.companyName || 'Empresa', 
+                                 engineerName: val.reviewedByName || val.appointment?.engineerName || 'Ingeniero',
+                                 date: formatShortDate(val.updatedAt || val.createdAt),
+                                 description: val.message || 'Validación en Revisión',
+                                 status: val.status,
+                                 docCount: val.documentsCount || 0,
+                                 rawDate: val.updatedAt || val.createdAt,
+                                 actaStatus: actaStatus
+                             };
                          }));
                          setDocs(mappedList);
                      }
@@ -172,17 +193,28 @@ export default function DocumentosEmpresaPage() {
   );
 
   const handleCardClick = (doc: any) => {
-      // If Admin and status is EN_REVISION (or relevant for review), Open Review Modal
+      // If Admin, always open Review Modal for relevant statuses, or maybe generic info?
+      // Actually normally admins review EN_REVISION.
       if (currentUserRole === 'admin') {
           setSelectedDoc(doc);
           setIsReviewModalOpen(true);
           return;
       }
       
-      // Prevent opening upload modal if status is EN_REVISION, APROBADO or COMPLETADO for non-admins
-      if (['EN_REVISION', 'APROBADO', 'COMPLETADO'].includes(doc.status)) {
+      // For Company (non-admin):
+      // If Approved or Completed, Open Review Modal in Read-Only to see documents/Acta
+      if (['APROBADO', 'COMPLETADO'].includes(doc.status)) {
+          setSelectedDoc(doc);
+          setIsReviewModalOpen(true);
           return;
       }
+
+      // If EN_REVISION, they can't do anything (waiting for admin)
+      if (doc.status === 'EN_REVISION') {
+          return;
+      }
+
+      // If PENDING/CORRECTIONS, Open Upload Modal
       setSelectedDoc(doc);
       setIsModalOpen(true);
   };
@@ -223,12 +255,35 @@ export default function DocumentosEmpresaPage() {
           }
       }
 
+      // If Admin wants to complete (APROBADO -> COMPLETADO), check Acta status!
+      if (currentUserRole === 'admin' && doc.status === 'APROBADO') {
+            // Check is now handled in the render, but double check here doesn't hurt, 
+            // though we are disabling the button so this likely won't be reached.
+            if (doc.actaStatus !== 'ACEPTADA' && doc.actaStatus !== 'APROBADO') {
+                 warning = "No puedes completar la validación: El Acta de Visita aún no ha sido aceptada.";
+                 isConfirmDisabled = true; 
+            }
+      }
+
       setConfirmModal({
           isOpen: true,
           doc: doc,
           isProcessing: false,
           warning: warning,
-          isConfirmDisabled: isConfirmDisabled
+          isConfirmDisabled: isConfirmDisabled,
+          actionType: 'standard'
+      });
+  };
+
+  /* Trigger confirmation modal for No Docs */
+  const handleNoDocClick = async (doc: any, e: React.MouseEvent) => {
+      setConfirmModal({
+          isOpen: true,
+          doc: doc,
+          isProcessing: false,
+          warning: '',
+          isConfirmDisabled: false,
+          actionType: 'no_docs'
       });
   };
 
@@ -243,8 +298,13 @@ export default function DocumentosEmpresaPage() {
         let nextStatus = 'EN_REVISION';
         let nextDescription = 'Documentación cargada, en revisión por el administrador';
 
+        // 0. Explicit No-Doc Action
+        if (confirmModal.actionType === 'no_docs') {
+             nextStatus = 'EN_REVISION';
+             nextDescription = 'Cita marcada sin documentos, en revisión.';
+        }
         // 1. Logic for ADMIN finalizing a review (EN_REVISION -> APROBADO/REQUIERE_CORRECCIONES)
-        if (currentUserRole === 'admin' && doc.status === 'EN_REVISION') {
+        else if (currentUserRole === 'admin' && doc.status === 'EN_REVISION') {
             const docsResponse = await appointmentService.getValidationDocuments(doc.id);
             if (docsResponse.success && docsResponse.data) {
                 const validationDocs = docsResponse.data;
@@ -288,8 +348,13 @@ export default function DocumentosEmpresaPage() {
   
   // Determine if card is interactable (onClick behavior)
   const isCardClickable = (doc: any) => {
+      // Admin always clickable
       if (currentUserRole === 'admin') return true; 
-      if (['EN_REVISION', 'APROBADO', 'COMPLETADO'].includes(doc.status)) return false;
+      
+      // Company clickable if PENDING/CORRECTIONS (to upload) OR APPROVED/COMPLETED (to view)
+      // Only EN_REVISION is non-clickable
+      if (doc.status === 'EN_REVISION') return false;
+      
       return true;
   }
 
@@ -361,8 +426,16 @@ export default function DocumentosEmpresaPage() {
                    : (doc.status === 'REQUIERE_CORRECCIONES' ? "Finalizar y Enviar a Revisión" : "Confirmar Carga de Documentos")
                }
                actionDisabled={
-                 (currentUserRole !== 'admin' && (!doc.docCount || doc.docCount === 0))
+                 (currentUserRole !== 'admin' && (!doc.docCount || doc.docCount === 0)) ||
+                 (currentUserRole === 'admin' && doc.status === 'APROBADO' && doc.actaStatus !== 'ACEPTADA' && doc.actaStatus !== 'APROBADO')
                }
+               
+               onSecondaryAction={
+                   (currentUserRole !== 'admin' && (doc.status === 'PENDIENTE_DOCUMENTACION' || doc.status === 'REQUIERE_CORRECCIONES' || !doc.status))
+                   ? (e) => handleNoDocClick(doc, e)
+                   : undefined
+               }
+               secondaryActionLabel="Cita sin documentos"
             />
           ))}
 
@@ -398,6 +471,7 @@ export default function DocumentosEmpresaPage() {
             validationId={selectedDoc.id}
             appointmentId={selectedDoc.appointmentId}
             companyName={selectedDoc.companyName}
+            readOnly={currentUserRole !== 'admin'}
           />
       )}
 
@@ -407,31 +481,41 @@ export default function DocumentosEmpresaPage() {
         onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
         onConfirm={executeStatusUpdate}
         title={
-            currentUserRole === 'admin' 
-                ? (confirmModal.doc?.status === 'APROBADO' ? "Confirmar Envío de Documentos" : "Confirmar Finalización de Revisión")
-                : "Confirmar Carga de Documentos"
+            confirmModal.actionType === 'no_docs' 
+                ? "Confirmar Cita Sin Documentos"
+                : (currentUserRole === 'admin' 
+                    ? (confirmModal.doc?.status === 'APROBADO' ? "Confirmar Envío de Documentos" : "Confirmar Finalización de Revisión")
+                    : "Confirmar Carga de Documentos")
         }
         message={
-            currentUserRole === 'admin' ? (
-                confirmModal.doc?.status === 'APROBADO' ? (
-                    <span>
-                        ¿Estás seguro que deseas enviar los documentos finales? 
-                        <br/><br/>
-                        El estado cambiará a <strong>COMPLETADO</strong>.
-                    </span>
+            confirmModal.actionType === 'no_docs' ? (
+                <span>
+                    ¿Estás seguro de marcar esta cita como <strong>SIN DOCUMENTOS</strong>? 
+                    <br/><br/>
+                    Se enviará a revisión automáticamente y el administrador será notificado.
+                </span>
+            ) : (
+                currentUserRole === 'admin' ? (
+                    confirmModal.doc?.status === 'APROBADO' ? (
+                        <span>
+                            ¿Estás seguro que deseas enviar los documentos finales? 
+                            <br/><br/>
+                            El estado cambiará a <strong>COMPLETADO</strong>.
+                        </span>
+                    ) : (
+                        <span>
+                            ¿Estás seguro que deseas finalizar la revisión? 
+                            <br/><br/>
+                            El estado cambiará a <strong>APROBADO</strong> o <strong>REQUIERE CORRECCIONES</strong> según tus revisiones.
+                        </span>
+                    )
                 ) : (
                     <span>
-                        ¿Estás seguro que deseas finalizar la revisión? 
+                        ¿Estás seguro que deseas notificar que has cargado toda la documentación? 
                         <br/><br/>
-                        El estado cambiará a <strong>APROBADO</strong> o <strong>REQUIERE CORRECCIONES</strong> según tus revisiones.
+                        El estado cambiará a <strong>EN REVISION</strong> y el administrador será notificado.
                     </span>
                 )
-            ) : (
-                <span>
-                    ¿Estás seguro que deseas notificar que has cargado toda la documentación? 
-                    <br/><br/>
-                    El estado cambiará a <strong>EN REVISION</strong> y el administrador será notificado.
-                </span>
             )
         }
         confirmLabel="Sí, Confirmar"

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import BaseModal from '@/app/components/modals/BaseModal';
 import { Appointment } from '@/app/types';
 import SignatureCanvas from 'react-signature-canvas';
-import { HiCamera, HiCheckCircle, HiPencil, HiTrash, HiDocumentText } from 'react-icons/hi';
+import { HiCamera, HiCheckCircle, HiPencil, HiTrash, HiDocumentText, HiExclamation } from 'react-icons/hi';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { appointmentService } from '@/app/services/appointments/appointmentService';
@@ -65,6 +65,47 @@ export default function AdvisoryActModal({
     evidencePhoto: null,
     signature: null
   });
+
+  // Correction Mode State
+  const [isCorrectionMode, setIsCorrectionMode] = useState(false);
+  const [rejectedPdfUrl, setRejectedPdfUrl] = useState<string | null>(null);
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen && appointment) {
+       appointmentService.getAppointmentRecord(appointment.id).then(async (response) => {
+           if (response.success && response.data?.status === 'RECHAZADA') {
+               setIsCorrectionMode(true);
+               
+               let targetUrl = response.data.url;
+               // Get fresh download URL to avoid stale links/CORS issues
+               try {
+                   const downloadRes = await appointmentService.getAppointmentRecordDownloadUrl(appointment.id);
+                   if (downloadRes.success && downloadRes.data?.url) {
+                       targetUrl = downloadRes.data.url;
+                   }
+               } catch (e) {
+                   console.log("Using original URL fallback");
+               }
+
+               setRejectedPdfUrl(targetUrl);
+               
+               
+               setRejectedPdfUrl(targetUrl);
+               
+               // STRATEGY: Try Local Backup (Works if on same device/browser)
+               const localBackupSig = localStorage.getItem(`sig_backup_${appointment.id}`);
+               if (localBackupSig) {
+                   setFormData(prev => ({ ...prev, signature: localBackupSig }));
+                   console.log("Firma recuperada desde respaldo local");
+               } else {
+                   // If logic fails, we will show a warning in the UI (handled in JSX)
+                   console.log("No se encontró respaldo local de firma");
+               }
+           }
+       });
+    }
+  }, [isOpen, appointment]);
 
   const formatMinutesToHours = (minutes: number) => {
     const hours = Math.floor(minutes / 60);
@@ -257,6 +298,23 @@ export default function AdvisoryActModal({
         .replace(/\s+/g, '_')
         .replace(/[^a-zA-Z0-9._-]/g, '_'); // Solo caracteres seguros
       
+      // Inject Signature into PDF Metadata AND LocalStorage
+      if (formData.signature) {
+        // 1. Local Backup (The lifesaver for CORS issues)
+        try {
+            localStorage.setItem(`sig_backup_${appointment.id}`, formData.signature);
+        } catch (e) { console.warn("Local storage full", e); }
+
+        // 2. PDF Metadata (Standard cross-device method)
+        pdf.setProperties({
+            title: `Acta ${companyName}`,
+            subject: formData.signature, 
+            author: formData.representativeName || 'Ingeniero BPM',
+            keywords: 'Acta, Firma Digital, BPM', 
+            creator: 'BPM Consulting App'
+        });
+      }
+      
       const dateStr = new Date(appointment.date).toISOString().split('T')[0];
       const fileName = `acta_asesoria_${companyName}_${dateStr}`;
       const pdfBlob = pdf.output('blob');
@@ -272,8 +330,7 @@ export default function AdvisoryActModal({
       }
       
       const signaturePayload = {
-        nombre: formData.representativeName,
-        tiempoEjecutado: formatMinutesToHours(formData.executedTimeMinutes)
+        [formData.representativeName]: null
       };
       const signRes = await appointmentService.signAppointmentRecord(appointment.id, signaturePayload);
       if (!signRes.success) {
@@ -321,6 +378,34 @@ export default function AdvisoryActModal({
                 <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
               </svg>
             </button>
+          </div>
+        )}
+
+        {/* Correction Mode Alert */}
+        {isCorrectionMode && step === 'form' && (
+          <div className="mb-6 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-xl flex items-start animate-fade-in shadow-sm mx-4">
+            <div className="flex-shrink-0 mt-0.5">
+              <HiExclamation className="h-5 w-5 text-yellow-600" />
+            </div>
+            <div className="ml-3 flex-1">
+              <h3 className="text-sm font-bold text-yellow-800 uppercase tracking-tight mb-1">
+                Modo de Corrección
+              </h3>
+              <p className="text-sm text-yellow-700 leading-relaxed mb-2">
+                Estás corrigiendo un acta rechazada. Por favor revisa y actualiza la información necesaria.
+              </p>
+              {rejectedPdfUrl && (
+                <a 
+                  href={rejectedPdfUrl} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="inline-flex items-center text-xs font-bold text-yellow-800 bg-yellow-200 px-3 py-1.5 rounded-lg hover:bg-yellow-300 transition-colors"
+                >
+                  <HiDocumentText className="mr-1.5 h-3.5 w-3.5" />
+                  VER ACTA ORIGINAL (PDF)
+                </a>
+              )}
+            </div>
           </div>
         )}
 
@@ -529,46 +614,85 @@ export default function AdvisoryActModal({
 
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <label className="text-sm font-black text-gray-800 uppercase tracking-wide block">Firma de Aceptación del Acta</label>
+                <label className="text-sm font-black text-gray-800 uppercase tracking-wide block">
+                  Firma de Aceptación del Acta
+                  {isCorrectionMode && formData.signature && (
+                    <span className="ml-2 text-[9px] text-green-600 bg-green-50 px-2 py-0.5 rounded border border-green-200 normal-case align-middle">
+                        🔒 Original Recuperada
+                    </span>
+                  )}
+                  {isCorrectionMode && !formData.signature && (
+                    <span className="ml-2 text-[9px] text-red-600 bg-red-50 px-2 py-0.5 rounded border border-red-200 normal-case align-middle">
+                        ⚠️ No se pudo recuperar (Firma requerida)
+                        {recoveryError && <span className="block text-[8px] opacity-75">{recoveryError}</span>}
+                    </span>
+                  )}
+                </label>
                 {errors.signature && <span className="text-[10px] font-bold text-red-500 uppercase">{errors.signature}</span>}
               </div>
-              <div className={`bg-gray-50 border ${errors.signature ? 'border-red-500' : 'border-gray-200'} rounded-3xl p-4 overflow-hidden`}>
-                 <div 
-                   ref={containerRef}
-                   className={`bg-white rounded-2xl border ${errors.signature ? 'border-red-300' : 'border-gray-100'} relative mb-4 h-[200px] w-full overflow-hidden`}
-                 >
-                    {canvasDim.width > 0 && (
-                      <SignatureCanvas 
-                        ref={sigPad}
-                        penColor='black'
-                        velocityFilterWeight={0.7}
-                        canvasProps={{
-                          width: canvasDim.width,
-                          height: canvasDim.height,
-                          className: 'sigCanvas cursor-crosshair'
-                        }}
-                      />
-                    )}
-                    <div className="absolute top-4 right-4 flex gap-2 z-10">
-                        <button onClick={clearSignature} className="p-2 bg-gray-100 text-gray-500 rounded-xl hover:bg-gray-200 transition-colors shadow-sm">
-                            <HiTrash className="w-5 h-5" />
-                        </button>
-                        <button onClick={saveSignature} className="p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-sm">
-                            <HiCheckCircle className="w-5 h-5" />
-                        </button>
-                    </div>
-
-                    {showSignatureSuccess && (
-                      <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center animate-fade-in z-20">
-                        <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-2">
-                          <HiCheckCircle className="w-8 h-8" />
+              {/* Firma UI Logic */}
+              {isCorrectionMode && formData.signature ? (
+                  <div className="bg-green-50/30 border border-green-200 rounded-3xl p-6 overflow-hidden relative">
+                        <div className="h-[180px] w-full bg-white rounded-2xl border border-gray-100 flex items-center justify-center p-4 shadow-inner">
+                            <img src={formData.signature} alt="Firma Original" className="h-full w-auto object-contain mix-blend-multiply" />
                         </div>
-                        <p className="text-xs font-black text-green-700 uppercase tracking-widest">Firma capturada</p>
-                      </div>
-                    )}
-                 </div>
-                 <p className="text-[10px] text-center text-gray-400 font-bold uppercase">EL ASIGNADO DE LA EMPRESA FIRMA CONFIRMANDO LA REALIZACIÓN DE LA ASESORÍA</p>
-              </div>
+                        <div className="absolute top-8 right-8 bg-white rounded-full p-1 shadow-sm">
+                            <HiCheckCircle className="w-6 h-6 text-green-500" />
+                        </div>
+                        <p className="text-center text-xs font-bold text-green-700 mt-3 uppercase tracking-wider">
+                            Firma original bloqueada para edición
+                        </p>
+                  </div>
+              ) : (
+                  <div className={`bg-gray-50 border ${errors.signature ? 'border-red-500' : 'border-gray-200'} rounded-3xl p-4 overflow-hidden`}>
+                     
+                     {/* Aviso de Dispositivo Diferente */}
+                     {isCorrectionMode && (
+                        <div className="mb-4 bg-blue-50 border border-blue-200 p-3 rounded-xl flex gap-3 items-start animate-fade-in">
+                            <HiExclamation className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                            <p className="text-xs text-blue-800 font-medium leading-relaxed">
+                                <strong>Nota:</strong> Para recuperar la firma automáticamente, debes realizar la corrección desde el <strong>mismo dispositivo y navegador</strong> donde se creó el acta. De lo contrario, será necesaria una nueva firma.
+                            </p>
+                        </div>
+                     )}
+
+                     <div 
+                       ref={containerRef}
+                       className={`bg-white rounded-2xl border ${errors.signature ? 'border-red-300' : 'border-gray-100'} relative mb-4 h-[200px] w-full overflow-hidden`}
+                     >
+                        {canvasDim.width > 0 && (
+                          <SignatureCanvas 
+                            ref={sigPad}
+                            penColor='black'
+                            velocityFilterWeight={0.7}
+                            canvasProps={{
+                              width: canvasDim.width,
+                              height: canvasDim.height,
+                              className: 'sigCanvas cursor-crosshair'
+                            }}
+                          />
+                        )}
+                        <div className="absolute top-4 right-4 flex gap-2 z-10">
+                            <button onClick={clearSignature} className="p-2 bg-gray-100 text-gray-500 rounded-xl hover:bg-gray-200 transition-colors shadow-sm">
+                                <HiTrash className="w-5 h-5" />
+                            </button>
+                            <button onClick={saveSignature} className="p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-sm">
+                                <HiCheckCircle className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {showSignatureSuccess && (
+                          <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center animate-fade-in z-20">
+                            <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-2">
+                              <HiCheckCircle className="w-8 h-8" />
+                            </div>
+                            <p className="text-xs font-black text-green-700 uppercase tracking-widest">Firma capturada</p>
+                          </div>
+                        )}
+                     </div>
+                     <p className="text-[10px] text-center text-gray-400 font-bold uppercase">EL ASIGNADO DE LA EMPRESA FIRMA CONFIRMANDO LA REALIZACIÓN DE LA ASESORÍA</p>
+                  </div>
+              )}
             </div>
 
             {/* Botón de Acción Principal */}
@@ -649,6 +773,9 @@ export default function AdvisoryActModal({
                         <img src={formData.evidencePhoto} className="w-full max-h-[300px] object-cover rounded-2xl shadow-lg pdf-evidence-img" alt="Evidencia de visita" />
                     </section>
                   )}
+
+                  {/* Spacer to prevent signature from splitting across pages */}
+                  <div style={{ minHeight: '200px' }}></div>
 
                   {/* Final Signature */}
                   <div className="pt-8 border-t border-gray-100 flex flex-col items-center pdf-signature-area">

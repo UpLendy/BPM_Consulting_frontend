@@ -10,6 +10,9 @@ interface DocCardProps {
   onAction?: (e: React.MouseEvent) => void;
   actionLabel?: string;
   actionDisabled?: boolean;
+  onSecondaryAction?: (e: React.MouseEvent) => void;
+  secondaryActionLabel?: string;
+  secondaryActionDisabled?: boolean;
 }
 
 export default function DocCard({
@@ -21,7 +24,10 @@ export default function DocCard({
   onClick,
   onAction,
   actionLabel,
-  actionDisabled
+  actionDisabled,
+  onSecondaryAction,
+  secondaryActionLabel,
+  secondaryActionDisabled
 }: DocCardProps) {
   return (
     <div 
@@ -57,23 +63,40 @@ export default function DocCard({
           </div>
         </div>
 
-        {onAction && actionLabel && (
-            <div className="mt-2 flex justify-end">
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        if (!actionDisabled) onAction(e);
-                    }}
-                    disabled={actionDisabled}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border
-                        ${actionDisabled 
-                            ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' 
-                            : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200'}`}
-                >
-                    {actionLabel}
-                </button>
+        {(onAction && actionLabel) || (onSecondaryAction && secondaryActionLabel) ? (
+            <div className="mt-2 flex justify-end gap-3">
+                {onSecondaryAction && secondaryActionLabel && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (!secondaryActionDisabled) onSecondaryAction(e);
+                        }}
+                        disabled={secondaryActionDisabled}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border
+                            ${secondaryActionDisabled 
+                                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' 
+                                : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-300'}`}
+                    >
+                        {secondaryActionLabel}
+                    </button>
+                )}
+                {onAction && actionLabel && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (!actionDisabled) onAction(e);
+                        }}
+                        disabled={actionDisabled}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border
+                            ${actionDisabled 
+                                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' 
+                                : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200'}`}
+                    >
+                        {actionLabel}
+                    </button>
+                )}
             </div>
-        )}
+        ) : null}
       </div>
     </div>
   );
