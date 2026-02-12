@@ -356,6 +356,7 @@ export default function ValidationUploadModal({
                                         <input 
                                             type="file" 
                                             onChange={(e) => handleReplacementSelect(doc.id, e)}
+                                            accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx"
                                             className="block w-full text-sm text-gray-500
                                               file:mr-4 file:py-2 file:px-4
                                               file:rounded-full file:border-0
@@ -419,7 +420,7 @@ export default function ValidationUploadModal({
                             ref={fileInputRef} 
                             className="hidden" 
                             onChange={handleFileSelect} 
-                            accept=".pdf,.png,.jpg,.jpeg"
+                            accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx"
                         />
                         <div className={`mx-auto flex items-center justify-center h-12 w-12 rounded-full mb-4 transition-colors
                             ${isDragging ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-600'}`}>
@@ -429,7 +430,7 @@ export default function ValidationUploadModal({
                         </div>
                         <h3 className="text-lg font-black text-black">Sube tus archivos</h3>
                         <p className="mt-1 text-sm text-gray-800 font-bold uppercase tracking-tight">Selecciona o arrastra varios archivos aquí</p>
-                        <p className="mt-2 text-[10px] text-blue-800 font-black uppercase tracking-widest">PDF, Imágenes (Max 20MB)</p>
+                        <p className="mt-2 text-[10px] text-blue-800 font-black uppercase tracking-widest">PDF, Imágenes, Word, Excel (Max 20MB)</p>
                     </div>
 
                     {files.length > 0 && (
