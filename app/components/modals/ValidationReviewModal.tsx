@@ -240,8 +240,20 @@ export default function ValidationReviewModal({
   const handleSelectDoc = (doc: any) => {
       setActiveDoc(doc);
       setIsRejecting(false);
+      
+      const isOfficeDoc = [
+        'application/msword', 
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      ].includes(doc.mimeType) || /\.(docx?|xlsx?)$/i.test(doc.fileName || doc.originalName || '');
+
       if (doc.url) {
-          setSelectedPreview(doc.url);
+          if (isOfficeDoc) {
+              setSelectedPreview(`https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(doc.url)}`);
+          } else {
+              setSelectedPreview(doc.url);
+          }
       } else {
          manualPreviewFetch(doc);
       }
@@ -257,8 +269,20 @@ export default function ValidationReviewModal({
              response = await appointmentService.getDocumentPreview(validationId, doc.id);
         }
 
-        if (response.success && response.data && response.data.url) {
-            setSelectedPreview(response.data.url);
+        if (response.success && response.data && (response.data as any).url) {
+            const { url, mimeType, fileName } = response.data as any;
+            const isOfficeDoc = [
+                'application/msword', 
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'application/vnd.ms-excel',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            ].includes(mimeType) || /\.(docx?|xlsx?)$/i.test(fileName || '');
+
+            if (isOfficeDoc) {
+                setSelectedPreview(`https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(url)}`);
+            } else {
+                setSelectedPreview(url);
+            }
         } else {
             setStatusMessage({ type: 'error', text: 'No se pudo obtener la visualización del documento.' });
         }
