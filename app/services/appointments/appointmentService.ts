@@ -488,6 +488,81 @@ export const appointmentService = {
         return { success: true, data: result };
     },
 
+
+    /**
+     * Get appointment record (acta) with status
+     */
+    async getAppointmentRecord(id: string): Promise<ServiceResponse<{ url: string; status: string; fileName?: string }>> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/appointments/${id}/record/`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            const error = await getErrorMessage(response, 'No se pudo obtener el acta');
+            return { success: false, error };
+        }
+
+        const result = await response.json();
+        return { success: true, data: result };
+    },
+
+    /**
+     * Get fresh download URL for appointment record
+     */
+    async getAppointmentRecordDownloadUrl(id: string): Promise<ServiceResponse<{ url: string; fileName: string }>> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/appointments/${id}/record/download/`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            const error = await getErrorMessage(response, 'No se pudo obtener la URL de descarga');
+            return { success: false, error };
+        }
+
+        const result = await response.json();
+        return { success: true, data: result };
+    },
+
+    /**
+     * Review appointment record (Approve/Reject)
+     */
+    async reviewAppointmentRecord(
+        id: string,
+        data: { status: string; rejectionReason?: string }
+    ): Promise<ServiceResponse> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/appointments/${id}/record/`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                status: data.status
+            })
+        });
+
+        if (!response.ok) {
+            const error = await getErrorMessage(response, 'Error al revisar el acta');
+            return { success: false, error };
+        }
+
+        const result = await response.json();
+        return { success: true, data: result };
+    },
+
+
     /**
      * Create appointment validation
      */

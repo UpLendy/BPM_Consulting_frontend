@@ -26,6 +26,10 @@ export default function GenerarActaPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [paginationMeta, setPaginationMeta] = useState<PaginatedResponse<Appointment>['meta'] | undefined>(undefined);
   const itemsPerPage = 10;
+  
+  // State for rejected actas
+  const [rejectedRecords, setRejectedRecords] = useState<Array<{appointment: Appointment, recordUrl: string}>>([]);
+  const [checkingRejected, setCheckingRejected] = useState(false);
 
   const fetchAppointments = async () => {
     setLoading(true);
@@ -98,6 +102,7 @@ export default function GenerarActaPage() {
 
   useEffect(() => {
     fetchAppointments();
+    checkForRejectedRecords();
   }, [router]);
 
   // Update displayed appointments when page changes
@@ -150,6 +155,71 @@ export default function GenerarActaPage() {
     setIdToFinalize(null);
   };
 
+  /**
+   * Check for rejected actas that need correction
+   * Only checks COMPLETADO appointments to minimize API calls
+   */
+  const checkForRejectedRecords = async () => {
+    setCheckingRejected(true);
+    try {
+      const userStr = localStorage.getItem('user');
+      if (!userStr) return;
+      
+      const user = JSON.parse(userStr);
+      const profile = await authService.getProfile();
+      const engineerId = profile?.user?.engineerId || user.id;
+
+      // 1. Get COMPLETADO appointments (they have actas)
+      const response = await appointmentService.getAppointmentsByEngineer(engineerId, {
+        page: 1,
+        limit: 50 // Check last 50 completed appointments
+      });
+
+      if (!response.success || !response.data) return;
+
+      const completedAppointments = (response.data.data || []).filter(
+        (apt: Appointment) => apt.status === AppointmentStatus.COMPLETADA
+      );
+
+      // 2. Check each completed appointment for rejected acta
+      const rejected: Array<{appointment: Appointment, recordUrl: string}> = [];
+      
+      for (const apt of completedAppointments) {
+        try {
+          const recordResponse = await appointmentService.getAppointmentRecord(apt.id);
+          
+          if (recordResponse.success && recordResponse.data) {
+            const status = recordResponse.data.status;
+            
+            // Check if status is RECHAZADA
+            if (status === 'RECHAZADA') {
+              rejected.push({
+                appointment: apt,
+                recordUrl: recordResponse.data.url
+              });
+            } else if (status === 'APROBADO' || status === 'APROBADA') {
+              // Limpiar firma cacheada si ya está aprobada para liberar espacio
+              try {
+                localStorage.removeItem(`sig_backup_${apt.id}`);
+              } catch (e) {
+                // Ignore storage errors
+              }
+            }
+          }
+        } catch (error) {
+          // Skip this appointment if error
+          console.error(`Error checking record for appointment ${apt.id}:`, error);
+        }
+      }
+
+      setRejectedRecords(rejected);
+    } catch (error) {
+      console.error('Error checking for rejected records:', error);
+    } finally {
+      setCheckingRejected(false);
+    }
+  };
+
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -164,6 +234,46 @@ export default function GenerarActaPage() {
             Aquí podrás generar el acta de la visita que acabas de realizar
           </p>
         </div>
+
+        {/* Rejected Records Alert */}
+        {rejectedRecords.length > 0 && (
+          <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-8 rounded-r-lg shadow-sm animate-in fade-in slide-in-from-top-4 duration-500">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <HiExclamation className="h-5 w-5 text-red-500" aria-hidden="true" />
+              </div>
+              <div className="ml-3 w-full">
+                <h3 className="text-sm font-bold text-red-800 uppercase tracking-wide">
+                  Corrección de Actas Requerida ({rejectedRecords.length})
+                </h3>
+                <div className="mt-2 text-sm text-red-700">
+                  <p className="mb-2">Las siguientes actas han sido rechazadas y requieren corrección para ser aprobadas:</p>
+                  <ul className="space-y-2 mt-2">
+                    {rejectedRecords.map(({ appointment }, idx) => (
+                      <li key={idx} className="flex items-center justify-between bg-white p-3 rounded-md border border-red-200 shadow-sm hover:shadow-md transition-shadow">
+                        <div>
+                          <span className="font-bold text-gray-900 block">{appointment.companyName || 'Empresa sin nombre'}</span>
+                          <span className="text-xs text-gray-500 flex items-center gap-1">
+                            📅 {formatLongDate(appointment.date)} • ⏰ {appointment.startTime} - {appointment.endTime}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setSelectedAppointment(appointment);
+                            setActiveModal('act');
+                          }}
+                          className="px-4 py-2 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition-colors shadow-sm flex items-center gap-1"
+                        >
+                          ✏️ Corregir Acta
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         
         {error && (
           <div className="mb-8 bg-red-50 border-l-4 border-red-500 p-4 rounded-xl flex justify-between items-center animate-fade-in shadow-sm">

@@ -150,12 +150,15 @@ export const PDF_STYLES = `
     display: block !important;
   }
 
-  /* Firmas - Con mayor margen superior */
+  /* Firmas - Con mayor margen superior y protección contra corte */
   .pdf-signature-area {
     margin-top: 80px !important; /* Más aire entre contenido/foto y firma */
     padding-top: 30px !important;
     border-top: 1px solid #f3f4f6 !important;
     text-align: center !important;
+    page-break-inside: avoid !important; /* Evita que se corte entre páginas */
+    break-inside: avoid !important; /* Estándar moderno */
+    min-height: 150px !important; /* Altura mínima para forzar salto si no cabe */
   }
 
   .pdf-signature-img {

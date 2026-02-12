@@ -84,16 +84,47 @@ export default function ValidationReviewModal({
     }
   }, [isOpen, validationId, appointmentId]);
 
-  const loadDocuments = async () => {
+    const loadDocuments = async () => {
     setIsLoading(true);
+    
+    // Determine user role early
+    let currentRole = userRole;
+    if (!currentRole) {
+         const uStr = localStorage.getItem('user');
+         if (uStr) {
+             try { currentRole = JSON.parse(uStr).role; } catch {}
+         }
+    }
+    const isAdmin = currentRole?.toLowerCase() === 'admin';
+
     try {
       // Parallel fetch for documents and potentially the Acta (Record)
+
       const tasks: [Promise<any>, Promise<any>?] = [
         appointmentService.getValidationDocuments(validationId)
       ];
 
       if (appointmentId) {
-        tasks.push(appointmentService.getAppointmentRecordPreview(appointmentId));
+        tasks.push(
+            appointmentService.getAppointmentRecord(appointmentId).then(async (res) => {
+                if (!res.success) {
+                    // Fallback: If getting record fails (e.g. not signed), try getting preview
+                    // and assume status is PENDIENTE/NO_COMPLETADO
+                    try {
+                        const previewRes = await appointmentService.getAppointmentRecordPreview(appointmentId);
+                        if (previewRes.success && previewRes.data) {
+                            return { 
+                                success: true, 
+                                data: { ...previewRes.data, status: 'PENDIENTE' } 
+                            };
+                        }
+                    } catch (e) {
+                        console.error("Fallback preview failed", e);
+                    }
+                }
+                return res;
+            })
+        );
       }
 
       const [response, recordRes] = await Promise.all(tasks);
@@ -101,15 +132,28 @@ export default function ValidationReviewModal({
       let finalDocs: any[] = [];
 
       // 1. Add Acta if exists
-      if (recordRes && recordRes.success && recordRes.data?.url) {
-        finalDocs.push({
-          id: 'ACTA_VISITA_ID',
-          fileName: 'Acta de Visita (PDF)',
-          url: recordRes.data.url,
-          status: 'COMPLETADO',
-          isActa: true,
-          hasPreview: true
-        });
+      if (recordRes) {
+        const actaStatus = recordRes.success ? (recordRes.data?.status || 'PENDIENTE') : 'ERROR_CARGA';
+        const hasUrl = recordRes.success && recordRes.data?.url;
+        
+        const normalizedStatus = (actaStatus || '').toUpperCase();
+        const isApproved = ['ACEPTADA', 'APROBADO', 'COMPLETADA', 'COMPLETADO'].includes(normalizedStatus);
+        
+        // Admin sees it even if it failed loading (to debug) or if pending.
+        // Companies see it only if Approved (regardless of initial URL, to allow manual fetch retry)
+        if ((isAdmin && appointmentId) || isApproved) {
+             // If failed or url missing but approved, we create the item
+             if (recordRes.success || isAdmin) {
+                 finalDocs.push({
+                    id: 'ACTA_VISITA_ID',
+                    fileName: 'Acta de Visita (PDF)',
+                    url: hasUrl ? recordRes.data.url : null,
+                    status: actaStatus,
+                    isActa: true,
+                    hasPreview: hasUrl || true 
+                 });
+             }
+        }
       }
 
       // 2. Add validation documents
@@ -136,6 +180,21 @@ export default function ValidationReviewModal({
 
         const docsWithPreviews = await Promise.all(docPromises);
         finalDocs = [...finalDocs, ...docsWithPreviews];
+        
+        // Auto-approve logic for Admin if no documents and status is EN_REVISION
+        const valDocsCount = docs.length;
+        if (isAdmin && valDocsCount === 0 && appointmentId) {
+             // Non-blocking check to avoid UI delay
+             appointmentService.getAppointmentValidation(appointmentId).then(async (vRes) => {
+                 if (vRes.success && vRes.data?.status === 'EN_REVISION') {
+                      console.log("Auto-approving empty validation...");
+                      const upRes = await appointmentService.updateValidationStatus(appointmentId, 'APROBADO');
+                      if (upRes.success) {
+                           setStatusMessage({ type: 'success', text: 'Validación sin documentos: Aprobada automáticamente.' });
+                      }
+                 }
+             }).catch(err => console.error("Auto-approve check failed", err));
+        }
       }
 
       setDocuments(finalDocs);
@@ -191,7 +250,13 @@ export default function ValidationReviewModal({
   const manualPreviewFetch = async (doc: any) => {
     setPreviewLoading(true);
     try {
-        const response = await appointmentService.getDocumentPreview(validationId, doc.id);
+        let response;
+        if (doc.isActa && appointmentId) {
+             response = await appointmentService.getAppointmentRecordPreview(appointmentId);
+        } else {
+             response = await appointmentService.getDocumentPreview(validationId, doc.id);
+        }
+
         if (response.success && response.data && response.data.url) {
             setSelectedPreview(response.data.url);
         } else {
@@ -204,6 +269,8 @@ export default function ValidationReviewModal({
         setPreviewLoading(false);
     }
   };
+
+
 
   const handleApprove = async () => {
       if (!activeDoc) return;
@@ -291,6 +358,51 @@ export default function ValidationReviewModal({
           setShowDeleteConfirm(false);
       }
   };
+
+  const handleApproveActa = async () => {
+      if (!appointmentId) return;
+      setActionProcessing(true);
+      try {
+          const response = await appointmentService.reviewAppointmentRecord(appointmentId, {
+              status: 'ACEPTADA'
+          });
+          
+          if (response.success) {
+              updateLocalDocStatus('ACTA_VISITA_ID', 'ACEPTADA');
+              setStatusMessage({ type: 'success', text: 'Acta aprobada correctamente' });
+          } else {
+              setStatusMessage({ type: 'error', text: 'Error al aprobar el acta: ' + response.error });
+          }
+      } catch (error) {
+          console.error(error);
+          setStatusMessage({ type: 'error', text: 'Error al procesar la aprobación del acta' });
+      } finally {
+          setActionProcessing(false);
+      }
+  };
+
+  const handleRejectActa = async () => {
+      if (!appointmentId) return;
+
+      setActionProcessing(true);
+      try {
+          const response = await appointmentService.reviewAppointmentRecord(appointmentId, {
+              status: 'RECHAZADA'
+          });
+          
+          if (response.success) {
+              setStatusMessage({ type: 'success', text: 'Acta rechazada correctamente' });
+          } else {
+              setStatusMessage({ type: 'error', text: 'Error al rechazar el acta: ' + response.error });
+          }
+      } catch (error) {
+          console.error(error);
+          setStatusMessage({ type: 'error', text: 'Error al procesar el rechazo del acta' });
+      } finally {
+          setActionProcessing(false);
+      }
+  };
+
 
   const updateLocalDocStatus = (docId: string, status: string) => {
       setDocuments(prev => prev.map(d => 
@@ -427,12 +539,14 @@ export default function ValidationReviewModal({
                                         {formatFileName(doc.fileName || doc.originalName) || 'Documento sin nombre'}
                                     </p>
                                     <div className="flex items-center gap-2 mt-0.5">
-                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border
-                                            ${doc.status === 'APROBADO' ? 'bg-green-50 text-green-700 border-green-200' : 
-                                              doc.status === 'RECHAZADO' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`
-                                        }>
-                                            {(doc.status || 'PENDIENTE').replace(/_/g, ' ')}
-                                        </span>
+                                        {!readOnly && (
+                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border
+                                                ${doc.status === 'APROBADO' ? 'bg-green-50 text-green-700 border-green-200' : 
+                                                  doc.status === 'RECHAZADO' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`
+                                            }>
+                                                {(doc.status || 'PENDIENTE').replace(/_/g, ' ')}
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -470,85 +584,77 @@ export default function ValidationReviewModal({
                 )}
             </div>
 
-            {activeDoc && !readOnly && !activeDoc.isActa && (
+            {/* Unified Document Review Section */}
+            {activeDoc && !readOnly && (activeDoc.status !== 'APROBADO' && activeDoc.status !== 'ACEPTADA') && (
                 <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col gap-3">
-                    <div className="flex justify-between items-center">
-                        <h4 className="font-medium text-gray-900 min-w-0 break-words flex-1">Revisión: {formatFileName(activeDoc.fileName)}</h4>
-                        <div className="flex gap-2 flex-shrink-0 flex-wrap">
-                             {!isRejecting ? (
-                                 <>
-                                    <button 
-                                        onClick={() => setShowDeleteConfirm(true)}
-                                        disabled={actionProcessing}
-                                        className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-white border border-gray-300 text-gray-700 hover:bg-gray-50"
-                                    >
-                                        Eliminar
-                                    </button>
-                                    <button 
-                                        onClick={() => setIsRejecting(true)}
-                                        disabled={actionProcessing || activeDoc.status === 'RECHAZADO'}
-                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors
-                                            ${activeDoc.status === 'RECHAZADO' 
-                                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                                                : 'bg-white border border-red-200 text-red-600 hover:bg-red-50'}`}
-                                    >
-                                        Rechazar
-                                    </button>
-                                    <button 
-                                        onClick={handleApprove}
-                                        disabled={actionProcessing || activeDoc.status === 'APROBADO'}
-                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors
-                                            ${activeDoc.status === 'APROBADO' 
-                                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                                                : 'bg-green-600 text-white hover:bg-green-700 shadow-sm'}`}
-                                    >
-                                        {actionProcessing ? 'Procesando...' : 'Aprobar Documento'}
-                                    </button>
-                                 </>
-                             ) : (
-                                 <div className="flex items-center gap-2">
-                                     <button 
-                                         onClick={() => setIsRejecting(false)}
-                                         className="text-gray-500 text-sm hover:underline"
-                                     >
-                                         Cancelar
-                                     </button>
-                                     <button 
-                                         onClick={handleReject}
-                                         disabled={actionProcessing}
-                                         className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 shadow-sm"
-                                     >
-                                         {actionProcessing ? 'Rechazando...' : 'Confirmar Rechazo'}
-                                     </button>
-                                 </div>
-                             )}
-                        </div>
+                    <div className="border-b border-gray-100 pb-3 flex justify-between items-center">
+                        <h4 className="font-medium text-gray-900 min-w-0 break-words flex-1">
+                            Revisión: {formatFileName(activeDoc.fileName)}
+                        </h4>
+                        {!activeDoc.isActa && !isRejecting && (
+                            <button 
+                                onClick={() => setShowDeleteConfirm(true)}
+                                className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 hover:bg-gray-100 transition-colors border border-gray-200"
+                            >
+                                Eliminar
+                            </button>
+                        )}
                     </div>
                     
-                    {isRejecting && (
-                        <div className="animate-in fade-in slide-in-from-top-2 duration-200">
-                            <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-1">Razón del rechazo (Requerido)</label>
-                            <textarea
-                                value={rejectionReason}
-                                onChange={(e) => setRejectionReason(e.target.value)}
-                                placeholder="Indica detalladamente por qué se rechaza este documento..."
-                                className="w-full text-sm p-3 border border-gray-400 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none resize-none text-black font-bold"
-                                rows={2}
-                            />
+                    {/* Rejection UI Logic */}
+                    {!activeDoc.isActa && isRejecting ? (
+                         <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                             <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-1">Razón del rechazo (Requerido)</label>
+                             <textarea
+                                 value={rejectionReason}
+                                 onChange={(e) => setRejectionReason(e.target.value)}
+                                 placeholder="Indica detalladamente por qué se rechaza este documento..."
+                                 className="w-full text-sm p-3 border border-gray-400 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none resize-none text-black font-bold mb-3"
+                                 rows={2}
+                             />
+                             <div className="flex gap-2 justify-end">
+                                <button 
+                                    onClick={() => { setIsRejecting(false); setRejectionReason(''); }}
+                                    className="text-gray-500 text-sm hover:text-gray-700 px-3 py-2"
+                                >
+                                    Cancelar
+                                </button>
+                                <button 
+                                    onClick={handleReject}
+                                    disabled={actionProcessing}
+                                    className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 shadow-sm disabled:opacity-50"
+                                >
+                                    {actionProcessing ? 'Procesando...' : 'Confirmar Rechazo'}
+                                </button>
+                             </div>
+                         </div>
+                    ) : (
+                        /* Standard Actions */
+                        <div className="flex gap-2 flex-wrap">
+                            <button 
+                                onClick={activeDoc.isActa ? handleRejectActa : () => setIsRejecting(true)}
+                                disabled={actionProcessing}
+                                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-white border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 flex-1 sm:flex-none"
+                            >
+                                {actionProcessing ? '...' : (activeDoc.isActa ? 'Rechazar Acta' : 'Rechazar')}
+                            </button>
+                            <button 
+                                onClick={activeDoc.isActa ? handleApproveActa : handleApprove}
+                                disabled={actionProcessing}
+                                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-green-600 text-white hover:bg-green-700 shadow-sm disabled:opacity-50 flex-1 sm:flex-none"
+                            >
+                                {actionProcessing ? '...' : (activeDoc.isActa ? 'Aprobar Acta' : 'Aprobar')}
+                            </button>
                         </div>
                     )}
                 </div>
             )}
 
+
             {/* Read Only Info Bar */}
             {activeDoc && readOnly && (
                 <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex justify-between items-center">
                     <h4 className="font-medium text-gray-900">Visualizando: {formatFileName(activeDoc.fileName)}</h4>
-                    <span className={`text-xs px-2 py-1 rounded font-bold
-                        ${activeDoc.status === 'APROBADO' ? 'bg-green-100 text-green-700' : 
-                          activeDoc.status === 'RECHAZADO' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`}>
-                        {(activeDoc.status || 'PENDIENTE').replace(/_/g, ' ')}
-                    </span>
                 </div>
             )}
         </div>
