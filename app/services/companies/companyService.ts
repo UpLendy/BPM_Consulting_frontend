@@ -98,5 +98,31 @@ export const companyService = {
      */
     clearCache() {
         clearCacheKey(COMPANIES_CACHE_KEY);
+    },
+
+    /**
+     * Remove an engineer from a company
+     * DELETE /api/v1/companies/{id}/engineers
+     */
+    async removeEngineerFromCompany(companyId: string, engineerId: string): Promise<any> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/companies/${companyId}/engineers`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ engineerId }),
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                authService.handleUnauthorized();
+            }
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || 'Error al desvincular el ingeniero de la empresa');
+        }
+
+        return response.json();
     }
 };

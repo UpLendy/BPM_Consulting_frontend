@@ -65,6 +65,17 @@ export default function RegistrarEmpresaPage() {
     }
   };
 
+  const handleRemoveCompany = async (companyId: string) => {
+    if (!selectedEngineer) return;
+    try {
+      await companyService.removeEngineerFromCompany(companyId, selectedEngineer.id);
+      setEngineerCompanies(prev => prev.filter(c => c.id !== companyId));
+    } catch (err) {
+      console.error('Error al desvincular empresa:', err);
+      throw err;
+    }
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -278,8 +289,10 @@ export default function RegistrarEmpresaPage() {
             ? formatUserFullName(selectedEngineer.user.first_name, selectedEngineer.user.last_name)
             : 'Ingeniero'
         }
+        engineerId={selectedEngineer?.id}
         companies={engineerCompanies}
         isLoading={isLoadingCompanies}
+        onRemoveCompany={handleRemoveCompany}
       />
     </DashboardLayout>
     </RoleGuard>
