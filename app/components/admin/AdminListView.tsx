@@ -38,13 +38,15 @@ export default function AdminListView({
   isAdmin = false
 }: AdminListViewProps) {
   // State
-  const [searchQuery, setSearchQuery] = useState('');
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
 
   // Reschedule State
   const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false);
   const [appointmentToReschedule, setAppointmentToReschedule] = useState<Appointment | null>(null);
+
+  // Use searchQuery from filters, with fallback to empty string
+  const searchQuery = (filters as any).searchQuery || '';
 
   // Filter and search logic (Client-side Search only)
   const filteredAppointments = useMemo(() => {
@@ -117,7 +119,11 @@ export default function AdminListView({
              <div className="flex-1">
                   <SearchBar
                     value={searchQuery}
-                    onChange={setSearchQuery}
+                    onChange={(query) => {
+                       if (onFilterChange) {
+                           onFilterChange({ ...filters, searchQuery: query, page: 1 });
+                       }
+                    }}
                   />
              </div>
           </div>

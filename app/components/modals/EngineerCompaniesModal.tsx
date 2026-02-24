@@ -1,6 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import BaseModal from './BaseModal';
+import ConfirmationModal from './ConfirmationModal';
 import { formatUserFullName } from '@/app/utils/userUtils';
 
 interface Company {
@@ -25,17 +27,36 @@ interface EngineerCompaniesModalProps {
   isOpen: boolean;
   onClose: () => void;
   engineerName: string;
+  engineerId?: string;
   companies: Company[];
   isLoading: boolean;
+  onRemoveCompany?: (companyId: string) => Promise<void>;
 }
 
 export default function EngineerCompaniesModal({
   isOpen,
   onClose,
   engineerName,
+  engineerId,
   companies,
-  isLoading
+  isLoading,
+  onRemoveCompany
 }: EngineerCompaniesModalProps) {
+  const [companyToRemove, setCompanyToRemove] = useState<{ id: string; name: string } | null>(null);
+  const [isRemoving, setIsRemoving] = useState(false);
+
+  const handleConfirmRemove = async () => {
+    if (!companyToRemove || !onRemoveCompany) return;
+    setIsRemoving(true);
+    try {
+      await onRemoveCompany(companyToRemove.id);
+      setCompanyToRemove(null);
+    } catch (error) {
+      console.error('Error removing company:', error);
+    } finally {
+      setIsRemoving(false);
+    }
+  };
   return (
     <BaseModal
       isOpen={isOpen}
@@ -84,15 +105,28 @@ export default function EngineerCompaniesModal({
                         NIT: <span className="font-semibold text-gray-700">{company.nit}</span>
                       </p>
                     </div>
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-bold ${
-                        company.is_active
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-gray-100 text-gray-600'
-                      }`}
-                    >
-                      {company.is_active ? 'Activa' : 'Inactiva'}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-bold ${
+                          company.is_active
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        {company.is_active ? 'Activa' : 'Inactiva'}
+                      </span>
+                      {onRemoveCompany && (
+                        <button
+                          onClick={() => setCompanyToRemove({ id: company.id, name: company.name })}
+                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
+                          title="Desvincular empresa"
+                        >
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Company Details */}
@@ -156,6 +190,23 @@ export default function EngineerCompaniesModal({
           </button>
         </div>
       </div>
+
+      {companyToRemove && (
+        <ConfirmationModal
+          isOpen={true}
+          onClose={() => setCompanyToRemove(null)}
+          onConfirm={handleConfirmRemove}
+          title="Desvincular Empresa"
+          message={
+            <span>
+              ¿Está seguro que desea desvincular a <strong>{companyToRemove.name}</strong> del ingeniero <strong>{engineerName}</strong>?
+            </span>
+          }
+          confirmLabel="Desvincular"
+          cancelLabel="Cancelar"
+          isProcessing={isRemoving}
+        />
+      )}
     </BaseModal>
   );
 }
