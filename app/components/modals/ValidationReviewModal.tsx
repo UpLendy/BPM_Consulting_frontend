@@ -478,12 +478,12 @@ export default function ValidationReviewModal({
         <div className="w-1/3 border-r border-gray-200 pr-4 flex flex-col gap-6 overflow-hidden">
             
             {/* Evaluation Summary Card */}
-            {(userRole === 'ingeniero' || userRole === 'empresario' || userRole === 'company') && evaluation && (
+            {evaluation && (
                 <div className="bg-gradient-to-br from-blue-700 to-blue-900 rounded-2xl p-5 text-white shadow-lg shrink-0">
                     <div className="flex justify-between items-start mb-4">
                         <h3 className="text-[10px] font-black uppercase tracking-widest text-blue-100">Evaluación de Visita</h3>
                         <div className="bg-white/20 px-2 py-1 rounded text-[10px] font-black italic">
-                            {(userRole === 'empresario' || userRole === 'company') ? 'RESULTADOS' : 'REVISIÓN'}
+                            {(userRole === 'company') ? 'RESULTADOS' : 'REVISIÓN'}
                         </div>
                     </div>
                     
