@@ -146,40 +146,28 @@ export default function GestionCitasPage() {
              const allData = await fetchAllItems(appointmentService.getAppointmentsByEngineer.bind(appointmentService), engineerIdToUse);
              setAppointments(allData);
         } else if (currentUser.role === 'admin') {
-             // If search is active, we bypass limits and fetch all items to easily allow searching across multiple dates & pages
-             if (adminFilters.searchQuery && adminFilters.searchQuery.trim() !== '') {
-                 // Disable date filter so we can search appointments across ALL months
-                 const allData = await fetchAllItems(appointmentService.getAllAppointments.bind(appointmentService), undefined, true);
+             // Always fetch all items across dates to easily allow global sorting and searching
+             const allData = await fetchAllItems(appointmentService.getAllAppointments.bind(appointmentService), undefined, true);
+             
+             // Local filtering for status, type, and search queries
+             const filteredAllData = allData.filter((apt) => {
+                 const matchStatus = adminFilters.status === 'all' || apt.status === adminFilters.status;
+                 const matchType = adminFilters.type === 'all' || apt.appointmentType === adminFilters.type;
                  
-                 // Local filtering for status and type since we bypassed the normal API parameter logic
-                 const filteredAllData = allData.filter((apt) => {
-                     const matchStatus = adminFilters.status === 'all' || apt.status === adminFilters.status;
-                     const matchType = adminFilters.type === 'all' || apt.appointmentType === adminFilters.type;
-                     return matchStatus && matchType;
-                 });
+                 if (adminFilters.searchQuery && adminFilters.searchQuery.trim() !== '') {
+                     const query = adminFilters.searchQuery.toLowerCase();
+                     const matchesEmpresa = apt.companyName?.toLowerCase().includes(query);
+                     const matchesIngeniero = apt.engineerName?.toLowerCase().includes(query);
+                     const matchesDescripcion = apt.description.toLowerCase().includes(query);
+                     return matchStatus && matchType && (matchesEmpresa || matchesIngeniero || matchesDescripcion);
+                 }
                  
-                 setAppointments(filteredAllData);
-                 setAllAppointments(filteredAllData); // Used for pagination-independent counts (e.g filter buttons)
-                 setPaginationMeta(undefined); // Disable pagination bottom controls since we show all in search mode
-             } else {
-                 const filters: AppointmentFilters = {};
-                 
-                 // Admin view keeps limit 10 and doesn't auto-fetch all pages
-                 if (adminFilters.page > 1) filters.page = adminFilters.page;
-                 filters.limit = 10;
-                 
-                 if (adminFilters.status !== 'all') filters.estado = adminFilters.status;
-                 if (adminFilters.type !== 'all') filters.tipo = adminFilters.type;
-                 
-                 const filteredRes = await appointmentService.getAllAppointments(filters);
-                 
-                 const filteredData = (filteredRes?.data || (Array.isArray(filteredRes) ? filteredRes : [])) as Appointment[];
+                 return matchStatus && matchType;
+             });
 
-                 setAppointments(filteredData);
-                 setPaginationMeta(filteredRes?.meta);
-                 // Use filtered Data as a baseline for counts to avoid a second API call that triggers 'Expected integer' on limit
-                 setAllAppointments(filteredData);
-             }
+             setAppointments(filteredAllData);
+             setAllAppointments(filteredAllData); // Used for pagination-independent counts
+             setPaginationMeta(undefined); // Using local pagination inside AdminListView
         }
       } catch (error) {
           console.error('Error fetching appointments:', error);

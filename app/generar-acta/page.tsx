@@ -23,6 +23,7 @@ export default function GenerarActaPage() {
   const [error, setError] = useState<string | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [idToFinalize, setIdToFinalize] = useState<string | null>(null);
+  const [validationName, setValidationName] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [paginationMeta, setPaginationMeta] = useState<PaginatedResponse<Appointment>['meta'] | undefined>(undefined);
   const itemsPerPage = 10;
@@ -127,8 +128,12 @@ export default function GenerarActaPage() {
     }
   }, [currentPage, allAppointments]);
 
-  const handleFinalizeAppointment = (id: string) => {
-    setIdToFinalize(id);
+  const handleFinalizeAppointment = (apt: Appointment) => {
+    setIdToFinalize(apt.id);
+    
+    // Suggest a default name, but let the user change it
+    setValidationName(`Cita para ${apt.companyName || 'Empresa'}`);
+    
     setShowConfirmModal(true);
   };
 
@@ -143,7 +148,7 @@ export default function GenerarActaPage() {
     
     if (response.success) {
       // Llamar a la validación obligatoriamente después de completar
-      await appointmentService.createAppointmentValidation(idToFinalize);
+      await appointmentService.createAppointmentValidation(idToFinalize, validationName.trim() || 'Validación de Cita');
       fetchAppointments();
     } else {
       setError(response.error || 'Error al finalizar la cita');
@@ -335,7 +340,7 @@ export default function GenerarActaPage() {
                       Generar acta
                     </button>
                     <button 
-                      onClick={() => handleFinalizeAppointment(apt.id)}
+                      onClick={() => handleFinalizeAppointment(apt)}
                       disabled={finishing === apt.id}
                       className="flex-1 min-w-[280px] h-[140px] bg-emerald-600 text-white text-4xl font-medium rounded-2xl hover:bg-emerald-700 shadow-2xl shadow-emerald-900/10 transition-all flex items-center justify-center disabled:opacity-50"
                     >
@@ -401,9 +406,24 @@ export default function GenerarActaPage() {
               <HiExclamation className="w-10 h-10" />
             </div>
             <h3 className="text-xl font-black text-gray-900 mb-2 uppercase tracking-tight">¿Estás seguro?</h3>
-            <p className="text-gray-500 text-sm mb-8 leading-relaxed">
+            <p className="text-gray-500 text-sm mb-6 leading-relaxed">
               Deseas finalizar esta cita. Asegúrate de haber <strong>guardado el acta</strong> primero, ya que esta acción no se puede deshacer.
             </p>
+            
+            <div className="w-full text-left mb-8">
+              <label className="block text-xs font-bold text-gray-700 uppercase tracking-widest mb-2">
+                Nombre de la Documentación
+              </label>
+              <input
+                type="text"
+                value={validationName}
+                onChange={(e) => setValidationName(e.target.value)}
+                placeholder="Ej. Validación mes de Abril - Empresa XYZ"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all text-sm font-medium text-gray-900"
+              />
+              <p className="text-xs text-gray-400 mt-2 font-medium">Este título acompañará a la carpeta de documentos de la visita para identificarlos.</p>
+            </div>
+
             <div className="flex gap-3 w-full">
               <button
                 onClick={() => setShowConfirmModal(false)}
