@@ -645,13 +645,31 @@ export default function ValidationReviewModal({
                             <p className="text-sm font-medium text-gray-600">Cargando previsualización...</p>
                         </div>
                      </div>
-                ) : selectedPreview ? (
-                    <iframe 
-                        src={selectedPreview} 
-                        className="w-full h-full"
-                        title="Previsualización del documento"
-                    />
-                ) : (
+                ) : selectedPreview ? (() => {
+                    const isImage = activeDoc && (
+                        (activeDoc.mimeType && activeDoc.mimeType.startsWith('image/')) ||
+                        /\.(png|jpe?g|gif|webp)$/i.test(activeDoc.fileName || activeDoc.originalName || '')
+                    );
+                    
+                    if (isImage) {
+                        return (
+                            <div className="w-full h-full p-4 flex items-center justify-center overflow-auto bg-gray-100/50">
+                                <img 
+                                    src={selectedPreview} 
+                                    alt="Previsualización del documento"
+                                    className="max-w-full max-h-full object-contain rounded-md shadow-sm"
+                                />
+                            </div>
+                        );
+                    }
+                    return (
+                        <iframe 
+                            src={selectedPreview} 
+                            className="w-full h-full"
+                            title="Previsualización del documento"
+                        />
+                    );
+                })() : (
                     <div className="flex items-center justify-center h-full text-gray-400 flex-col gap-3">
                         <svg className="w-16 h-16 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />

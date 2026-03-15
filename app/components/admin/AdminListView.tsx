@@ -62,6 +62,54 @@ export default function AdminListView({
     });
   }, [appointments, searchQuery]);
 
+  // Sort appointments intelligently (FUTURE/TODAY first, then PAST)
+  const sortedAppointments = useMemo(() => {
+     if (!filteredAppointments.length) return [];
+
+     const now = new Date();
+     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+     // Helper to get exact timestamp of an appointment or rough timestamp from string
+     const getAptTime = (apt: Appointment) => {
+         const d = new Date(apt.date);
+         
+         // Fix timezone offset issues if it's just 'YYYY-MM-DD'
+         const dateTime = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+         
+         // Assuming startTime is string like "HH:mm" or "HH:mm:ss"
+         let timeMs = 0;
+         if (typeof apt.startTime === 'string') {
+             const [hours, minutes] = apt.startTime.split(':').map(Number);
+             timeMs = ((hours || 0) * 3600 + (minutes || 0) * 60) * 1000;
+         }
+         
+         return dateTime + timeMs;
+     };
+
+     // Split into Future/Today and Past
+     const upcoming: Appointment[] = [];
+     const past: Appointment[] = [];
+
+     filteredAppointments.forEach(apt => {
+         const aptDate = new Date(apt.date);
+         const dateStart = new Date(aptDate.getFullYear(), aptDate.getMonth(), aptDate.getDate()).getTime();
+         
+         if (dateStart >= todayStart) {
+             upcoming.push(apt);
+         } else {
+             past.push(apt);
+         }
+     });
+
+     // Sort Upcoming: Ascending (Nearest first)
+     upcoming.sort((a, b) => getAptTime(a) - getAptTime(b));
+
+     // Sort Past: Descending (Most recent past first)
+     past.sort((a, b) => getAptTime(b) - getAptTime(a));
+
+     return [...upcoming, ...past];
+  }, [filteredAppointments]);
+
   // Calculate counts for filters (Based on ALL appointments, so they don't change with filters)
   const appointmentCounts = useMemo(() => {
     const dataSource = allAppointments.length > 0 ? allAppointments : appointments;
@@ -77,6 +125,30 @@ export default function AdminListView({
       seguimiento: dataSource.filter((a) => a.appointmentType === AppointmentType.SEGUIMIENTO).length
     };
   }, [allAppointments, appointments]);
+
+  // Local Pagination Logic
+  const itemsPerPage = 10;
+  const currentPage = filters.page || 1;
+
+  const currentMeta = useMemo(() => {
+      if (meta) return meta; // Use external if provided
+      const total = sortedAppointments.length;
+      const totalPages = Math.max(1, Math.ceil(total / itemsPerPage));
+      return {
+          total,
+          page: currentPage,
+          limit: itemsPerPage,
+          totalPages,
+          hasNextPage: currentPage < totalPages,
+          hasPreviousPage: currentPage > 1
+      };
+  }, [meta, sortedAppointments.length, currentPage]);
+
+  const displayedAppointments = useMemo(() => {
+      if (meta) return sortedAppointments; // External pagination means we already have exactly what we want
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      return sortedAppointments.slice(startIndex, startIndex + itemsPerPage);
+  }, [sortedAppointments, meta, currentPage]);
 
   const handleStatusChange = (status: AppointmentStatus | 'all') => {
       if (onFilterChange) onFilterChange({ ...filters, status });
@@ -111,7 +183,7 @@ export default function AdminListView({
               Gestión de Citas (Admin)
             </h1>
             <span className="text-sm text-gray-500">
-              {meta ? `${meta.total} citas encontradas` : `${filteredAppointments.length} citas encontradas`}
+              {currentMeta ? `${currentMeta.total} citas encontradas` : `${sortedAppointments.length} citas encontradas`}
             </span>
           </div>
 
@@ -149,7 +221,7 @@ export default function AdminListView({
                    <EmptyState />
                ) : (
                    <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
-                      {filteredAppointments.map((apt: Appointment) => (
+                      {displayedAppointments.map((apt: Appointment) => (
                           <AppointmentCard
                              key={apt.id}
                              appointment={apt}
@@ -163,15 +235,15 @@ export default function AdminListView({
             </div>
 
             {/* Pagination */}
-            {meta && (
+            {currentMeta && currentMeta.totalPages > 1 && (
                 <div className="bg-white border-t border-gray-200 px-6 py-4">
                     <Pagination
-                       currentPage={meta.page}
-                       totalPages={meta.totalPages}
+                       currentPage={currentMeta.page}
+                       totalPages={currentMeta.totalPages}
                        onPageChange={handlePageChange}
-                       hasNextPage={meta.hasNextPage}
-                       hasPreviousPage={meta.hasPreviousPage}
-                       totalItems={meta.total}
+                       hasNextPage={currentMeta.hasNextPage}
+                       hasPreviousPage={currentMeta.hasPreviousPage}
+                       totalItems={currentMeta.total}
                     />
                 </div>
             )}
