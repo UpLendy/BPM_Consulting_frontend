@@ -29,6 +29,9 @@ export default function ValidationUploadModal({
   const [statusMessage, setStatusMessage] = useState<{type: 'success' | 'error' | 'info', text: string} | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // File types state to track the selected folder for each file
+  const [fileTypes, setFileTypes] = useState<{[key: number]: string}>({});
 
   // Correction Mode State
   const isCorrectionMode = validation?.status === 'REQUIERE_CORRECCIONES';
@@ -113,6 +116,19 @@ export default function ValidationUploadModal({
 
   const removeFile = (index: number) => {
     setFiles(files.filter((_, i) => i !== index));
+    // Also remove its type and shift the remaining ones
+    setFileTypes(prev => {
+        const next = { ...prev };
+        delete next[index];
+        // Shift keys down
+        for (let i = index + 1; i <= files.length; i++) {
+            if (next[i]) {
+                next[i - 1] = next[i];
+                delete next[i];
+            }
+        }
+        return next;
+    });
   };
 
   const triggerFileInput = () => {
@@ -134,7 +150,8 @@ export default function ValidationUploadModal({
 
     for (let i = 0; i < files.length; i++) {
         try {
-            const response = await appointmentService.uploadValidationDocument(validation.id, files[i]);
+            const docType = fileTypes[i] || 'OTRO';
+            const response = await appointmentService.uploadValidationDocument(validation.id, files[i], docType);
             if (response.success) {
                 successCount++;
             } else {
@@ -242,6 +259,7 @@ export default function ValidationUploadModal({
       setStatusMessage(null);
       setRejectedDocs([]);
       setReplacementFiles({});
+      setFileTypes({});
       onClose();
   }
 
@@ -436,13 +454,27 @@ export default function ValidationUploadModal({
                     {files.length > 0 && (
                         <div className="bg-gray-50 rounded-lg p-3 max-h-40 overflow-y-auto">
                             <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider">Archivos Seleccionados ({files.length})</p>
-                            <div className="space-y-2">
+                            <div className="space-y-3">
                                 {files.map((file, idx) => (
-                                    <div key={idx} className="flex justify-between items-center bg-white p-2 rounded border border-gray-200 shadow-sm text-sm">
-                                        <span className="truncate max-w-[80%] text-gray-700">{file.name}</span>
-                                        <button onClick={() => removeFile(idx)} className="text-red-500 hover:text-red-700">
-                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                        </button>
+                                    <div key={idx} className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-3 rounded border border-gray-200 shadow-sm text-sm gap-3">
+                                        <span className="truncate max-w-[80%] text-gray-700 w-full sm:w-auto overflow-hidden">{file.name}</span>
+                                        <div className="flex items-center gap-3 w-full sm:w-auto">
+                                            <select 
+                                                className="text-xs font-semibold text-gray-900 bg-white border border-gray-400 rounded p-1.5 flex-1 sm:w-40 outline-none focus:ring-1 focus:ring-blue-500 shadow-sm"
+                                                value={fileTypes[idx] || 'OTRO'}
+                                                onChange={(e) => setFileTypes({...fileTypes, [idx]: e.target.value})}
+                                            >
+                                                <option value="OTRO">Otro</option>
+                                                <option value="CERTIFICADO">Cursos</option>
+                                                <option value="CONTRATO">Asesorías</option>
+                                                <option value="LICENCIA">Invimas</option>
+                                                <option value="PERMISO">Plan de saneamiento</option>
+                                                <option value="IDENTIFICACION">Auditoría</option>
+                                            </select>
+                                            <button onClick={() => removeFile(idx)} className="text-red-500 hover:text-red-700 shrink-0 bg-red-50 p-1.5 rounded">
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                            </button>
+                                        </div>
                                     </div>
                                 ))}
                             </div>

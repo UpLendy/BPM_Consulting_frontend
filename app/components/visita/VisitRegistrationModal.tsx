@@ -279,25 +279,43 @@ export default function VisitRegistrationModal({
               setFormData(foundFormData);
             }
           } else {
-            const currentEvalRes = await appointmentService.getVisitEvaluation(appointment.id);
-            const currentRoot = currentEvalRes?.data || currentEvalRes;
-            const currentFormData = currentRoot?.formData || currentRoot?.data?.formData;
+            let loadedFromCache = false;
+            const cacheKey = `visit_form_data_${appointment.id}`;
+            const cached = localStorage.getItem(cacheKey);
+            
+            if (cached) {
+              try {
+                const parsed = JSON.parse(cached);
+                if (Object.keys(parsed).length > 0) {
+                  setFormData(parsed);
+                  loadedFromCache = true;
+                }
+              } catch (e) {
+                console.error('Error al cargar caché local', e);
+              }
+            }
 
-            if (currentFormData && Object.keys(currentFormData).length > 0) {
-              setFormData(currentFormData);
-            } else {
-              const response = await appointmentService.getAppointmentById(appointment.id);
-              const fullApt = (response as any).data || response;
-              const foundCompanyId = fullApt?.empresaId || fullApt?.empresa_id || fullApt?.companyId;
-              
-              if (foundCompanyId) {
-                const lastApt = await appointmentService.getLastAppointmentByCompany(foundCompanyId);
-                if (lastApt && lastApt.id !== appointment.id) {
-                  const evalRes = await appointmentService.getVisitEvaluation(lastApt.id);
-                  const lastRoot = evalRes?.data || evalRes;
-                  const prevFormData = lastRoot?.formData || lastRoot?.data?.formData;
-                  if (prevFormData) {
-                    setFormData(prevFormData);
+            if (!loadedFromCache) {
+              const currentEvalRes = await appointmentService.getVisitEvaluation(appointment.id);
+              const currentRoot = currentEvalRes?.data || currentEvalRes;
+              const currentFormData = currentRoot?.formData || currentRoot?.data?.formData;
+
+              if (currentFormData && Object.keys(currentFormData).length > 0) {
+                setFormData(currentFormData);
+              } else {
+                const response = await appointmentService.getAppointmentById(appointment.id);
+                const fullApt = (response as any).data || response;
+                const foundCompanyId = fullApt?.empresaId || fullApt?.empresa_id || fullApt?.companyId;
+                
+                if (foundCompanyId) {
+                  const lastApt = await appointmentService.getLastAppointmentByCompany(foundCompanyId);
+                  if (lastApt && lastApt.id !== appointment.id) {
+                    const evalRes = await appointmentService.getVisitEvaluation(lastApt.id);
+                    const lastRoot = evalRes?.data || evalRes;
+                    const prevFormData = lastRoot?.formData || lastRoot?.data?.formData;
+                    if (prevFormData) {
+                      setFormData(prevFormData);
+                    }
                   }
                 }
               }
@@ -315,6 +333,18 @@ export default function VisitRegistrationModal({
       init();
     }
   }, [isOpen, appointment.id, readOnly]); // Added readOnly to dependency array
+
+  // Guardar en la caché cada vez que formData cambia
+  useEffect(() => {
+    if (isOpen && appointment && !readOnly && Object.keys(formData).length > 0) {
+      const cacheKey = `visit_form_data_${appointment.id}`;
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(formData));
+      } catch (e) {
+        console.warn('No se pudo guardar la caché local', e);
+      }
+    }
+  }, [formData, isOpen, appointment, readOnly]);
 
   const handleScoreChange = (itemId: string, score: 'A' | 'AR' | 'I' | 'NA') => {
     const numericScore = score === 'A' ? "2" : score === 'AR' ? "1" : score === 'I' ? "0" : "NA";
@@ -373,6 +403,9 @@ export default function VisitRegistrationModal({
       const response = await appointmentService.saveVisitRecord(appointment.id, payload);
 
       if (response.success) {
+        // Limpiar caché al guardar exitosamente
+        localStorage.removeItem(`visit_form_data_${appointment.id}`);
+        
         setIsSuccess(true);
         setTimeout(() => {
           setIsSuccess(false);

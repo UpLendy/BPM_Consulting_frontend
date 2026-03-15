@@ -48,6 +48,16 @@ export default function ValidationReviewModal({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Folder accordion state (true by default unless explicitly set to false)
+  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
+
+  const toggleFolder = (folderName: string) => {
+      setExpandedFolders(prev => ({
+          ...prev,
+          [folderName]: prev[folderName] === undefined ? false : !prev[folderName]
+      }));
+  };
+
   useEffect(() => {
     if (statusMessage) {
         const timer = setTimeout(() => setStatusMessage(null), 3500);
@@ -534,48 +544,92 @@ export default function ValidationReviewModal({
                     No hay documentos en esta validación.
                 </div>
             ) : (
-                <div className="space-y-3 pb-4">
-                    {documents.map((doc) => (
-                        <div 
-                            key={doc.id} 
-                            onClick={() => handleSelectDoc(doc)}
-                            className={`p-3 rounded-lg border cursor-pointer transition-all hover:shadow-sm flex items-start justify-between
-                                ${activeDoc?.id === doc.id ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-200' : 'border-gray-200 bg-white hover:border-blue-300'}
-                            `}
-                        >
-                            <div className="flex items-center gap-3 overflow-hidden">
-                                <div className={`p-2 rounded flex-shrink-0 
-                                    ${doc.isActa ? 'bg-blue-600 text-white shadow-sm' : 
-                                      doc.status === 'APROBADO' ? 'bg-green-100 text-green-600' : 
-                                      doc.status === 'RECHAZADO' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'}`}>
-                                    {doc.isActa ? (
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                        </svg>
-                                    ) : (
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                        </svg>
-                                    )}
-                                </div>
-                                <div className="min-w-0">
-                                    <p className={`text-sm font-black truncate ${doc.isActa ? 'text-blue-700' : 'text-black'}`} title={formatFileName(doc.fileName || doc.originalName)}>
-                                        {formatFileName(doc.fileName || doc.originalName) || 'Documento sin nombre'}
-                                    </p>
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                        {!readOnly && (
-                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border
-                                                ${doc.status === 'APROBADO' ? 'bg-green-50 text-green-700 border-green-200' : 
-                                                  doc.status === 'RECHAZADO' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`
-                                            }>
-                                                {(doc.status || 'PENDIENTE').replace(/_/g, ' ')}
-                                            </span>
-                                        )}
+                <div className="space-y-6 pb-4">
+                    {Object.entries(
+                        documents.reduce((acc: any, doc: any) => {
+                            if (doc.isActa) {
+                                if (!acc['Acta de Visita']) acc['Acta de Visita'] = [];
+                                acc['Acta de Visita'].push(doc);
+                            } else {
+                                const FOLDER_NAMES: any = {
+                                    CERTIFICADO: 'Carpeta: Cursos',
+                                    CONTRATO: 'Carpeta: Asesorías',
+                                    LICENCIA: 'Carpeta: Invimas',
+                                    PERMISO: 'Carpeta: Plan de Saneamiento',
+                                    IDENTIFICACION: 'Carpeta: Auditoría',
+                                    OTRO: 'Carpeta: Otro',
+                                };
+                                const folderKey = FOLDER_NAMES[doc.documentType] || 'Carpeta: Otro';
+                                if (!acc[folderKey]) acc[folderKey] = [];
+                                acc[folderKey].push(doc);
+                            }
+                            return acc;
+                        }, {} as any)
+                    ).map(([folderName, folderDocs]: any) => {
+                        const isExpanded = expandedFolders[folderName] !== false;
+                        
+                        return (
+                        <div key={folderName} className="space-y-3">
+                            <button 
+                                onClick={() => toggleFolder(folderName)}
+                                className="w-full flex items-center justify-between text-left group focus:outline-none"
+                            >
+                                <h4 className="text-[11px] font-black tracking-widest uppercase text-gray-500 bg-gray-100/50 px-2 py-1 rounded inline-block group-hover:bg-gray-200/50 transition-colors">
+                                    {folderName}
+                                </h4>
+                                <svg className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                            
+                            {isExpanded && (
+                            <div className="space-y-2 mt-2">
+                                {(folderDocs as any[]).map((doc) => (
+                                    <div 
+                                        key={doc.id} 
+                                        onClick={() => handleSelectDoc(doc)}
+                                        className={`p-3 rounded-lg border cursor-pointer transition-all hover:shadow-sm flex items-start justify-between
+                                            ${activeDoc?.id === doc.id ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-200' : 'border-gray-200 bg-white hover:border-blue-300'}
+                                        `}
+                                    >
+                                        <div className="flex items-center gap-3 overflow-hidden">
+                                            <div className={`p-2 rounded flex-shrink-0 
+                                                ${doc.isActa ? 'bg-blue-600 text-white shadow-sm' : 
+                                                  doc.status === 'APROBADO' ? 'bg-green-100 text-green-600' : 
+                                                  doc.status === 'RECHAZADO' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'}`}>
+                                                {doc.isActa ? (
+                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                                    </svg>
+                                                ) : (
+                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                    </svg>
+                                                )}
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className={`text-sm font-black truncate ${doc.isActa ? 'text-blue-700' : 'text-black'}`} title={formatFileName(doc.fileName || doc.originalName)}>
+                                                    {formatFileName(doc.fileName || doc.originalName) || 'Documento sin nombre'}
+                                                </p>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    {!readOnly && (
+                                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border
+                                                            ${doc.status === 'APROBADO' ? 'bg-green-50 text-green-700 border-green-200' : 
+                                                              doc.status === 'RECHAZADO' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`
+                                                        }>
+                                                            {(doc.status || 'PENDIENTE').replace(/_/g, ' ')}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
+                                ))}
                             </div>
+                            )}
                         </div>
-                    ))}
+                    );
+                    })}
                 </div>
             )}
             </div>
