@@ -125,14 +125,40 @@ export default function AdvisoryActModal({
       }
     }
     
-    // Initialize representative name from appointment
-    if (appointment) {
-      setFormData(prev => ({
-        ...prev,
-        representativeName: (appointment as any).representativeName || ''
-      }));
+    // Load cache or initialize representative name
+    if (isOpen && appointment) {
+      const cacheKey = `act_form_data_${appointment.id}`;
+      const cached = localStorage.getItem(cacheKey);
+      
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Object.keys(parsed).length > 0) {
+            setFormData(prev => ({ ...prev, ...parsed }));
+          }
+        } catch (e) {
+          console.error('Error loading cache', e);
+        }
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          representativeName: (appointment as any).representativeName || ''
+        }));
+      }
     }
-  }, [appointment]);
+  }, [isOpen, appointment]);
+
+  // Save cache when formData changes
+  useEffect(() => {
+    if (isOpen && appointment) {
+      const cacheKey = `act_form_data_${appointment.id}`;
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(formData));
+      } catch (e) {
+        console.warn("No se pudo guardar la caché local", e);
+      }
+    }
+  }, [formData, isOpen, appointment]);
 
   const formatDateTime = (date: Date | string, time: string) => {
     // If date is a string (ISO), extract the date part directly
@@ -340,6 +366,9 @@ export default function AdvisoryActModal({
         if (modalContent) modalContent.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
+
+      // Limpiar caché en guardado exitoso
+      localStorage.removeItem(`act_form_data_${appointment.id}`);
 
       if (onSuccess) onSuccess();
       onClose();

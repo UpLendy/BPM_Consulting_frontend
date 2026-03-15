@@ -7,6 +7,7 @@ import { authService } from '@/app/services/authService';
 import { appointmentService } from '@/app/services/appointments/appointmentService';
 import ValidationReviewModal from '@/app/components/modals/ValidationReviewModal';
 import { formatShortDate } from '@/app/utils/dateUtils';
+import { formatFileName } from '@/app/utils/fileUtils';
 
 export default function VisualizarDocumentosPage() {
   const router = useRouter();
@@ -15,6 +16,21 @@ export default function VisualizarDocumentosPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedValidation, setSelectedValidation] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const [viewMode, setViewMode] = useState<'cita' | 'carpeta'>('cita');
+  const [allDocuments, setAllDocuments] = useState<any[]>([]);
+  const [hasLoadedDocs, setHasLoadedDocs] = useState(false);
+  const [loadingDocs, setLoadingDocs] = useState(false);
+  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
+
+  const FOLDER_NAMES: Record<string, string> = {
+      CERTIFICADO: 'Carpeta: Cursos',
+      CONTRATO: 'Carpeta: Asesorías',
+      LICENCIA: 'Carpeta: Invimas',
+      PERMISO: 'Carpeta: Plan de Saneamiento',
+      IDENTIFICACION: 'Carpeta: Auditoría',
+      OTRO: 'Carpeta: Otro',
+  };
 
   useEffect(() => {
     const init = async () => {
@@ -159,6 +175,167 @@ export default function VisualizarDocumentosPage() {
     setSelectedValidation(null);
   };
 
+  const loadAllDocuments = async (validationsList: any[]) => {
+    if (hasLoadedDocs) return;
+    setLoadingDocs(true);
+    try {
+      const allDocs: any[] = [];
+      await Promise.all(validationsList.map(async (v) => {
+        try {
+          const res = await appointmentService.getValidationDocuments(v.id);
+          const fetchedDocs = Array.isArray(res.data) ? res.data : ((res.data as any)?.data || (res.data as any)?.documents || []);
+          if (res.success && fetchedDocs) {
+            const docsWithContext = fetchedDocs.map((d: any) => ({
+                ...d, 
+                validationId: v.id, 
+                appointmentId: v.appointmentId, 
+                companyName: v.companyName, 
+                engineerName: v.engineerName, 
+                apptDate: v.rawDate
+            }));
+            allDocs.push(...docsWithContext);
+          }
+        } catch (e) {}
+      }));
+      setAllDocuments(allDocs);
+      setHasLoadedDocs(true);
+    } catch(err) {
+      console.error(err);
+    } finally {
+      setLoadingDocs(false);
+    }
+  };
+
+  const handleToggleView = (mode: 'cita' | 'carpeta') => {
+    setViewMode(mode);
+    if (mode === 'carpeta' && !hasLoadedDocs) {
+      loadAllDocuments(validations);
+    }
+  };
+
+  const toggleFolder = (folderName: string) => {
+      setExpandedFolders(prev => ({
+          ...prev,
+          [folderName]: prev[folderName] === undefined ? false : !prev[folderName]
+      }));
+  };
+
+  const handleViewDocFromFolder = (doc: any) => {
+      setSelectedValidation({
+          id: doc.validationId,
+          appointmentId: doc.appointmentId,
+          companyName: doc.companyName
+      });
+      setIsModalOpen(true);
+  };
+
+  const renderFolders = () => {
+    if (loadingDocs) {
+        return (
+            <div className="flex items-center justify-center py-20">
+                <span className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></span>
+            </div>
+        );
+    }
+
+    const filteredDocs = allDocuments.filter(doc => 
+        (doc.fileName || doc.originalName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        doc.companyName.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    if (filteredDocs.length === 0) {
+        return (
+            <div className="col-span-full text-center py-20 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900 font-inter">No hay documentos</h3>
+              <p className="mt-1 text-gray-500 font-inter">No se encontraron documentos en carpetas.</p>
+            </div>
+        );
+    }
+
+    const folderGroups = filteredDocs.reduce((acc: any, doc: any) => {
+        if (doc.isActa) {
+             if (!acc['Acta de Visita']) acc['Acta de Visita'] = [];
+             acc['Acta de Visita'].push(doc);
+        } else {
+             const folderKey = FOLDER_NAMES[doc.documentType] || 'Carpeta: Otro';
+             if (!acc[folderKey]) acc[folderKey] = [];
+             acc[folderKey].push(doc);
+        }
+        return acc;
+    }, {} as any);
+
+    return (
+        <div className="space-y-6">
+            {Object.entries(folderGroups).map(([folderName, folderDocs]: any) => {
+                const isExpanded = expandedFolders[folderName] !== false; 
+                
+                return (
+                <div key={folderName} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+                   <button 
+                        onClick={() => toggleFolder(folderName)}
+                        className="w-full flex items-center justify-between text-left group focus:outline-none"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
+                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"></path>
+                                </svg>
+                            </div>
+                            <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest">{folderName}</h3>
+                            <span className="text-xs text-blue-800 bg-blue-100 px-2 py-0.5 rounded-full font-bold">{folderDocs.length}</span>
+                        </div>
+                        <svg className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+
+                    {isExpanded && (
+                        <div className="mt-5 grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                            {folderDocs.map((doc: any) => (
+                                <div 
+                                    key={doc.id}
+                                    onClick={() => handleViewDocFromFolder(doc)}
+                                    className="p-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 hover:border-blue-300 transition-all cursor-pointer flex items-start gap-3 shadow-sm"
+                                >
+                                     <div className={`p-2 rounded flex-shrink-0 
+                                            ${doc.isActa ? 'bg-blue-600 text-white shadow-sm' : 
+                                              doc.status === 'APROBADO' ? 'bg-green-100 text-green-600' : 
+                                              doc.status === 'RECHAZADO' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'}`}>
+                                            {doc.isActa ? (
+                                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                                </svg>
+                                            ) : (
+                                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                </svg>
+                                            )}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                            <p className={`text-sm font-black truncate ${doc.isActa ? 'text-blue-700' : 'text-gray-900'}`} title={formatFileName(doc.fileName || doc.originalName)}>
+                                                {formatFileName(doc.fileName || doc.originalName) || 'Documento sin nombre'}
+                                            </p>
+                                            <p className="text-[10px] text-gray-500 font-semibold mt-1 uppercase tracking-wider">Cita: {formatShortDate(doc.apptDate)}</p>
+                                            <div className="flex items-center gap-2 mt-1.5">
+                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase
+                                                        ${doc.status === 'APROBADO' ? 'bg-green-50 text-green-700 border-green-200' : 
+                                                          doc.status === 'RECHAZADO' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`
+                                                    }>
+                                                        {(doc.status || 'PENDIENTE').replace(/_/g, ' ')}
+                                                    </span>
+                                            </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+                );
+            })}
+        </div>
+    );
+  };
+
   if (isLoading) {
     return (
       <DashboardLayout>
@@ -183,8 +360,24 @@ export default function VisualizarDocumentosPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3 w-full md:w-auto">
-            <div className="relative flex-1 md:w-80">
+          <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
+            {/* View Mode Toggle */}
+            <div className="flex bg-gray-100 p-1 rounded-xl w-full md:w-auto">
+              <button 
+                className={`flex-1 md:w-32 py-2 text-[11px] uppercase tracking-widest font-black rounded-lg transition-all ${viewMode === 'cita' ? 'bg-white text-blue-700 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'}`}
+                onClick={() => handleToggleView('cita')}
+              >
+                Por Cita
+              </button>
+              <button 
+                className={`flex-1 md:w-32 py-2 text-[11px] uppercase tracking-widest font-black rounded-lg transition-all ${viewMode === 'carpeta' ? 'bg-white text-blue-700 shadow-sm ring-1 ring-gray-200' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'}`}
+                onClick={() => handleToggleView('carpeta')}
+              >
+                Por Carpeta
+              </button>
+            </div>
+
+            <div className="relative flex-1 md:w-80 w-full">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -192,7 +385,7 @@ export default function VisualizarDocumentosPage() {
               </span>
               <input
                 type="text"
-                placeholder="Buscar validaciones..."
+                placeholder={viewMode === 'cita' ? "Buscar validaciones..." : "Buscar documentos..."}
                 className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all shadow-sm font-inter"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -201,11 +394,12 @@ export default function VisualizarDocumentosPage() {
           </div>
         </div>
 
-        {/* Validations Grid */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filteredValidations.map((validation) => (
-            <div
-              key={validation.id}
+        {/* Content Dynamic Rendering */}
+        {viewMode === 'cita' ? (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {filteredValidations.map((validation) => (
+              <div
+                key={validation.id}
               className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-lg transition-all cursor-pointer relative"
               onClick={() => handleViewDocuments(validation)}
             >
@@ -261,7 +455,10 @@ export default function VisualizarDocumentosPage() {
               <p className="mt-1 text-gray-500 font-inter">No se encontraron validaciones para tu empresa.</p>
             </div>
           )}
-        </div>
+          </div>
+        ) : (
+          renderFolders()
+        )}
       </div>
 
       {/* Visualization Modal (Read-Only) */}
