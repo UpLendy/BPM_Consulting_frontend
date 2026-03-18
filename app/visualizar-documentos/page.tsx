@@ -129,6 +129,7 @@ export default function VisualizarDocumentosPage() {
                     id: validation.id,
                     appointmentId: apt.id,
                     companyName: apt.companyName || user.companyName || 'Mi Empresa',
+                    title: validation.title,
                     engineerName: validation.reviewedByName || apt.engineerName || 'Ingeniero',
                     date: formatShortDate(apt.date),
                     description: validation.message || validation.status || 'Validación de Cita',
@@ -161,9 +162,34 @@ export default function VisualizarDocumentosPage() {
 
   const filteredValidations = validations.filter(val => 
     val.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (val.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     val.engineerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     val.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
+  const [newTitle, setNewTitle] = useState('');
+
+  const handleEditTitle = (e: React.MouseEvent, validation: any) => {
+    e.stopPropagation();
+    setEditingTitleId(validation.appointmentId);
+    setNewTitle(validation.title || validation.companyName);
+  };
+
+  const handleSaveTitle = async (e: React.MouseEvent, appointmentId: string) => {
+    e.stopPropagation();
+    try {
+        const res = await appointmentService.updateValidationTitle(appointmentId, newTitle);
+        if (res.success) {
+            setValidations(prev => prev.map(v => 
+                v.appointmentId === appointmentId ? { ...v, title: newTitle } : v
+            ));
+            setEditingTitleId(null);
+        }
+    } catch (err) {
+        console.error(err);
+    }
+  };
 
   const handleViewDocuments = (validation: any) => {
     setSelectedValidation(validation);
@@ -411,9 +437,49 @@ export default function VisualizarDocumentosPage() {
               )}
 
               <div className="flex justify-between items-start mb-4 mt-8">
-                <div className="flex-1">
-                  <h3 className="font-semibold text-gray-900 mb-1">{validation.companyName}</h3>
-                  <p className="text-sm text-gray-500">Ingeniero: {validation.engineerName}</p>
+                <div className="flex-1 min-w-0">
+                  {editingTitleId === validation.appointmentId ? (
+                    <div className="flex items-center gap-2 mb-1" onClick={e => e.stopPropagation()}>
+                        <input 
+                            type="text" 
+                            className="flex-1 px-2 py-1 bg-gray-50 border border-blue-500 rounded text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500"
+                            value={newTitle}
+                            onChange={e => setNewTitle(e.target.value)}
+                            autoFocus
+                        />
+                        <button 
+                            onClick={e => handleSaveTitle(e, validation.appointmentId)}
+                            className="p-1 text-green-600 hover:bg-green-50 rounded"
+                        >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                        </button>
+                        <button 
+                            onClick={e => { e.stopPropagation(); setEditingTitleId(null); }}
+                            className="p-1 text-red-600 hover:bg-red-50 rounded"
+                        >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-start group gap-2 mb-1">
+                        <h3 className="font-semibold text-gray-900 truncate flex-1" title={validation.title || `Cita para ${validation.companyName}`}>
+                            {validation.title || `Cita para ${validation.companyName}`}
+                        </h3>
+                        <button 
+                            onClick={e => handleEditTitle(e, validation)}
+                            className="p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded opacity-0 group-hover:opacity-100 transition-all"
+                        >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                        </button>
+                    </div>
+                  )}
+                  <p className="text-sm text-gray-500 truncate">Ingeniero: {validation.engineerName}</p>
                 </div>
                 <span className={`px-3 py-1 rounded-full text-xs font-semibold
                   ${validation.status === 'APROBADO' || validation.status === 'COMPLETADO' ? 'bg-green-100 text-green-700' : 

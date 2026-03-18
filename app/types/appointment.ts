@@ -27,6 +27,7 @@ export interface Appointment {
     representativeId?: string; // ID of the representative (user causing the appointment or owning it contextually)
     createdAt?: string;
     updatedAt?: string;
+    rejectReason?: string;
 }
 
 /**
@@ -120,4 +121,5 @@ export interface AppointmentValidation {
     reviewedByName: string;
     reviewedAt: string;
     message: string;
+    title?: string;
 }

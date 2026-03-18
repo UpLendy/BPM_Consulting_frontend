@@ -114,5 +114,58 @@ export const representativeService = {
 
         const data = await response.json();
         return Array.isArray(data) ? data : [];
+    },
+
+    async getRepresentativeSignature(id: string): Promise<{ signatureUrl: string; updatedAt?: string } | null> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/representatives/${id}/signature`, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            return null;
+        }
+
+        const data = await response.json();
+        return {
+            signatureUrl: data.signatureUrl,
+            updatedAt: data.signatureUploadedAt || data.updatedAt
+        };
+    },
+
+    /**
+     * Update representative signature
+     * POST /api/v1/representatives/{id}/signature
+     */
+    async updateRepresentativeSignature(id: string, signatureBase64: string): Promise<any> {
+        const token = localStorage.getItem('token');
+        
+        // Convert base64 data URL to a Blob
+        const res = await fetch(signatureBase64);
+        const blob = await res.blob();
+        
+        // Create FormData matching the backend requirement: { "file": binary }
+        const formData = new FormData();
+        formData.append('file', blob, 'signature.png');
+
+        const response = await fetch(`${API_URL}/representatives/${id}/signature`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+                // Note: Content-Type is handled automatically by the browser for FormData
+            },
+            body: formData
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || 'Error al actualizar la firma del representante');
+        }
+
+        return await response.json();
     }
 };

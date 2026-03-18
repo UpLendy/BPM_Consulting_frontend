@@ -1,15 +1,20 @@
 'use client';
 
+import { useState } from 'react';
 import BaseModal from './BaseModal';
 
 interface ConfirmDeleteModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: (reason?: string) => void;
   title?: string;
   message?: string;
   confirmText?: string;
   cancelText?: string;
+  showReasonField?: boolean;
+  reasonLabel?: string;
+  reasonPlaceholder?: string;
+  reasonRequired?: boolean;
 }
 
 export default function ConfirmDeleteModal({
@@ -19,21 +24,40 @@ export default function ConfirmDeleteModal({
   title = 'Confirmar Eliminación',
   message = '¿Estás seguro de que deseas eliminar esta cita? Esta acción no se puede deshacer.',
   confirmText = 'Eliminar',
-  cancelText = 'Cancelar'
+  cancelText = 'Cancelar',
+  showReasonField = false,
+  reasonLabel = 'Motivo de cancelación',
+  reasonPlaceholder = 'Escribe el motivo de la cancelación...',
+  reasonRequired = true
 }: ConfirmDeleteModalProps) {
+  const [reason, setReason] = useState('');
+  const [reasonError, setReasonError] = useState('');
+
   const handleConfirm = () => {
-    onConfirm();
+    if (showReasonField && reasonRequired && !reason.trim()) {
+      setReasonError('Debes indicar un motivo');
+      return;
+    }
+    onConfirm(showReasonField ? reason.trim() : undefined);
+    setReason('');
+    setReasonError('');
+    onClose();
+  };
+
+  const handleClose = () => {
+    setReason('');
+    setReasonError('');
     onClose();
   };
 
   return (
     <BaseModal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       title={title}
       size="sm"
     >
-      <div className="space-y-6">
+      <div className="space-y-5">
         {/* Warning Icon */}
         <div className="flex justify-center">
           <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
@@ -54,14 +78,36 @@ export default function ConfirmDeleteModal({
         </div>
 
         {/* Message */}
-        <p className="text-center text-gray-700">
+        <p className="text-center text-gray-700 text-sm">
           {message}
         </p>
+
+        {/* Reason Field */}
+        {showReasonField && (
+          <div>
+            <label className="block text-sm font-semibold text-gray-800 mb-1.5">
+              {reasonLabel} {reasonRequired && <span className="text-red-500">*</span>}
+            </label>
+            <textarea
+              value={reason}
+              onChange={(e) => {
+                setReason(e.target.value);
+                if (reasonError) setReasonError('');
+              }}
+              placeholder={reasonPlaceholder}
+              rows={3}
+              className={`w-full border ${reasonError ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-blue-100'} rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-4 focus:border-blue-500 outline-none transition-all resize-none`}
+            />
+            {reasonError && (
+              <p className="text-xs text-red-500 font-medium mt-1">{reasonError}</p>
+            )}
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex gap-3">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
           >
             {cancelText}

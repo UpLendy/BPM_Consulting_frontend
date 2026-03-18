@@ -18,7 +18,7 @@ export default function GenerarActaPage() {
   const [allAppointments, setAllAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
-  const [activeModal, setActiveModal] = useState<'act' | 'sign' | null>(null);
+  const [activeModal, setActiveModal] = useState<'act' | null>(null);
   const [finishing, setFinishing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -148,7 +148,7 @@ export default function GenerarActaPage() {
     
     if (response.success) {
       // Llamar a la validación obligatoriamente después de completar
-      await appointmentService.createAppointmentValidation(idToFinalize, validationName.trim() || 'Validación de Cita');
+      await appointmentService.createAppointmentValidation(idToFinalize, validationName.trim() || 'Validación de Cita', validationName.trim());
       fetchAppointments();
     } else {
       setError(response.error || 'Error al finalizar la cita');
@@ -384,7 +384,6 @@ export default function GenerarActaPage() {
         {selectedAppointment && (
           <AdvisoryActModal
             isOpen={activeModal !== null}
-            initialStep={activeModal === 'sign' ? 'sign' : 'form'}
             onClose={() => {
               setActiveModal(null);
               setSelectedAppointment(null);
@@ -419,7 +418,7 @@ export default function GenerarActaPage() {
                 value={validationName}
                 onChange={(e) => setValidationName(e.target.value)}
                 placeholder="Ej. Validación mes de Abril - Empresa XYZ"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all text-sm font-medium text-gray-900"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all text-sm font-medium text-gray-900 placeholder-gray-500"
               />
               <p className="text-xs text-gray-400 mt-2 font-medium">Este título acompañará a la carpeta de documentos de la visita para identificarlos.</p>
             </div>

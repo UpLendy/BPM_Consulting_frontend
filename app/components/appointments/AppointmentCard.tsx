@@ -94,6 +94,21 @@ export default function AppointmentCard({
           </svg>
           <span><strong>Descripción:</strong> {appointment.description}</span>
         </div>
+
+        {/* Motivo de Cancelación */}
+        {appointment.status === 'CANCELADA' && appointment.rejectReason && (
+          <div className="bg-red-50 border-l-4 border-red-400 rounded-r-lg p-3 mt-1">
+            <div className="flex items-start gap-2">
+              <svg className="w-4 h-4 text-red-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+              <div>
+                <p className="text-[10px] font-bold text-red-800 uppercase tracking-wide mb-0.5">Motivo de cancelación</p>
+                <p className="text-xs text-red-700">{appointment.rejectReason}</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       
       {/* Actions */}

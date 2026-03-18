@@ -8,7 +8,7 @@ import { HiCamera, HiCheckCircle, HiPencil, HiTrash, HiDocumentText, HiExclamati
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { appointmentService } from '@/app/services/appointments/appointmentService';
-
+import { representativeService } from '@/app/services/representatives/representativeService';
 import { PDF_STYLES } from '../../constants/pdfStyles';
 
 interface AdvisoryActModalProps {
@@ -33,6 +33,7 @@ interface ActFormData {
   representativeName: string;
   evidencePhoto: string | null;
   signature: string | null;
+  signatureTimestamp?: string | null;
 }
 
 export default function AdvisoryActModal({
@@ -42,7 +43,7 @@ export default function AdvisoryActModal({
   appointment,
   initialStep = 'form'
 }: AdvisoryActModalProps) {
-  const [step, setStep] = useState<'form' | 'preview'>(initialStep === 'sign' ? 'form' : 'form');
+  const [step, setStep] = useState<'form' | 'preview'>('form');
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [statusError, setStatusError] = useState<string | null>(null);
@@ -63,7 +64,8 @@ export default function AdvisoryActModal({
     },
     summary: '',
     evidencePhoto: null,
-    signature: null
+    signature: null,
+    signatureTimestamp: null
   });
 
   // Correction Mode State
@@ -90,20 +92,58 @@ export default function AdvisoryActModal({
 
                setRejectedPdfUrl(targetUrl);
                
-               
-               setRejectedPdfUrl(targetUrl);
-               
                // STRATEGY: Try Local Backup (Works if on same device/browser)
-               const localBackupSig = localStorage.getItem(`sig_backup_${appointment.id}`);
-               if (localBackupSig) {
-                   setFormData(prev => ({ ...prev, signature: localBackupSig }));
-                   console.log("Firma recuperada desde respaldo local");
+               const localBackupRaw = localStorage.getItem(`sig_backup_${appointment.id}`);
+               if (localBackupRaw) {
+                   try {
+                       const parsed = JSON.parse(localBackupRaw);
+                       const { signature, timestamp } = parsed;
+                       
+                       // Check expiration (2 hours)
+                       const createdAt = new Date(timestamp);
+                       const now = new Date();
+                       const diffHours = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+
+                       if (diffHours <= 2) {
+                           setFormData(prev => ({ ...prev, signature }));
+                           console.log("Firma recuperada desde respaldo local");
+                       } else {
+                           console.log("Respaldo local expirado (> 2 horas)");
+                       }
+                   } catch (e) {
+                       // Silently ignore or fallback
+                       console.log("Formato de respaldo local no compatible");
+                   }
                } else {
-                   // If logic fails, we will show a warning in the UI (handled in JSX)
                    console.log("No se encontró respaldo local de firma");
                }
            }
        });
+
+       // New: Fetch master/profile signature if representativeId is available
+       if (appointment.representativeId) {
+           representativeService.getRepresentativeSignature(appointment.representativeId).then(sigRes => {
+               if (sigRes && sigRes.signatureUrl) {
+                   let isExpired = false;
+                   if (sigRes.updatedAt) {
+                       const updatedAt = new Date(sigRes.updatedAt);
+                       const now = new Date();
+                       const diffHours = (now.getTime() - updatedAt.getTime()) / (1000 * 60 * 60);
+                       if (diffHours > 2) isExpired = true;
+                   }
+
+                   if (!isExpired) {
+                       setFormData(prev => ({ 
+                           ...prev, 
+                           signature: sigRes.signatureUrl,
+                           signatureTimestamp: sigRes.updatedAt // Use the actual server update time
+                       }));
+                   } else {
+                       console.log("Firma de perfil expirada (> 2 horas)");
+                   }
+               }
+           });
+       }
     }
   }, [isOpen, appointment]);
 
@@ -134,6 +174,19 @@ export default function AdvisoryActModal({
         try {
           const parsed = JSON.parse(cached);
           if (Object.keys(parsed).length > 0) {
+            // Check if signature in cache is expired
+            if (parsed.signature && parsed.signatureTimestamp) {
+                const createdAt = new Date(parsed.signatureTimestamp);
+                const now = new Date();
+                const diffHours = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+
+                if (diffHours > 2) {
+                    console.log("Firma en cache expirada (> 2 horas)");
+                    parsed.signature = null;
+                    parsed.signatureTimestamp = null;
+                }
+            }
+            
             setFormData(prev => ({ ...prev, ...parsed }));
           }
         } catch (e) {
@@ -220,7 +273,7 @@ export default function AdvisoryActModal({
 
   const clearSignature = () => {
     sigPad.current?.clear();
-    setFormData(prev => ({ ...prev, signature: null }));
+    setFormData(prev => ({ ...prev, signature: null, signatureTimestamp: null }));
   };
 
   const saveSignature = () => {
@@ -229,7 +282,11 @@ export default function AdvisoryActModal({
       return;
     }
     const signatureData = sigPad.current?.getTrimmedCanvas().toDataURL('image/png');
-    setFormData(prev => ({ ...prev, signature: signatureData }));
+    setFormData(prev => ({ 
+        ...prev, 
+        signature: signatureData,
+        signatureTimestamp: new Date().toISOString()
+    }));
     setErrors(prev => ({...prev, signature: ''}));
     
     // Mostrar feedback visual elegante en lugar de alert
@@ -249,7 +306,8 @@ export default function AdvisoryActModal({
     if (!formData.solutions.documentation.trim()) newErrors.documentation = 'Campo obligatorio';
     if (!formData.summary.trim()) newErrors.summary = 'El Resumen es obligatorio';
     if (!formData.evidencePhoto) newErrors.evidencePhoto = 'La Foto de Evidencia es obligatoria';
-    if (!formData.signature) newErrors.signature = 'La Firma es obligatoria (debe presionar Guardar Firma)';
+    // Signature is no longer mandatory for generation, as it is collected from the company view
+    // if (!formData.signature) newErrors.signature = 'La Firma es obligatoria (debe presionar Guardar Firma)';
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -328,7 +386,10 @@ export default function AdvisoryActModal({
       if (formData.signature) {
         // 1. Local Backup (The lifesaver for CORS issues)
         try {
-            localStorage.setItem(`sig_backup_${appointment.id}`, formData.signature);
+            localStorage.setItem(`sig_backup_${appointment.id}`, JSON.stringify({
+                signature: formData.signature,
+                timestamp: new Date().toISOString()
+            }));
         } catch (e) { console.warn("Local storage full", e); }
 
         // 2. PDF Metadata (Standard cross-device method)
@@ -641,87 +702,36 @@ export default function AdvisoryActModal({
               </div>
             </div>
 
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <label className="text-sm font-black text-gray-800 uppercase tracking-wide block">
-                  Firma de Aceptación del Acta
-                  {isCorrectionMode && formData.signature && (
-                    <span className="ml-2 text-[9px] text-green-600 bg-green-50 px-2 py-0.5 rounded border border-green-200 normal-case align-middle">
-                        🔒 Original Recuperada
-                    </span>
-                  )}
-                  {isCorrectionMode && !formData.signature && (
-                    <span className="ml-2 text-[9px] text-red-600 bg-red-50 px-2 py-0.5 rounded border border-red-200 normal-case align-middle">
-                        ⚠️ No se pudo recuperar (Firma requerida)
-                        {recoveryError && <span className="block text-[8px] opacity-75">{recoveryError}</span>}
-                    </span>
-                  )}
-                </label>
-                {errors.signature && <span className="text-[10px] font-bold text-red-500 uppercase">{errors.signature}</span>}
-              </div>
-              {/* Firma UI Logic */}
-              {isCorrectionMode && formData.signature ? (
-                  <div className="bg-green-50/30 border border-green-200 rounded-3xl p-6 overflow-hidden relative">
-                        <div className="h-[180px] w-full bg-white rounded-2xl border border-gray-100 flex items-center justify-center p-4 shadow-inner">
-                            <img src={formData.signature} alt="Firma Original" className="h-full w-auto object-contain mix-blend-multiply" />
+            {/* Firma Preview (Read-only for Engineer) */}
+            <div className="space-y-4 pt-4 border-t border-gray-100">
+               <div className="flex justify-between items-center">
+                 <label className="text-sm font-black text-gray-800 uppercase tracking-wide block">Firma del Representante</label>
+               </div>
+               
+               {formData.signature ? (
+                 <div className="flex items-center gap-6 animate-fade-in">
+                    <div className="relative w-64 h-32 bg-gray-50 rounded-3xl overflow-hidden border border-green-200 shadow-inner flex items-center justify-center p-4">
+                        <img src={formData.signature} alt="Firma recuperada" className="max-h-full max-w-full object-contain mix-blend-multiply" />
+                        <div className="absolute top-2 right-2 bg-green-500 text-white rounded-full p-0.5 shadow-sm">
+                            <HiCheckCircle className="w-4 h-4" />
                         </div>
-                        <div className="absolute top-8 right-8 bg-white rounded-full p-1 shadow-sm">
-                            <HiCheckCircle className="w-6 h-6 text-green-500" />
-                        </div>
-                        <p className="text-center text-xs font-bold text-green-700 mt-3 uppercase tracking-wider">
-                            Firma original bloqueada para edición
-                        </p>
-                  </div>
-              ) : (
-                  <div className={`bg-gray-50 border ${errors.signature ? 'border-red-500' : 'border-gray-200'} rounded-3xl p-4 overflow-hidden`}>
-                     
-                     {/* Aviso de Dispositivo Diferente */}
-                     {isCorrectionMode && (
-                        <div className="mb-4 bg-blue-50 border border-blue-200 p-3 rounded-xl flex gap-3 items-start animate-fade-in">
-                            <HiExclamation className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                            <p className="text-xs text-blue-800 font-medium leading-relaxed">
-                                <strong>Nota:</strong> Para recuperar la firma automáticamente, debes realizar la corrección desde el <strong>mismo dispositivo y navegador</strong> donde se creó el acta. De lo contrario, será necesaria una nueva firma.
-                            </p>
-                        </div>
-                     )}
-
-                     <div 
-                       ref={containerRef}
-                       className={`bg-white rounded-2xl border ${errors.signature ? 'border-red-300' : 'border-gray-100'} relative mb-4 h-[200px] w-full overflow-hidden`}
-                     >
-                        {canvasDim.width > 0 && (
-                          <SignatureCanvas 
-                            ref={sigPad}
-                            penColor='black'
-                            velocityFilterWeight={0.7}
-                            canvasProps={{
-                              width: canvasDim.width,
-                              height: canvasDim.height,
-                              className: 'sigCanvas cursor-crosshair'
-                            }}
-                          />
-                        )}
-                        <div className="absolute top-4 right-4 flex gap-2 z-10">
-                            <button onClick={clearSignature} className="p-2 bg-gray-100 text-gray-500 rounded-xl hover:bg-gray-200 transition-colors shadow-sm">
-                                <HiTrash className="w-5 h-5" />
-                            </button>
-                            <button onClick={saveSignature} className="p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-sm">
-                                <HiCheckCircle className="w-5 h-5" />
-                            </button>
-                        </div>
-
-                        {showSignatureSuccess && (
-                          <div className="absolute inset-0 bg-white/90 backdrop-blur-sm flex flex-col items-center justify-center animate-fade-in z-20">
-                            <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-2">
-                              <HiCheckCircle className="w-8 h-8" />
-                            </div>
-                            <p className="text-xs font-black text-green-700 uppercase tracking-widest">Firma capturada</p>
-                          </div>
-                        )}
-                     </div>
-                     <p className="text-[10px] text-center text-gray-400 font-bold uppercase">EL ASIGNADO DE LA EMPRESA FIRMA CONFIRMANDO LA REALIZACIÓN DE LA ASESORÍA</p>
-                  </div>
-              )}
+                    </div>
+                    <div className="flex-1">
+                        <p className="text-[10px] font-black text-green-700 uppercase tracking-widest mb-1">Firma vinculada</p>
+                        <p className="text-xs text-gray-500 leading-tight">Esta firma se ha recuperado automáticamente del perfil del representante y aparecerá en el acta final.</p>
+                    </div>
+                 </div>
+               ) : (
+                 <div className="bg-blue-50/50 border border-blue-100 rounded-3xl p-5 flex items-center gap-4">
+                    <div className="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center shrink-0">
+                        <HiExclamation className="w-6 h-6 text-blue-600" />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black text-blue-800 uppercase tracking-widest mb-0.5">Pendiente de firma</p>
+                        <p className="text-xs text-blue-600/70 leading-tight">El representante no tiene una firma guardada. Podrá firmar digitalmente desde su panel una vez guardes el acta.</p>
+                    </div>
+                 </div>
+               )}
             </div>
 
             {/* Botón de Acción Principal */}
@@ -808,17 +818,26 @@ export default function AdvisoryActModal({
 
                   {/* Final Signature */}
                   <div className="pt-8 border-t border-gray-100 flex flex-col items-center pdf-signature-area">
-                    {formData.signature ? (
-                      <div className="text-center">
-                         <img src={formData.signature} alt="Firma" className="max-h-24 mx-auto mb-2 pdf-signature-img" />
-                         <div className="pdf-signature-line"></div>
-                         <p className="text-[10px] font-black text-gray-400 mt-2 uppercase tracking-widest pdf-signature-text">Firma de Conformidad</p>
-                      </div>
-                    ) : (
-                      <div className="p-10 border-2 border-dashed border-red-100 rounded-3xl text-center">
-                         <p className="text-sm text-red-400 font-bold uppercase">Falta Firma de Aceptación</p>
-                      </div>
-                    )}
+                    {(() => {
+                        const isExpired = formData.signatureTimestamp ? 
+                            (new Date().getTime() - new Date(formData.signatureTimestamp).getTime()) / (1000 * 60 * 60) > 2 : 
+                            false;
+                            
+                        return (formData.signature && !isExpired) ? (
+                            <div className="text-center">
+                                <img src={formData.signature} alt="Firma" className="max-h-24 mx-auto mb-2 pdf-signature-img" />
+                                <div className="pdf-signature-line"></div>
+                                <p className="text-[10px] font-black text-gray-400 mt-2 uppercase tracking-widest pdf-signature-text">Firma de Conformidad</p>
+                            </div>
+                        ) : (
+                            <div className="py-10 text-center">
+                                <div className="w-48 border-b-2 border-gray-300 mx-auto mb-2"></div>
+                                <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
+                                    {isExpired ? 'Firma expirada (más de 2 horas)' : 'Pendiente de firma (vía plataforma)'}
+                                </p>
+                            </div>
+                        );
+                    })()}
                   </div>
                </div>
 
@@ -831,7 +850,7 @@ export default function AdvisoryActModal({
                   </button>
                   <button 
                     onClick={handleSaveFinal}
-                    disabled={isSaving || !formData.signature}
+                    disabled={isSaving}
                     className="px-10 py-4 bg-blue-900 text-white font-black rounded-2xl hover:bg-blue-800 shadow-xl shadow-blue-900/40 disabled:opacity-50 active:scale-95 transition-all text-sm uppercase tracking-wider"
                   >
                     {isSaving ? 'GUARDANDO ACTA...' : 'CONFIRMAR Y GUARDAR ACTA'}
