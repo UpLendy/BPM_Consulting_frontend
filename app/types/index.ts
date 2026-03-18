@@ -29,7 +29,8 @@ export type {
     UpdateAppointmentDTO,
     RescheduleAppointmentDTO,
     AppointmentFilters,
-    PaginatedResponse
+    PaginatedResponse,
+    AppointmentValidation
 } from './appointment';
 
 // TimeSlot and Calendar types

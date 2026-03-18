@@ -1,4 +1,4 @@
-import { CreateAppointmentDTO, Appointment, AppointmentFilters, PaginatedResponse, RescheduleAppointmentDTO } from '@/app/types';
+import { CreateAppointmentDTO, Appointment, AppointmentFilters, PaginatedResponse, RescheduleAppointmentDTO, AppointmentValidation } from '@/app/types';
 import { authService } from '@/app/services/authService';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -376,7 +376,10 @@ export const appointmentService = {
                 'Accept': 'application/json',
                 'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify({ status: 'COMPLETADA', engineerNotes: 'Visita finalizada y acta cargada' })
+            body: JSON.stringify({ 
+                status: 'COMPLETADA', 
+                engineerNotes: 'Visita finalizada y acta cargada'
+            })
         });
 
         if (!response.ok) {
@@ -426,6 +429,27 @@ export const appointmentService = {
     /**
      * Upload appointment record file (PDF)
      */
+    async updateValidationTitle(appointmentId: string, title: string): Promise<ServiceResponse> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/appointments/${appointmentId}/validation/`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ title })
+        });
+
+        if (!response.ok) {
+            const error = await getErrorMessage(response, 'Error al actualizar el título');
+            return { success: false, error };
+        }
+
+        const data = await response.json();
+        return { success: true, data };
+    },
+
     async uploadAppointmentRecord(id: string, file: Blob | File, fileName: string): Promise<ServiceResponse> {
         const token = localStorage.getItem('token');
         const formData = new FormData();
@@ -566,15 +590,16 @@ export const appointmentService = {
     /**
      * Create appointment validation
      */
-    async createAppointmentValidation(id: string, notes = ''): Promise<ServiceResponse> {
+    async createAppointmentValidation(id: string, notes = '', title?: string): Promise<ServiceResponse<AppointmentValidation>> {
         const token = localStorage.getItem('token');
         const response = await fetch(`${API_URL}/appointments/${id}/validation/`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'Accept': 'application/json',
                 'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify({ notes })
+            body: JSON.stringify({ notes, title })
         });
 
         if (!response.ok) {
@@ -841,14 +866,16 @@ export const appointmentService = {
     /**
      * Cancel an appointment
      */
-    async cancelAppointment(id: string): Promise<ServiceResponse> {
+    async cancelAppointment(id: string, rejectReason?: string): Promise<ServiceResponse> {
         const token = localStorage.getItem('token');
         const response = await fetch(`${API_URL}/appointments/${id}/cancel`, {
             method: 'DELETE',
             headers: {
                 'Accept': 'application/json',
+                'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
-            }
+            },
+            body: JSON.stringify({ rejectReason: rejectReason || undefined })
         });
 
         if (!response.ok) {

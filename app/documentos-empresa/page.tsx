@@ -23,6 +23,11 @@ export default function DocumentosEmpresaPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false); // Admin Review Modal
   
+  // Title editing state
+  const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
+  const [isUpdatingTitle, setIsUpdatingTitle] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  
   // Confirmation Modal state
   const [confirmModal, setConfirmModal] = useState<{
       isOpen: boolean;
@@ -103,6 +108,7 @@ export default function DocumentosEmpresaPage() {
                                  date: formatShortDate(val.updatedAt || val.createdAt),
                                  description: val.message || 'Validación en Revisión',
                                  status: val.status,
+                                 title: val.title,
                                  docCount: val.documentsCount || 0,
                                  rawDate: val.updatedAt || val.createdAt,
                                  actaStatus: actaStatus
@@ -163,6 +169,7 @@ export default function DocumentosEmpresaPage() {
                                     date: formatShortDate(apt.date),
                                     description: validation.message || (validation.status || '').replace(/_/g, ' ') || 'Validación de Cita',
                                     status: validation.status,
+                                    title: validation.title,
                                     docCount: docCount, 
                                     rawDate: apt.date 
                                 });
@@ -186,6 +193,37 @@ export default function DocumentosEmpresaPage() {
   useEffect(() => {
     fetchData();
   }, [router]);
+
+  const handleEditTitle = (e: React.MouseEvent, doc: any) => {
+    e.stopPropagation();
+    setEditingTitleId(doc.id);
+    setNewTitle(doc.title || `Cita para ${doc.companyName}`);
+  };
+
+  const handleSaveTitle = async (e: React.MouseEvent, doc: any) => {
+    e.stopPropagation();
+    if (isUpdatingTitle) return;
+    
+    setIsUpdatingTitle(true);
+    try {
+        const res = await appointmentService.updateValidationTitle(doc.appointmentId, newTitle);
+        if (res.success) {
+            setDocs(prev => prev.map(d => 
+                d.id === doc.id ? { ...d, title: newTitle } : d
+            ));
+            setEditingTitleId(null);
+        }
+    } catch (err) {
+        console.error(err);
+    } finally {
+        setIsUpdatingTitle(false);
+    }
+  };
+
+  const handleCancelTitle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingTitleId(null);
+  };
 
   const filteredDocs = docs.filter(doc => 
     doc.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -410,6 +448,14 @@ export default function DocumentosEmpresaPage() {
               date={doc.date}
               description={doc.description}
               status={doc.status}
+              title={doc.title}
+              isEditing={editingTitleId === doc.id}
+              isSaving={isUpdatingTitle && editingTitleId === doc.id}
+              editValue={newTitle}
+              onEditValueChange={setNewTitle}
+              onEditTitle={(e) => handleEditTitle(e, doc)}
+              onSaveEdit={(e) => handleSaveTitle(e, doc)}
+              onCancelEdit={handleCancelTitle}
               onClick={
                   isCardClickable(doc) ? () => handleCardClick(doc) : undefined
               }

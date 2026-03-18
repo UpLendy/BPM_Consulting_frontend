@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import BaseModal from './BaseModal';
 import { getDisplayTime } from '@/app/components/calendar/utils';
 import { Appointment, AppointmentStatus, AppointmentType } from '@/app/types';
@@ -19,6 +20,7 @@ export default function ViewAppointmentModal({
   onClose,
   appointment: initialAppointment
 }: ViewAppointmentModalProps) {
+  const router = useRouter();
   const [appointment, setAppointment] = useState<Appointment | null>(initialAppointment);
   const [userRole, setUserRole] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -111,13 +113,13 @@ export default function ViewAppointmentModal({
     setShowCancelConfirm(true);
   };
 
-  const onConfirmCancel = async () => {
+  const onConfirmCancel = async (reason?: string) => {
     if (!appointment) return;
     
     try {
       setLoading(true);
       setStatusError(null);
-      const res = await appointmentService.cancelAppointment(appointment.id);
+      const res = await appointmentService.cancelAppointment(appointment.id, reason);
       if (res.success) {
         setShowCancelConfirm(false);
         onClose();
@@ -242,6 +244,21 @@ export default function ViewAppointmentModal({
             <p className="text-base text-gray-900">{appointment.description}</p>
           </div>
 
+          {/* Motivo de Cancelación - Solo visible si la cita fue cancelada */}
+          {appointment.status === AppointmentStatus.CANCELADA && appointment.rejectReason && (
+            <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-md">
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-red-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                </svg>
+                <div>
+                  <p className="text-xs font-bold text-red-800 uppercase tracking-wide mb-1">Motivo de Cancelación</p>
+                  <p className="text-sm text-red-700">{appointment.rejectReason}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
             <button
@@ -310,7 +327,24 @@ export default function ViewAppointmentModal({
                   </>
                 )}
               </button>
-            )}    
+            )}
+
+            {/* Sign Acta Button - Only for Company users when appointment is EN_PROGRESO */}
+            {(userRole === 'company' || userRole === 'empresa' || userRole === 'representative') && 
+             appointment.status === AppointmentStatus.EN_PROGRESO && (
+              <button
+                onClick={() => {
+                  onClose();
+                  router.push(`/firma-acta/${appointment.id}`);
+                }}
+                className="px-5 py-2 text-sm font-bold text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 shadow-sm"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+                Firmar Acta
+              </button>
+            )}
           </div>
 
         </div>
@@ -324,6 +358,10 @@ export default function ViewAppointmentModal({
         message="¿Estás seguro de que deseas cancelar esta cita? Esta acción no se puede deshacer y notificará a las partes involucradas."
         confirmText="Sí, Cancelar Cita"
         cancelText="No, Volver"
+        showReasonField={true}
+        reasonLabel="Motivo de la cancelación"
+        reasonPlaceholder="Ej: Cambio de agenda, reprogramación solicitada por el cliente..."
+        reasonRequired={true}
       />
     </>
   );

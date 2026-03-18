@@ -207,11 +207,11 @@ export default function GestionCitasPage() {
     setIsConfirmModalOpen(true);
   };
 
-  const confirmCancelAppointment = async () => {
+  const confirmCancelAppointment = async (reason?: string) => {
     if (!appointmentToDelete) return;
 
     try {
-      const response = await appointmentService.cancelAppointment(appointmentToDelete.id);
+      const response = await appointmentService.cancelAppointment(appointmentToDelete.id, reason);
       if (response.success) {
         setRefreshKey(prev => prev + 1);
         setSuccessMessage({ 
@@ -430,6 +430,9 @@ export default function GestionCitasPage() {
         message={`¿Estás seguro de que deseas cancelar la cita de ${appointmentToDelete?.companyName}? Esta acción marcará la cita como cancelada.`}
         confirmText="Sí, cancelar cita"
         cancelText="No, mantener"
+        showReasonField={true}
+        reasonLabel="Motivo de la cancelación"
+        reasonRequired={true}
       />
     </DashboardLayout>
   );

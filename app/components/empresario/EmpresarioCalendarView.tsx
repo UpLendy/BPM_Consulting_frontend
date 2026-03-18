@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Calendar from '@/app/components/calendar/Calendar';
 import { getDisplayTime } from '@/app/components/calendar/utils';
 import { appointmentService } from '@/app/services/appointments';
+import { representativeService } from '@/app/services/representatives/representativeService';
 import {
   EmpresarioAvailableCell,
   EmpresarioOccupiedCell,
@@ -35,6 +37,7 @@ export default function EmpresarioCalendarView({
   onMonthChange,
   currentMonth
 }: EmpresarioCalendarViewProps) {
+  const router = useRouter();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -195,8 +198,93 @@ export default function EmpresarioCalendarView({
     );
   };
 
+  // Detect appointments that are currently in progress
+  const inProgressAppointments = useMemo(() => {
+    return myAppointments.filter(apt => apt.status === AppointmentStatus.EN_PROGRESO);
+  }, [myAppointments]);
+
+  // Detect appointments that are currently in progress and NEED signature (not signed in last 10m)
+  const [showSignatureBanner, setShowSignatureBanner] = useState(false);
+
+  useEffect(() => {
+    const checkSignatureStatus = async () => {
+        // Find the first appointment that is in progress to check its specific representative
+        const activeApt = inProgressAppointments[0];
+        
+        if (!activeApt || !activeApt.representativeId) {
+            setShowSignatureBanner(inProgressAppointments.length > 0); // Show if in progress but no ID (fallback)
+            return;
+        }
+
+        try {
+            // Fetch representative signature to check its timestamp using representativeId
+            const sigRes = await representativeService.getRepresentativeSignature(activeApt.representativeId);
+            
+            if (sigRes && sigRes.updatedAt) {
+                const updatedAt = new Date(sigRes.updatedAt);
+                const now = new Date();
+                const diffMinutes = (now.getTime() - updatedAt.getTime()) / (1000 * 60);
+                
+                // If signed in the last 10 minutes, don't show the banner
+                if (diffMinutes <= 10) {
+                    setShowSignatureBanner(false);
+                    return;
+                }
+            }
+            
+            // If no signature info OR older than 10 mins, show banner
+            setShowSignatureBanner(true);
+        } catch (e) {
+            console.error('Error checking signature status (using banner as fallback)', e);
+            // Default to showing banner if we can't verify (safer)
+            setShowSignatureBanner(true);
+        }
+    };
+
+    checkSignatureStatus();
+  }, [inProgressAppointments.length, inProgressAppointments[0]?.representativeId]);
+
   return (
     <div className="h-full flex flex-col bg-gray-50">
+      {/* Active Visit Signature Banner - Only if NOT recently signed (<10m) */}
+      {showSignatureBanner && inProgressAppointments.length > 0 && (
+        <div className="mx-4 mt-4 bg-gradient-to-r from-green-600 to-emerald-700 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden">
+          {/* Animated pulse background */}
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 animate-pulse"></div>
+          <div className="absolute bottom-0 left-0 w-20 h-20 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2"></div>
+          
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-300 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-green-200"></span>
+              </span>
+              <p className="text-[11px] font-black uppercase tracking-widest text-green-100">Visita en Progreso</p>
+            </div>
+            
+            {inProgressAppointments.map(apt => (
+              <div key={apt.id} className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mt-3">
+                <div>
+                  <h3 className="text-lg font-black">Tu asesor está en tu establecimiento</h3>
+                  <p className="text-sm text-green-100 mt-1">
+                    Ingeniero <span className="font-bold text-white">{apt.engineerName}</span> — Por favor firma el acta de asesoría  
+                  </p>
+                </div>
+                <button 
+                  onClick={() => router.push(`/firma-acta/${apt.id}`)}
+                  className="px-6 py-3 bg-white text-green-700 font-black rounded-xl shadow-lg hover:bg-green-50 transition-all active:scale-95 flex items-center gap-2 text-sm uppercase tracking-wide shrink-0"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                  Firmar Acta
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
