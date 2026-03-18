@@ -10,6 +10,7 @@ import { HiDocumentText } from 'react-icons/hi';
 import { formatLongDate } from '@/app/utils/dateUtils';
 import AdvisoryActModal from '@/app/components/visita/AdvisoryActModal';
 import BaseModal from '@/app/components/modals/BaseModal';
+import { representativeService } from '@/app/services/representatives/representativeService';
 import { HiExclamation } from 'react-icons/hi';
 
 export default function GenerarActaPage() {
@@ -24,6 +25,8 @@ export default function GenerarActaPage() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [idToFinalize, setIdToFinalize] = useState<string | null>(null);
   const [validationName, setValidationName] = useState('');
+  const [isCheckingSignature, setIsCheckingSignature] = useState(false);
+  const [signatureWarning, setSignatureWarning] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [paginationMeta, setPaginationMeta] = useState<PaginatedResponse<Appointment>['meta'] | undefined>(undefined);
   const itemsPerPage = 10;
@@ -128,7 +131,47 @@ export default function GenerarActaPage() {
     }
   }, [currentPage, allAppointments]);
 
-  const handleFinalizeAppointment = (apt: Appointment) => {
+  const handleFinalizeAppointment = async (apt: Appointment) => {
+    setError(null);
+    setSignatureWarning(null);
+    
+    // Check for recent signature before allowing to show confirmation
+    if (apt.representativeId) {
+      setIsCheckingSignature(true);
+      try {
+        const sigRes = await representativeService.getRepresentativeSignature(apt.representativeId);
+        
+        let isRecent = false;
+        if (sigRes && sigRes.signatureUrl && sigRes.updatedAt) {
+          const updatedAt = new Date(sigRes.updatedAt);
+          const now = new Date();
+          const diffMinutes = (now.getTime() - updatedAt.getTime()) / (1000 * 60);
+          
+          if (diffMinutes <= 15) {
+            isRecent = true;
+          } else {
+            setSignatureWarning('La firma del cliente no es válida. Debe solicitar al cliente que firme el acta nuevamente.');
+          }
+        } else {
+          setSignatureWarning('No se encontró la firma del cliente. Solicite al cliente que firme el acta desde su panel.');
+        }
+
+        if (!isRecent) {
+           setError('Firma ausente. El cliente debe firmar desde su cuenta para poder finalizar la visita.');
+           window.scrollTo({ top: 0, behavior: 'smooth' });
+           return;
+        }
+      } catch (err) {
+        console.error("Error checking signature", err);
+      } finally {
+        setIsCheckingSignature(false);
+      }
+    } else {
+      setError('No hay un representante asignado a esta cita. No se puede verificar la firma.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
     setIdToFinalize(apt.id);
     
     // Suggest a default name, but let the user change it
@@ -341,10 +384,10 @@ export default function GenerarActaPage() {
                     </button>
                     <button 
                       onClick={() => handleFinalizeAppointment(apt)}
-                      disabled={finishing === apt.id}
+                      disabled={finishing === apt.id || isCheckingSignature}
                       className="flex-1 min-w-[280px] h-[140px] bg-emerald-600 text-white text-4xl font-medium rounded-2xl hover:bg-emerald-700 shadow-2xl shadow-emerald-900/10 transition-all flex items-center justify-center disabled:opacity-50"
                     >
-                      {finishing === apt.id ? 'Finalizando...' : 'Finalizar cita'}
+                      {finishing === apt.id ? 'Finalizando...' : isCheckingSignature ? '...' : 'Finalizar cita'}
                     </button>
                   </div>
                 </div>

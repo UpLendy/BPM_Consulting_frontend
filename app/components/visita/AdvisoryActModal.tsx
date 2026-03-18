@@ -102,14 +102,13 @@ export default function AdvisoryActModal({
                        // Check expiration (2 hours)
                        const createdAt = new Date(timestamp);
                        const now = new Date();
-                       const diffHours = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
-
-                       if (diffHours <= 2) {
-                           setFormData(prev => ({ ...prev, signature }));
-                           console.log("Firma recuperada desde respaldo local");
-                       } else {
-                           console.log("Respaldo local expirado (> 2 horas)");
-                       }
+                        const diffMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
+                        if (diffMinutes <= 15) {
+                            setFormData(prev => ({ ...prev, signature }));
+                            console.log("Firma recuperada desde respaldo local");
+                        } else {
+                            console.log("Respaldo local expirado (> 15 minutos)");
+                        }
                    } catch (e) {
                        // Silently ignore or fallback
                        console.log("Formato de respaldo local no compatible");
@@ -128,19 +127,19 @@ export default function AdvisoryActModal({
                    if (sigRes.updatedAt) {
                        const updatedAt = new Date(sigRes.updatedAt);
                        const now = new Date();
-                       const diffHours = (now.getTime() - updatedAt.getTime()) / (1000 * 60 * 60);
-                       if (diffHours > 2) isExpired = true;
+                        const diffMinutes = (now.getTime() - updatedAt.getTime()) / (1000 * 60);
+                        if (diffMinutes > 15) isExpired = true;
                    }
 
-                   if (!isExpired) {
-                       setFormData(prev => ({ 
-                           ...prev, 
-                           signature: sigRes.signatureUrl,
-                           signatureTimestamp: sigRes.updatedAt // Use the actual server update time
-                       }));
-                   } else {
-                       console.log("Firma de perfil expirada (> 2 horas)");
-                   }
+                    if (!isExpired) {
+                        setFormData(prev => ({ 
+                            ...prev, 
+                            signature: sigRes.signatureUrl,
+                            signatureTimestamp: sigRes.updatedAt // Use the actual server update time
+                        }));
+                    } else {
+                        console.log("Firma de perfil expirada (> 15 minutos)");
+                    }
                }
            });
        }
@@ -178,10 +177,10 @@ export default function AdvisoryActModal({
             if (parsed.signature && parsed.signatureTimestamp) {
                 const createdAt = new Date(parsed.signatureTimestamp);
                 const now = new Date();
-                const diffHours = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+                const diffMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
 
-                if (diffHours > 2) {
-                    console.log("Firma en cache expirada (> 2 horas)");
+                if (diffMinutes > 15) {
+                    console.log("Firma en cache expirada (> 15 minutos)");
                     parsed.signature = null;
                     parsed.signatureTimestamp = null;
                 }
@@ -314,6 +313,18 @@ export default function AdvisoryActModal({
   };
 
   const handleContinueToPreview = () => {
+    // Signature recency check (Revision Gate)
+    const isSignatureRecent = formData.signature && formData.signatureTimestamp ? 
+        (new Date().getTime() - new Date(formData.signatureTimestamp).getTime()) / (1000 * 60) <= 15 : 
+        false;
+
+    if (!isSignatureRecent) {
+        setStatusError('Firma ausente. El cliente debe firmar desde su cuenta para que puedas revisar y generarla.');
+        const modalContent = document.querySelector('.max-h-\\[80vh\\]');
+        if (modalContent) modalContent.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+    }
+
     if (validateForm()) {
       setStep('preview');
     } else {
@@ -325,6 +336,19 @@ export default function AdvisoryActModal({
 
   const handleSaveFinal = async () => {
     if (!previewRef.current) return;
+
+    // Signature recency check (Final Gate)
+    const isSignatureRecent = formData.signature && formData.signatureTimestamp ? 
+        (new Date().getTime() - new Date(formData.signatureTimestamp).getTime()) / (1000 * 60) <= 15 : 
+        false;
+
+    if (!isSignatureRecent) {
+        setStatusError('Firma ausente. El cliente debe firmar desde su cuenta para que puedas generarla.');
+        setStep('form');
+        const modalContent = document.querySelector('.max-h-\\[80vh\\]');
+        if (modalContent) modalContent.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+    }
     
     try {
       setIsSaving(true);
@@ -820,7 +844,7 @@ export default function AdvisoryActModal({
                   <div className="pt-8 border-t border-gray-100 flex flex-col items-center pdf-signature-area">
                     {(() => {
                         const isExpired = formData.signatureTimestamp ? 
-                            (new Date().getTime() - new Date(formData.signatureTimestamp).getTime()) / (1000 * 60 * 60) > 2 : 
+                            (new Date().getTime() - new Date(formData.signatureTimestamp).getTime()) / (1000 * 60) > 15 : 
                             false;
                             
                         return (formData.signature && !isExpired) ? (
@@ -833,7 +857,7 @@ export default function AdvisoryActModal({
                             <div className="py-10 text-center">
                                 <div className="w-48 border-b-2 border-gray-300 mx-auto mb-2"></div>
                                 <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
-                                    {isExpired ? 'Firma expirada (más de 2 horas)' : 'Pendiente de firma (vía plataforma)'}
+                                    {isExpired ? 'Firma requerida' : 'Pendiente de firma (el cliente debe firmar desde su panel)'}
                                 </p>
                             </div>
                         );
