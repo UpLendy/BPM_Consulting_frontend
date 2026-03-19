@@ -203,7 +203,7 @@ export default function EmpresarioCalendarView({
     return myAppointments.filter(apt => apt.status === AppointmentStatus.EN_PROGRESO);
   }, [myAppointments]);
 
-  // Detect appointments that are currently in progress and NEED signature (not signed in last 10m)
+  // Detect appointments that are currently in progress and NEED signature (not signed in last 120m)
   const [showSignatureBanner, setShowSignatureBanner] = useState(false);
   const [rejectedRecordsForSignature, setRejectedRecordsForSignature] = useState<Appointment[]>([]);
 
@@ -271,14 +271,14 @@ export default function EmpresarioCalendarView({
                 const now = new Date();
                 const diffMinutes = (now.getTime() - updatedAt.getTime()) / (1000 * 60);
                 
-                // If signed in the last 10 minutes, don't show the banner
-                if (diffMinutes <= 10) {
+                // If signed in the last 120 minutes, don't show the banner
+                if (diffMinutes <= 120) {
                     setShowSignatureBanner(false);
                     return;
                 }
             }
             
-            // If no signature info OR older than 10 mins, show banner
+            // If no signature info OR older than 120 mins, show banner
             setShowSignatureBanner(true);
         } catch (e) {
             console.error('Error checking signature status (using banner as fallback)', e);
@@ -335,7 +335,7 @@ export default function EmpresarioCalendarView({
         </div>
       )}
 
-      {/* Active Visit Signature Banner - Only if NOT recently signed (<10m) */}
+      {/* Active Visit Signature Banner - Only if NOT recently signed (<120m) */}
       {showSignatureBanner && inProgressAppointments.length > 0 && (
         <div className="mx-4 mt-4 bg-gradient-to-r from-green-600 to-emerald-700 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden">
           {/* Animated pulse background */}
