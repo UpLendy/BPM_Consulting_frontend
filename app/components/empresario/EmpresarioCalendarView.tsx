@@ -205,6 +205,52 @@ export default function EmpresarioCalendarView({
 
   // Detect appointments that are currently in progress and NEED signature (not signed in last 10m)
   const [showSignatureBanner, setShowSignatureBanner] = useState(false);
+  const [rejectedRecordsForSignature, setRejectedRecordsForSignature] = useState<Appointment[]>([]);
+
+  // Check for Rejected Records for Signature
+  useEffect(() => {
+    const checkRejectedForSignature = async () => {
+      // Find appointments that are COMPLETADA or EN_REVISION and might have a rejected record
+      const candidates = myAppointments.filter(apt => 
+        apt.status === AppointmentStatus.COMPLETADA || apt.status === AppointmentStatus.EN_REVISION
+      );
+      
+      if (candidates.length === 0) return;
+      
+      const rejectedAppts: Appointment[] = [];
+      
+      await Promise.all(candidates.map(async (apt) => {
+        try {
+          const recordRes = await appointmentService.getAppointmentRecord(apt.id);
+          
+          let isRejectedOrNeedsSignature = false;
+          
+          if (recordRes.success && recordRes.data) {
+             const status = (recordRes.data.status || '').toUpperCase();
+             if (status === 'RECHAZADA' || status === 'RECHAZADO') {
+                 isRejectedOrNeedsSignature = true;
+             }
+          } else if (!recordRes.success && recordRes.error && recordRes.error.toLowerCase().includes('firmado')) {
+             // Backend throws a 500 error if it's not signed or accepted
+             isRejectedOrNeedsSignature = true;
+          }
+
+          if (isRejectedOrNeedsSignature) {
+             const justSigned = sessionStorage.getItem(`just_signed_${apt.id}`);
+             if (!justSigned) {
+                 rejectedAppts.push(apt);
+             }
+          }
+        } catch (e) {
+          // ignore
+        }
+      }));
+      
+      setRejectedRecordsForSignature(rejectedAppts);
+    };
+    
+    checkRejectedForSignature();
+  }, [myAppointments]);
 
   useEffect(() => {
     const checkSignatureStatus = async () => {
@@ -246,6 +292,49 @@ export default function EmpresarioCalendarView({
 
   return (
     <div className="h-full flex flex-col bg-gray-50">
+      
+      {/* Rejected Signature Banner (High Priority) */}
+      {rejectedRecordsForSignature.length > 0 && (
+        <div className="mx-4 mt-4 bg-gradient-to-r from-red-600 to-rose-700 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 animate-pulse"></div>
+          
+          <div className="relative z-10">
+            <div className="flex items-center gap-2 mb-2">
+              <svg className="w-5 h-5 text-red-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <p className="text-[11px] font-black uppercase tracking-widest text-red-100">Firma Requerida</p>
+            </div>
+            
+            {rejectedRecordsForSignature.map(apt => {
+              const localDate = new Date(apt.date);
+              return (
+                <div key={apt.id} className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mt-3 pb-3 border-b border-white/20 last:border-0">
+                  <div>
+                    <h3 className="text-lg font-black">Acta rechazada por falta de firma</h3>
+                    <p className="text-sm text-red-100 mt-1">
+                      Cita con <span className="font-bold text-white">{apt.engineerName}</span> el {localDate.toLocaleDateString()} — Por favor firma nuevamente el acta para proceder.
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => {
+                        sessionStorage.setItem(`just_signed_${apt.id}`, 'true');
+                        router.push(`/firma-acta/${apt.id}`);
+                    }}
+                    className="px-6 py-3 bg-white text-red-700 font-black rounded-xl shadow-lg hover:bg-red-50 transition-all active:scale-95 flex items-center gap-2 text-sm uppercase tracking-wide shrink-0"
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                    Firmar Acta
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Active Visit Signature Banner - Only if NOT recently signed (<10m) */}
       {showSignatureBanner && inProgressAppointments.length > 0 && (
         <div className="mx-4 mt-4 bg-gradient-to-r from-green-600 to-emerald-700 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden">

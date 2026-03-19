@@ -35,8 +35,9 @@ export default function GenerarActaPage() {
   const [rejectedRecords, setRejectedRecords] = useState<Array<{appointment: Appointment, recordUrl: string}>>([]);
   const [checkingRejected, setCheckingRejected] = useState(false);
 
-  const fetchAppointments = async () => {
+  const fetchData = async () => {
     setLoading(true);
+    setCheckingRejected(true);
     try {
       const userStr = localStorage.getItem('user');
       if (!userStr) {
@@ -96,17 +97,25 @@ export default function GenerarActaPage() {
         hasPreviousPage: currentPage > 1
       });
 
+      // Now check for rejected records using the already fetched appointments
+      // We check all statuses that could potentially have an acta (basically anything beyond PROGRAMADA/CANCELADA)
+      const completedAppointments = allFetchedAppointments.filter(
+        (apt: Appointment) => apt.status !== AppointmentStatus.PROGRAMADA && apt.status !== AppointmentStatus.CANCELADA
+      );
+      
+      await checkForRejectedRecords(completedAppointments);
+
     } catch (error) {
-      console.error('Error fetching appointments:', error);
+      console.error('Error fetching data:', error);
       setAllAppointments([]);
     } finally {
       setLoading(false);
+      setCheckingRejected(false);
     }
   };
 
   useEffect(() => {
-    fetchAppointments();
-    checkForRejectedRecords();
+    fetchData();
   }, [router]);
 
   // Update displayed appointments when page changes
@@ -192,7 +201,7 @@ export default function GenerarActaPage() {
     if (response.success) {
       // Llamar a la validación obligatoriamente después de completar
       await appointmentService.createAppointmentValidation(idToFinalize, validationName.trim() || 'Validación de Cita', validationName.trim());
-      fetchAppointments();
+      fetchData();
     } else {
       setError(response.error || 'Error al finalizar la cita');
       // Scroll to top to see error
@@ -205,29 +214,11 @@ export default function GenerarActaPage() {
 
   /**
    * Check for rejected actas that need correction
-   * Only checks COMPLETADO appointments to minimize API calls
+   * Uses already fetched COMPLETADO appointments to minimize API calls
    */
-  const checkForRejectedRecords = async () => {
-    setCheckingRejected(true);
+  const checkForRejectedRecords = async (completedAppointments: Appointment[]) => {
     try {
-      const userStr = localStorage.getItem('user');
-      if (!userStr) return;
-      
-      const user = JSON.parse(userStr);
-      const profile = await authService.getProfile();
-      const engineerId = profile?.user?.engineerId || user.id;
-
-      // 1. Get COMPLETADO appointments (they have actas)
-      const response = await appointmentService.getAppointmentsByEngineer(engineerId, {
-        page: 1,
-        limit: 50 // Check last 50 completed appointments
-      });
-
-      if (!response.success || !response.data) return;
-
-      const completedAppointments = (response.data.data || []).filter(
-        (apt: Appointment) => apt.status === AppointmentStatus.COMPLETADA
-      );
+      if (!completedAppointments || completedAppointments.length === 0) return;
 
       // 2. Check each completed appointment for rejected acta
       const rejected: Array<{appointment: Appointment, recordUrl: string}> = [];
@@ -236,16 +227,17 @@ export default function GenerarActaPage() {
         try {
           const recordResponse = await appointmentService.getAppointmentRecord(apt.id);
           
+          let isRejectedOrNeedsSignature = false;
+          let recordUrl = '';
+
           if (recordResponse.success && recordResponse.data) {
-            const status = recordResponse.data.status;
+            const status = (recordResponse.data.status || '').toUpperCase();
             
-            // Check if status is RECHAZADA
-            if (status === 'RECHAZADA') {
-              rejected.push({
-                appointment: apt,
-                recordUrl: recordResponse.data.url
-              });
-            } else if (status === 'APROBADO' || status === 'APROBADA') {
+            // Check if status is RECHAZADA or RECHAZADO
+            if (status === 'RECHAZADA' || status === 'RECHAZADO') {
+              isRejectedOrNeedsSignature = true;
+              recordUrl = recordResponse.data.url;
+            } else if (status === 'APROBADO' || status === 'APROBADA' || status === 'ACEPTADA') {
               // Limpiar firma cacheada si ya está aprobada para liberar espacio
               try {
                 localStorage.removeItem(`sig_backup_${apt.id}`);
@@ -253,6 +245,16 @@ export default function GenerarActaPage() {
                 // Ignore storage errors
               }
             }
+          } else if (!recordResponse.success && recordResponse.error && recordResponse.error.toLowerCase().includes('firmado')) {
+             // Backend throws a 500 error if it's not signed or accepted
+             isRejectedOrNeedsSignature = true;
+          }
+
+          if (isRejectedOrNeedsSignature) {
+            rejected.push({
+              appointment: apt,
+              recordUrl: recordUrl
+            });
           }
         } catch (error) {
           // Skip this appointment if error
@@ -431,7 +433,7 @@ export default function GenerarActaPage() {
               setActiveModal(null);
               setSelectedAppointment(null);
             }}
-            onSuccess={fetchAppointments}
+            onSuccess={fetchData}
             appointment={selectedAppointment}
           />
         )}
