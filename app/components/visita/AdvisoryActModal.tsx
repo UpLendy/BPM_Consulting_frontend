@@ -103,11 +103,11 @@ export default function AdvisoryActModal({
                        const createdAt = new Date(timestamp);
                        const now = new Date();
                         const diffMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
-                        if (diffMinutes <= 15) {
-                            setFormData(prev => ({ ...prev, signature }));
+                        if (diffMinutes <= 120) {
+                            setFormData(prev => ({ ...prev, signature, signatureTimestamp: timestamp }));
                             console.log("Firma recuperada desde respaldo local");
                         } else {
-                            console.log("Respaldo local expirado (> 15 minutos)");
+                            console.log("Respaldo local expirado (> 120 minutos)");
                         }
                    } catch (e) {
                        // Silently ignore or fallback
@@ -128,7 +128,7 @@ export default function AdvisoryActModal({
                        const updatedAt = new Date(sigRes.updatedAt);
                        const now = new Date();
                         const diffMinutes = (now.getTime() - updatedAt.getTime()) / (1000 * 60);
-                        if (diffMinutes > 15) isExpired = true;
+                        if (diffMinutes > 120) isExpired = true;
                    }
 
                     if (!isExpired) {
@@ -138,7 +138,7 @@ export default function AdvisoryActModal({
                             signatureTimestamp: sigRes.updatedAt // Use the actual server update time
                         }));
                     } else {
-                        console.log("Firma de perfil expirada (> 15 minutos)");
+                        console.log("Firma de perfil expirada (> 120 minutos)");
                     }
                }
            });
@@ -179,8 +179,8 @@ export default function AdvisoryActModal({
                 const now = new Date();
                 const diffMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
 
-                if (diffMinutes > 15) {
-                    console.log("Firma en cache expirada (> 15 minutos)");
+                if (diffMinutes > 120) {
+                    console.log("Firma en cache expirada (> 120 minutos)");
                     parsed.signature = null;
                     parsed.signatureTimestamp = null;
                 }
@@ -313,12 +313,12 @@ export default function AdvisoryActModal({
   };
 
   const handleContinueToPreview = () => {
-    // Signature recency check (Revision Gate)
-    const isSignatureRecent = formData.signature && formData.signatureTimestamp ? 
-        (new Date().getTime() - new Date(formData.signatureTimestamp).getTime()) / (1000 * 60) <= 15 : 
-        false;
+    // Signature existence check (Revision Gate)
+    // The timestamp was already verified to be < 120 mins when loaded into the form via useEffect.
+    // It should not expire just because the engineer took 20 minutes to type out the minutes.
+    const hasValidSignature = !!(formData.signature && formData.signatureTimestamp);
 
-    if (!isSignatureRecent) {
+    if (!hasValidSignature) {
         setStatusError('Firma ausente. El cliente debe firmar desde su cuenta para que puedas revisar y generarla.');
         const modalContent = document.querySelector('.max-h-\\[80vh\\]');
         if (modalContent) modalContent.scrollTo({ top: 0, behavior: 'smooth' });
@@ -337,12 +337,10 @@ export default function AdvisoryActModal({
   const handleSaveFinal = async () => {
     if (!previewRef.current) return;
 
-    // Signature recency check (Final Gate)
-    const isSignatureRecent = formData.signature && formData.signatureTimestamp ? 
-        (new Date().getTime() - new Date(formData.signatureTimestamp).getTime()) / (1000 * 60) <= 15 : 
-        false;
+    // Signature existence check (Final Gate)
+    const hasValidSignature = !!(formData.signature && formData.signatureTimestamp);
 
-    if (!isSignatureRecent) {
+    if (!hasValidSignature) {
         setStatusError('Firma ausente. El cliente debe firmar desde su cuenta para que puedas generarla.');
         setStep('form');
         const modalContent = document.querySelector('.max-h-\\[80vh\\]');
@@ -842,26 +840,21 @@ export default function AdvisoryActModal({
 
                   {/* Final Signature */}
                   <div className="pt-8 border-t border-gray-100 flex flex-col items-center pdf-signature-area">
-                    {(() => {
-                        const isExpired = formData.signatureTimestamp ? 
-                            (new Date().getTime() - new Date(formData.signatureTimestamp).getTime()) / (1000 * 60) > 15 : 
-                            false;
-                            
-                        return (formData.signature && !isExpired) ? (
-                            <div className="text-center">
-                                <img src={formData.signature} alt="Firma" className="max-h-24 mx-auto mb-2 pdf-signature-img" />
-                                <div className="pdf-signature-line"></div>
-                                <p className="text-[10px] font-black text-gray-400 mt-2 uppercase tracking-widest pdf-signature-text">Firma de Conformidad</p>
-                            </div>
-                        ) : (
-                            <div className="py-10 text-center">
-                                <div className="w-48 border-b-2 border-gray-300 mx-auto mb-2"></div>
-                                <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
-                                    {isExpired ? 'Firma requerida' : 'Pendiente de firma (el cliente debe firmar desde su panel)'}
-                                </p>
-                            </div>
-                        );
-                    })()}
+                    {formData.signature ? (
+                        <div className="text-center">
+                            {/* crossOrigin='anonymous' is CRITICAL for html2canvas to be able to render the remote image URL */}
+                            <img src={formData.signature} alt="Firma" crossOrigin="anonymous" className="max-h-24 mx-auto mb-2 pdf-signature-img" />
+                            <div className="pdf-signature-line"></div>
+                            <p className="text-[10px] font-black text-gray-400 mt-2 uppercase tracking-widest pdf-signature-text">Firma de Conformidad</p>
+                        </div>
+                    ) : (
+                        <div className="py-10 text-center">
+                            <div className="w-48 border-b-2 border-gray-300 mx-auto mb-2"></div>
+                            <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">
+                                Pendiente de firma (el cliente debe firmar desde su panel)
+                            </p>
+                        </div>
+                    )}
                   </div>
                </div>
 
