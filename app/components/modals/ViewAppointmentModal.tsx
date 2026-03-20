@@ -7,6 +7,7 @@ import { AppointmentBadge, AppointmentTypeIcon } from '@/app/components/appointm
 import { appointmentService } from '@/app/services/appointments/appointmentService';
 import { formatLongDate } from '@/app/utils/dateUtils';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
+import ValidationReviewModal from './ValidationReviewModal';
 
 interface ViewAppointmentModalProps {
   isOpen: boolean;
@@ -30,6 +31,11 @@ export default function ViewAppointmentModal({
   const [showVisitModal, setShowVisitModal] = useState(false);
   const [showActModal, setShowActModal] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  
+  // Validation modal state
+  const [showValidationModal, setShowValidationModal] = useState(false);
+  const [validationId, setValidationId] = useState<string | null>(null);
+  const [isValidationLoading, setIsValidationLoading] = useState(false);
 
   useEffect(() => {
     setAppointment(initialAppointment);
@@ -145,6 +151,26 @@ export default function ViewAppointmentModal({
     (userRole === 'ingeniero' || userRole === 'engineer') &&
     (appointment.status === AppointmentStatus.EN_PROGRESO || appointment.status === AppointmentStatus.CONFIRMADA);
   const canGenerateAct = showExecutionButtons || appointment.status === AppointmentStatus.EN_PROGRESO;
+
+  const handleOpenValidation = async () => {
+    if (!appointment) return;
+    
+    setIsValidationLoading(true);
+    try {
+      const response = await appointmentService.getAppointmentValidation(appointment.id);
+      if (response.success && response.data) {
+        setValidationId(response.data.id);
+        setShowValidationModal(true);
+      } else {
+        setStatusError('No se encontró una validación asociada a esta cita.');
+      }
+    } catch (error) {
+      console.error('Error fetching validation:', error);
+      setStatusError('Error al obtener la validación.');
+    } finally {
+      setIsValidationLoading(false);
+    }
+  };
 
   return (
     <>
@@ -345,10 +371,42 @@ export default function ViewAppointmentModal({
                 Firmar Acta
               </button>
             )}
+
+            {/* Admin/Engineer: View Documentation/Validation Button */}
+            {(userRole === 'admin' || userRole === 'administrador' || userRole === 'ingeniero' || userRole === 'engineer') && (
+              <button
+                onClick={handleOpenValidation}
+                disabled={isValidationLoading}
+                className="px-4 py-2 text-sm font-bold text-blue-700 bg-blue-50 border-2 border-blue-100 rounded-lg hover:border-blue-600 transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
+              >
+                {isValidationLoading ? (
+                  <>Wait...</>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Ver Documentación
+                  </>
+                )}
+              </button>
+            )}
           </div>
 
         </div>
       </BaseModal>
+
+      {/* Validation Review Modal Integration */}
+      {showValidationModal && validationId && (
+        <ValidationReviewModal
+          isOpen={showValidationModal}
+          onClose={() => setShowValidationModal(false)}
+          validationId={validationId}
+          companyName={appointment.companyName || 'Empresa'}
+          appointmentId={appointment.id}
+          readOnly={userRole !== 'admin' && userRole !== 'administrador'}
+        />
+      )}
 
       <ConfirmDeleteModal
         isOpen={showCancelConfirm}

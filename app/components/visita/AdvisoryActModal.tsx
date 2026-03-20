@@ -99,15 +99,15 @@ export default function AdvisoryActModal({
                        const parsed = JSON.parse(localBackupRaw);
                        const { signature, timestamp } = parsed;
                        
-                       // Check expiration (2 hours)
+                       // Check expiration (12 hours)
                        const createdAt = new Date(timestamp);
                        const now = new Date();
                         const diffMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
-                        if (diffMinutes <= 120) {
+                        if (diffMinutes <= 720) {
                             setFormData(prev => ({ ...prev, signature, signatureTimestamp: timestamp }));
                             console.log("Firma recuperada desde respaldo local");
                         } else {
-                            console.log("Respaldo local expirado (> 120 minutos)");
+                            console.log("Respaldo local expirado (> 720 minutos)");
                         }
                    } catch (e) {
                        // Silently ignore or fallback
@@ -118,31 +118,49 @@ export default function AdvisoryActModal({
                }
            }
        });
-
-       // New: Fetch master/profile signature if representativeId is available
-       if (appointment.representativeId) {
-           representativeService.getRepresentativeSignature(appointment.representativeId).then(sigRes => {
-               if (sigRes && sigRes.signatureUrl) {
-                   let isExpired = false;
-                   if (sigRes.updatedAt) {
-                       const updatedAt = new Date(sigRes.updatedAt);
-                       const now = new Date();
-                        const diffMinutes = (now.getTime() - updatedAt.getTime()) / (1000 * 60);
-                        if (diffMinutes > 120) isExpired = true;
-                   }
+        // New: Fetch master/profile signature if representativeId is available
+        if (appointment.representativeId) {
+            representativeService.getRepresentativeSignature(appointment.representativeId).then(async (sigRes) => {
+                if (sigRes && sigRes.signatureUrl) {
+                    let isExpired = false;
+                    if (sigRes.updatedAt) {
+                        const updatedAt = new Date(sigRes.updatedAt);
+                        const now = new Date();
+                         const diffMinutes = (now.getTime() - updatedAt.getTime()) / (1000 * 60);
+                         if (diffMinutes > 720) isExpired = true;
+                    }
 
                     if (!isExpired) {
-                        setFormData(prev => ({ 
-                            ...prev, 
-                            signature: sigRes.signatureUrl,
-                            signatureTimestamp: sigRes.updatedAt // Use the actual server update time
-                        }));
+                        const sigUrl = sigRes.signatureUrl;
+                        
+                        // SECURE STRATEGY: Convert remote URL to Base64 immediately to bypass HTML2Canvas CORS issues
+                        try {
+                            const response = await fetch(sigUrl);
+                            const blob = await response.blob();
+                            const reader = new FileReader();
+                            reader.readAsDataURL(blob);
+                            reader.onloadend = () => {
+                                const base64data = reader.result as string;
+                                setFormData(prev => ({ 
+                                    ...prev, 
+                                    signature: base64data, // Use the clean local Base64
+                                    signatureTimestamp: sigRes.updatedAt 
+                                }));
+                            };
+                        } catch (e) {
+                            console.warn("Falling back to direct URL (CORS might block PDF render)", e);
+                            setFormData(prev => ({ 
+                                ...prev, 
+                                signature: sigUrl,
+                                signatureTimestamp: sigRes.updatedAt 
+                            }));
+                        }
                     } else {
-                        console.log("Firma de perfil expirada (> 120 minutos)");
+                        console.log("Firma de perfil expirada (> 720 minutos)");
                     }
-               }
-           });
-       }
+                }
+            });
+        }
     }
   }, [isOpen, appointment]);
 
@@ -179,8 +197,8 @@ export default function AdvisoryActModal({
                 const now = new Date();
                 const diffMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
 
-                if (diffMinutes > 120) {
-                    console.log("Firma en cache expirada (> 120 minutos)");
+                if (diffMinutes > 720) {
+                    console.log("Firma en cache expirada (> 720 minutos)");
                     parsed.signature = null;
                     parsed.signatureTimestamp = null;
                 }
@@ -842,8 +860,13 @@ export default function AdvisoryActModal({
                   <div className="pt-8 border-t border-gray-100 flex flex-col items-center pdf-signature-area">
                     {formData.signature ? (
                         <div className="text-center">
-                            {/* crossOrigin='anonymous' is CRITICAL for html2canvas to be able to render the remote image URL */}
-                            <img src={formData.signature} alt="Firma" crossOrigin="anonymous" className="max-h-24 mx-auto mb-2 pdf-signature-img" />
+                            {/* No crossOrigin needed because we now ensure it's a Base64 string in formData */}
+                            <img 
+                                src={formData.signature} 
+                                alt="Firma de conformidad" 
+                                className="max-h-24 mx-auto mb-2 pdf-signature-img" 
+                                style={{ display: 'block', pointerEvents: 'none' }}
+                            />
                             <div className="pdf-signature-line"></div>
                             <p className="text-[10px] font-black text-gray-400 mt-2 uppercase tracking-widest pdf-signature-text">Firma de Conformidad</p>
                         </div>
