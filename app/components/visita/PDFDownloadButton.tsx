@@ -50,3 +50,4 @@ export default function PDFDownloadButton({ appointment, formData, totalSuccessR
         </PDFDownloadLink>
     );
 }
+
