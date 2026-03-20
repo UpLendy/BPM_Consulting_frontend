@@ -271,14 +271,14 @@ export default function EmpresarioCalendarView({
                 const now = new Date();
                 const diffMinutes = (now.getTime() - updatedAt.getTime()) / (1000 * 60);
                 
-                // If signed in the last 120 minutes, don't show the banner
-                if (diffMinutes <= 120) {
+                // If signed in the last 720 minutes, don't show the banner
+                if (diffMinutes <= 720) {
                     setShowSignatureBanner(false);
                     return;
                 }
             }
             
-            // If no signature info OR older than 120 mins, show banner
+            // If no signature info OR older than 720 mins, show banner
             setShowSignatureBanner(true);
         } catch (e) {
             console.error('Error checking signature status (using banner as fallback)', e);

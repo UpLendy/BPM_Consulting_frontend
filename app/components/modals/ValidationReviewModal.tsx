@@ -7,6 +7,7 @@ import VisitRegistrationModal from '../visita/VisitRegistrationModal';
 import { Appointment } from '@/app/types';
 import ConfirmationModal from './ConfirmationModal';
 import { formatFileName } from '@/app/utils/fileUtils';
+import ValidationUploadModal from '../documentos/ValidationUploadModal';
 
 interface ValidationReviewModalProps {
   isOpen: boolean;
@@ -52,6 +53,9 @@ export default function ValidationReviewModal({
 
   // Folder accordion state (true by default unless explicitly set to false)
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
+  
+  // Upload modal state
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
 
   const toggleFolder = (folderName: string) => {
       setExpandedFolders(prev => ({
@@ -544,7 +548,17 @@ export default function ValidationReviewModal({
             )}
 
             <div className="flex flex-col gap-4 overflow-y-auto flex-1">
-                <h3 className="text-[10px] font-black text-black uppercase tracking-widest">Documentos Subidos</h3>
+                <div className="flex items-center justify-between">
+                    <h3 className="text-[10px] font-black text-black uppercase tracking-widest">Documentos Subidos</h3>
+                    {userRole?.toLowerCase() === 'admin' && !singleDocumentId && (
+                        <button 
+                            onClick={() => setIsUploadModalOpen(true)}
+                            className="bg-blue-50 text-blue-600 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-widest hover:bg-blue-100 transition-colors border border-blue-200"
+                        >
+                            + Subir Documentos
+                        </button>
+                    )}
+                </div>
                 
                 {isLoading ? (
                     <div className="flex justify-center py-8">
@@ -789,6 +803,24 @@ export default function ValidationReviewModal({
         cancelLabel="Cancelar"
         isProcessing={isDeleting}
       />
+
+      {/* Upload Modal Integration for Admins */}
+      {isUploadModalOpen && (
+          <ValidationUploadModal
+            isOpen={isUploadModalOpen}
+            onClose={() => setIsUploadModalOpen(false)}
+            onSuccess={() => {
+                setIsUploadModalOpen(false);
+                loadDocuments(); // Refresh documents after upload
+            } }
+            validation={{
+                id: validationId,
+                companyName: companyName,
+                engineerName: fullAppointment?.engineerName || 'Ingeniero',
+                status: 'EN_REVISION' // Assume reviewable status for the upload context
+            }}
+          />
+      )}
     </BaseModal>
   );
 }
