@@ -15,7 +15,7 @@ interface VisitRegistrationModalProps {
   readOnly?: boolean;
 }
 
-import { SECTIONS } from '@/app/constants/visitSections';
+import { DIAGNOSTIC_CONFIG, DEFAULT_DIAGNOSTIC_TYPE, DiagnosticType } from '@/app/constants/visitSections';
 import PDFDownloadButton from './PDFDownloadButton';
 
 export default function VisitRegistrationModal({
@@ -27,6 +27,7 @@ export default function VisitRegistrationModal({
 }: VisitRegistrationModalProps) {
   // State for form data: { [subsectionId]: { q1: string, hallazgos: string } }
   const [formData, setFormData] = useState<Record<string, any>>({});
+  const [diagnosticType, setDiagnosticType] = useState<DiagnosticType>(DEFAULT_DIAGNOSTIC_TYPE);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingLastVisit, setIsLoadingLastVisit] = useState(false);
@@ -57,6 +58,9 @@ export default function VisitRegistrationModal({
             
             if (foundFormData) {
               setFormData(foundFormData);
+              if (foundFormData.diagnosticType) {
+                setDiagnosticType(foundFormData.diagnosticType as DiagnosticType);
+              }
             }
           } else {
             let loadedFromCache = false;
@@ -68,6 +72,9 @@ export default function VisitRegistrationModal({
                 const parsed = JSON.parse(cached);
                 if (Object.keys(parsed).length > 0) {
                   setFormData(parsed);
+                  if (parsed.diagnosticType) {
+                    setDiagnosticType(parsed.diagnosticType as DiagnosticType);
+                  }
                   loadedFromCache = true;
                 }
               } catch (e) {
@@ -82,6 +89,9 @@ export default function VisitRegistrationModal({
 
               if (currentFormData && Object.keys(currentFormData).length > 0) {
                 setFormData(currentFormData);
+                if (currentFormData.diagnosticType) {
+                  setDiagnosticType(currentFormData.diagnosticType as DiagnosticType);
+                }
               } else {
                 const response = await appointmentService.getAppointmentById(appointment.id);
                 const fullApt = (response as any).data || response;
@@ -119,12 +129,12 @@ export default function VisitRegistrationModal({
     if (isOpen && appointment && !readOnly && Object.keys(formData).length > 0) {
       const cacheKey = `visit_form_data_${appointment.id}`;
       try {
-        localStorage.setItem(cacheKey, JSON.stringify(formData));
+        localStorage.setItem(cacheKey, JSON.stringify({ ...formData, diagnosticType }));
       } catch (e) {
         console.warn('No se pudo guardar la caché local', e);
       }
     }
-  }, [formData, isOpen, appointment, readOnly]);
+  }, [formData, diagnosticType, isOpen, appointment, readOnly]);
 
   const handleScoreChange = (itemId: string, score: 'A' | 'AR' | 'I' | 'NA') => {
     const numericScore = score === 'A' ? "2" : score === 'AR' ? "1" : score === 'I' ? "0" : "NA";
@@ -153,7 +163,8 @@ export default function VisitRegistrationModal({
     let currentPoints = 0;
     let applicableItems = 0;
 
-    SECTIONS.forEach(section => {
+    const currentSections = DIAGNOSTIC_CONFIG[diagnosticType].sections;
+    currentSections.forEach(section => {
       section.subsections.forEach(sub => {
         sub.items.forEach(item => {
           const data = formData[item.id];
@@ -177,7 +188,7 @@ export default function VisitRegistrationModal({
       
       const payload = {
         successRate: Math.round(successRate),
-        formData: formData
+        formData: { ...formData, diagnosticType }
       };
       
       const response = await appointmentService.saveVisitRecord(appointment.id, payload);
@@ -221,6 +232,32 @@ export default function VisitRegistrationModal({
       size="xl" 
     >
       <div className="max-h-[85vh] overflow-y-auto pr-2 pb-8">
+        {/* Diagnostic Type Selector (Always visible if not read-only) */}
+        {!readOnly && (
+          <div className="mb-6 p-1 bg-gray-200 border border-gray-300 rounded-2xl flex relative h-14">
+            {(Object.keys(DIAGNOSTIC_CONFIG) as DiagnosticType[]).map((type) => (
+              <button
+                key={type}
+                onClick={() => setDiagnosticType(type)}
+                className={`flex-1 relative z-10 text-xs font-black uppercase transition-all flex items-center justify-center gap-2 rounded-xl ${
+                  diagnosticType === type 
+                    ? 'bg-blue-900 text-white shadow-lg transform scale-[1.02]' 
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {DIAGNOSTIC_CONFIG[type].title}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Informative message if data exists and type is changed */}
+        {!readOnly && Object.keys(formData).filter(k => k !== 'diagnosticType').length > 0 && (
+          <div className="mb-4 text-center">
+            <span className="text-[10px] text-gray-400 font-bold uppercase italic">* Al cambiar de tipo, los items no compartidos se ocultarán pero no se perderán.</span>
+          </div>
+        )}
+
         {/* Header Metadata */}
         <div className="bg-gray-100 p-4 rounded-lg mb-6 text-sm border border-gray-400">
            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -241,6 +278,12 @@ export default function VisitRegistrationModal({
                    <span className="font-black text-black">{appointment.location || (appointment as any).company?.city || 'Manizales'}</span>
                 </div>
                 <div>
+                   <span className="block text-gray-700 text-xs font-black uppercase">Tipo de Acta</span>
+                   <span className="font-black text-blue-800">
+                     {DIAGNOSTIC_CONFIG[diagnosticType].title}
+                   </span>
+                </div>
+                <div>
                    <span className="block text-gray-800 text-xs font-black uppercase">
                      {readOnly ? '% Cumplimiento Visita' : '% Cumplimiento Última Visita'}
                    </span>
@@ -257,7 +300,7 @@ export default function VisitRegistrationModal({
 
         {/* Form Sections */}
         <div className="space-y-8">
-          {SECTIONS.map((section) => (
+          {DIAGNOSTIC_CONFIG[diagnosticType].sections.map((section) => (
             <div key={section.id}>
               {/* Section Header */}
               <div className="bg-blue-900 text-white px-4 py-2 text-sm font-black uppercase rounded-t-lg shadow-sm">
@@ -388,6 +431,7 @@ export default function VisitRegistrationModal({
                     INFORMACION DE QUIEN RECIBE LA VISITA
                 </div>
                 <div className="grid grid-cols-[100px_1fr] text-xs">
+<<<<<<< Updated upstream
                     <div className="p-2 border-r border-b border-gray-500 font-bold bg-gray-100 text-gray-800 uppercase flex items-center">NOMBRE:</div>
                     <div className="p-0 border-b border-gray-500 bg-white">
                         {readOnly ? (
@@ -413,6 +457,35 @@ export default function VisitRegistrationModal({
                                 onChange={(e) => setFormData(prev => ({ ...prev, contactRole: e.target.value }))}
                                 className="w-full h-full p-2 uppercase font-bold text-gray-900 bg-transparent border-0 focus:ring-0 focus:outline-none focus:bg-yellow-50/50"
                             />
+=======
+                    <div className="p-2 border-r border-b border-gray-500 font-bold bg-gray-100 text-gray-800 uppercase">NOMBRE:</div>
+                    <div className="p-2 border-b border-gray-500 uppercase font-bold text-gray-900 bg-white">
+                        {!readOnly ? (
+                          <input 
+                            type="text"
+                            className="w-full bg-blue-50 border border-blue-200 rounded px-2 py-1 text-xs font-black uppercase text-blue-900 focus:border-blue-500 focus:bg-white outline-none transition-all"
+                            value={formData.contactName || appointment.companyName || ''}
+                            onChange={(e) => setFormData(prev => ({ ...prev, contactName: e.target.value }))}
+                            placeholder="ESCRIBA EL NOMBRE AQUÍ..."
+                          />
+                        ) : (
+                          formData.contactName || appointment.companyName || '__________________________'
+                        )}
+                    </div>
+                    
+                    <div className="p-2 border-r border-gray-500 font-bold bg-gray-100 text-gray-800 uppercase">CARGO:</div>
+                    <div className="p-2 uppercase font-bold text-gray-900 bg-white">
+                        {!readOnly ? (
+                          <input 
+                            type="text"
+                            className="w-full bg-blue-50 border border-blue-200 rounded px-2 py-1 text-xs font-black uppercase text-blue-900 focus:border-blue-500 focus:bg-white outline-none transition-all"
+                            value={formData.contactRole || 'Persona Encargada'}
+                            onChange={(e) => setFormData(prev => ({ ...prev, contactRole: e.target.value }))}
+                            placeholder="ESCRIBA EL CARGO AQUÍ..."
+                          />
+                        ) : (
+                          formData.contactRole || 'Persona Encargada'
+>>>>>>> Stashed changes
                         )}
                     </div>
                 </div>
@@ -427,8 +500,13 @@ export default function VisitRegistrationModal({
                         appointment={appointment}
                         formData={formData}
                         totalSuccessRate={calculateTotalSuccessRate()}
+<<<<<<< Updated upstream
                         companyNameStr={resolvedCompanyName}
                         engineerNameStr={resolvedEngineerName}
+=======
+                        recipientNameStr={formData.contactName || appointment.companyName}
+                        engineerNameStr={currentUser ? `${currentUser.first_name} ${currentUser.last_name}` : appointment.engineerName}
+>>>>>>> Stashed changes
                     />
                     <button
                         onClick={onClose}
@@ -492,13 +570,13 @@ export default function VisitRegistrationModal({
                         <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 text-center flex flex-col justify-center">
                             <span className="text-xs text-gray-500 font-bold uppercase block">Items Evaluados</span>
                             <span className="text-2xl font-bold text-gray-800">
-                                {Object.keys(formData).length} / {SECTIONS.reduce((acc, s) => acc + s.subsections.reduce((subAcc, sub) => subAcc + sub.items.length, 0), 0)}
+                            {Object.keys(formData).filter(k => k !== 'diagnosticType').length} / {DIAGNOSTIC_CONFIG[diagnosticType].sections.reduce((acc, s) => acc + s.subsections.reduce((subAcc, sub) => subAcc + sub.items.length, 0), 0)}
                             </span>
                         </div>
                     </div>
 
                     <div className="space-y-4">
-                        {SECTIONS.map(section => {
+                        {DIAGNOSTIC_CONFIG[diagnosticType].sections.map(section => {
                             // Group selected items by section for the summary
                             const allItemsInData = section.subsections.flatMap(sub => 
                                 sub.items.filter(item => formData[item.id])

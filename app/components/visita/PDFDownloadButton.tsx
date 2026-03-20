@@ -9,11 +9,19 @@ interface PDFDownloadButtonProps {
     appointment: Appointment;
     formData: Record<string, any>;
     totalSuccessRate: number;
+<<<<<<< Updated upstream
     companyNameStr?: string;
     engineerNameStr?: string;
 }
 
 export default function PDFDownloadButton({ appointment, formData, totalSuccessRate, companyNameStr, engineerNameStr }: PDFDownloadButtonProps) {
+=======
+    recipientNameStr?: string;
+    engineerNameStr?: string;
+}
+
+export default function PDFDownloadButton({ appointment, formData, totalSuccessRate, recipientNameStr, engineerNameStr }: PDFDownloadButtonProps) {
+>>>>>>> Stashed changes
     // Only render on client to avoid hydration mismatch
     const [isClient, setIsClient] = useState(false);
 
@@ -36,7 +44,11 @@ export default function PDFDownloadButton({ appointment, formData, totalSuccessR
                     appointment={appointment} 
                     formData={formData} 
                     totalSuccessRate={totalSuccessRate} 
+<<<<<<< Updated upstream
                     companyNameStr={companyNameStr}
+=======
+                    recipientNameStr={recipientNameStr}
+>>>>>>> Stashed changes
                     engineerNameStr={engineerNameStr}
                 />
             }

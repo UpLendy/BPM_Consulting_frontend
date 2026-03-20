@@ -120,25 +120,30 @@ export const appointmentService = {
             if (filters.estado && (filters.estado as any) !== 'all') params.append('status', filters.estado);
         }
 
-        const response = await fetch(`${API_URL}/appointments/engineer/${engineerId}?${params.toString()}`, {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json',
-                'Authorization': `Bearer ${token}`
+        try {
+            const response = await fetch(`${API_URL}/appointments/engineer/${engineerId}?${params.toString()}`, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (!response.ok) {
+                const error = await getErrorMessage(response, 'Error al obtener las citas del ingeniero');
+                return { success: false, error };
             }
-        });
 
-        if (!response.ok) {
-            const error = await getErrorMessage(response, 'Error al obtener las citas del ingeniero');
-            return { success: false, error };
+            const responseData = await response.json();
+            const paginatedData: PaginatedResponse<Appointment> = Array.isArray(responseData)
+                ? { data: responseData, meta: { total: responseData.length, page: 1, limit: responseData.length || 10, totalPages: 1, hasNextPage: false, hasPreviousPage: false } }
+                : responseData;
+
+            return { success: true, data: paginatedData };
+        } catch (error) {
+            console.error('Error de red en getAppointmentsByEngineer:', error);
+            return { success: false, error: 'No se pudo conectar con el servidor. Verifique su conexión.' };
         }
-
-        const responseData = await response.json();
-        const paginatedData: PaginatedResponse<Appointment> = Array.isArray(responseData)
-            ? { data: responseData, meta: { total: responseData.length, page: 1, limit: responseData.length || 10, totalPages: 1, hasNextPage: false, hasPreviousPage: false } }
-            : responseData;
-
-        return { success: true, data: paginatedData };
     },
 
     /**
