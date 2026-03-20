@@ -145,48 +145,6 @@ const styles = StyleSheet.create({
     color: '#1E3A8A'
   },
   signatureContainer: {
-<<<<<<< Updated upstream
-    marginTop: 20,
-    borderWidth: 1,
-    borderColor: '#9CA3AF',
-  },
-  signatureGrid: {
-    flexDirection: 'row',
-  },
-  signatureCol: {
-    flex: 1,
-    borderRightWidth: 1,
-    borderRightColor: '#9CA3AF',
-  },
-  signatureHeader: {
-    backgroundColor: '#F3F4F6',
-    padding: 3,
-    fontSize: 8,
-    fontFamily: 'Helvetica-Bold',
-    textAlign: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#9CA3AF',
-  },
-  signatureRow: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: '#9CA3AF',
-    fontSize: 8,
-  },
-  signatureLabel: {
-    width: '30%',
-    backgroundColor: '#F9FAFB',
-    padding: 4,
-    fontFamily: 'Helvetica-Bold',
-    borderRightWidth: 1,
-    borderRightColor: '#9CA3AF',
-    textTransform: 'uppercase',
-  },
-  signatureValue: {
-    width: '70%',
-    padding: 4,
-    textTransform: 'uppercase',
-=======
     marginTop: 40,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -220,7 +178,6 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     marginBottom: 2,
     textTransform: 'uppercase'
->>>>>>> Stashed changes
   }
 });
 
@@ -228,13 +185,6 @@ interface VisitEvaluationPDFProps {
   appointment: Appointment;
   formData: Record<string, any>;
   totalSuccessRate: number;
-<<<<<<< Updated upstream
-  companyNameStr?: string;
-  engineerNameStr?: string;
-}
-
-const VisitEvaluationPDF: React.FC<VisitEvaluationPDFProps> = ({ appointment, formData, totalSuccessRate, companyNameStr, engineerNameStr }) => {
-=======
   recipientNameStr?: string;
   engineerNameStr?: string;
 }
@@ -244,7 +194,6 @@ const VisitEvaluationPDF: React.FC<VisitEvaluationPDFProps> = ({ appointment, fo
   const config = DIAGNOSTIC_CONFIG[type];
   const sections = config.sections;
 
->>>>>>> Stashed changes
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -253,11 +202,7 @@ const VisitEvaluationPDF: React.FC<VisitEvaluationPDFProps> = ({ appointment, fo
           <Text style={styles.subtitle}>BPM CONSULTING</Text>
           
           <View style={styles.detailsRow}>
-<<<<<<< Updated upstream
-            <Text>Empresa: <Text style={{ fontFamily: 'Helvetica-Bold' }}>{companyNameStr || appointment.companyName || 'Empresa'}</Text></Text>
-=======
             <Text>Empresa: <Text style={{ fontFamily: 'Helvetica-Bold' }}>{appointment.companyName || 'Empresa'}</Text></Text>
->>>>>>> Stashed changes
             <Text>Fecha: <Text style={{ fontFamily: 'Helvetica-Bold' }}>{new Date(appointment.date).toLocaleDateString()}</Text></Text>
           </View>
           <View style={styles.detailsRow}>
@@ -343,32 +288,6 @@ const VisitEvaluationPDF: React.FC<VisitEvaluationPDFProps> = ({ appointment, fo
         </View>
 
         <View style={styles.signatureContainer} wrap={false}>
-<<<<<<< Updated upstream
-          <View style={styles.signatureGrid}>
-            <View style={styles.signatureCol}>
-              <Text style={styles.signatureHeader}>INFORMACIÓN DE QUIEN REALIZA LA VISITA</Text>
-              <View style={styles.signatureRow}>
-                <Text style={styles.signatureLabel}>Nombre:</Text>
-                <Text style={styles.signatureValue}>{engineerNameStr ||'Ingeniero Asignado'}</Text>
-              </View>
-              <View style={[styles.signatureRow, { borderBottomWidth: 0 }]}>
-                <Text style={styles.signatureLabel}>Cargo:</Text>
-                <Text style={styles.signatureValue}>Ingeniero de Alimentos</Text>
-              </View>
-            </View>
-            
-            <View style={[styles.signatureCol, { borderRightWidth: 0 }]}>
-              <Text style={styles.signatureHeader}>INFORMACIÓN DE QUIEN RECIBE LA VISITA</Text>
-              <View style={styles.signatureRow}>
-                <Text style={styles.signatureLabel}>Nombre:</Text>
-                <Text style={styles.signatureValue}>{formData.contactName || companyNameStr || '__________________________'}</Text>
-              </View>
-              <View style={[styles.signatureRow, { borderBottomWidth: 0 }]}>
-                <Text style={styles.signatureLabel}>Cargo:</Text>
-                <Text style={styles.signatureValue}>{formData.contactRole || 'Persona Encargada'}</Text>
-              </View>
-            </View>
-=======
           <View style={styles.signatureBox}>
             <Text style={styles.signatureLabel}>Ingeniero Asignado</Text>
             <View style={styles.signatureLine} />
@@ -381,7 +300,6 @@ const VisitEvaluationPDF: React.FC<VisitEvaluationPDFProps> = ({ appointment, fo
             <View style={styles.signatureLine} />
             <Text style={styles.signatureName}>{recipientNameStr || appointment.companyName || '__________________________'}</Text>
             <Text style={styles.signatureRole}>{formData.contactRole || 'Persona Encargada'}</Text>
->>>>>>> Stashed changes
           </View>
         </View>
 
