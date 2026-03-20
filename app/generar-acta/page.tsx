@@ -156,7 +156,11 @@ export default function GenerarActaPage() {
           const now = new Date();
           const diffMinutes = (now.getTime() - updatedAt.getTime()) / (1000 * 60);
           
+<<<<<<< Updated upstream
           if (diffMinutes <= 720) {
+=======
+          if (diffMinutes <= 4320) {
+>>>>>>> Stashed changes
             isRecent = true;
           } else {
             setSignatureWarning('La firma del cliente no es válida. Debe solicitar al cliente que firme el acta nuevamente.');
