@@ -60,33 +60,21 @@ export default function FirmaActaPage() {
           if (apt.representativeId) {
              const sigRes = await representativeService.getRepresentativeSignature(apt.representativeId);
              
-<<<<<<< Updated upstream
-             // Check if signature is valid and NOT expired (more than 12 hours)
-=======
              // Check if signature is valid and NOT expired (more than 72 hours)
->>>>>>> Stashed changes
              if (sigRes && sigRes.signatureUrl) {
                 let isExpired = false;
                 if (sigRes.updatedAt) {
                     const updatedAt = new Date(sigRes.updatedAt);
                     const now = new Date();
                     const diffHours = (now.getTime() - updatedAt.getTime()) / (1000 * 60 * 60);
-<<<<<<< Updated upstream
-                    if (diffHours > 12) isExpired = true;
-=======
                     if (diffHours > 72) isExpired = true;
->>>>>>> Stashed changes
                 }
 
                 if (!isExpired) {
                     setProfileSignature(sigRes.signatureUrl);
                     setSignatureData(sigRes.signatureUrl);
                 } else {
-<<<<<<< Updated upstream
-                    console.log("Firma de perfil expirada (más de 12 horas)");
-=======
                     console.log("Firma de perfil expirada (más de 72 horas)");
->>>>>>> Stashed changes
                 }
              }
           }

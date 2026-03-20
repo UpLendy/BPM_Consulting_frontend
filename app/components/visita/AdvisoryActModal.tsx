@@ -99,17 +99,6 @@ export default function AdvisoryActModal({
                        const parsed = JSON.parse(localBackupRaw);
                        const { signature, timestamp } = parsed;
                        
-<<<<<<< Updated upstream
-                       // Check expiration (12 hours)
-                       const createdAt = new Date(timestamp);
-                       const now = new Date();
-                        const diffMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
-                        if (diffMinutes <= 720) {
-                            setFormData(prev => ({ ...prev, signature, signatureTimestamp: timestamp }));
-                            console.log("Firma recuperada desde respaldo local");
-                        } else {
-                            console.log("Respaldo local expirado (> 720 minutos)");
-=======
                        // Check expiration (72 hours)
                        const createdAt = new Date(timestamp);
                        const now = new Date();
@@ -119,7 +108,6 @@ export default function AdvisoryActModal({
                             console.log("Firma recuperada desde respaldo local");
                         } else {
                             console.log("Respaldo local expirado (> 4320 minutos)");
->>>>>>> Stashed changes
                         }
                    } catch (e) {
                        // Silently ignore or fallback
@@ -130,7 +118,7 @@ export default function AdvisoryActModal({
                }
            }
        });
-<<<<<<< Updated upstream
+
         // New: Fetch master/profile signature if representativeId is available
         if (appointment.representativeId) {
             representativeService.getRepresentativeSignature(appointment.representativeId).then(async (sigRes) => {
@@ -140,22 +128,8 @@ export default function AdvisoryActModal({
                         const updatedAt = new Date(sigRes.updatedAt);
                         const now = new Date();
                          const diffMinutes = (now.getTime() - updatedAt.getTime()) / (1000 * 60);
-                         if (diffMinutes > 720) isExpired = true;
+                         if (diffMinutes > 4320) isExpired = true;
                     }
-=======
-
-       // New: Fetch master/profile signature if representativeId is available
-       if (appointment.representativeId) {
-           representativeService.getRepresentativeSignature(appointment.representativeId).then(sigRes => {
-               if (sigRes && sigRes.signatureUrl) {
-                   let isExpired = false;
-                   if (sigRes.updatedAt) {
-                       const updatedAt = new Date(sigRes.updatedAt);
-                       const now = new Date();
-                        const diffMinutes = (now.getTime() - updatedAt.getTime()) / (1000 * 60);
-                        if (diffMinutes > 4320) isExpired = true;
-                   }
->>>>>>> Stashed changes
 
                     if (!isExpired) {
                         const sigUrl = sigRes.signatureUrl;
@@ -183,11 +157,7 @@ export default function AdvisoryActModal({
                             }));
                         }
                     } else {
-<<<<<<< Updated upstream
-                        console.log("Firma de perfil expirada (> 720 minutos)");
-=======
                         console.log("Firma de perfil expirada (> 4320 minutos)");
->>>>>>> Stashed changes
                     }
                 }
             });
@@ -228,13 +198,8 @@ export default function AdvisoryActModal({
                 const now = new Date();
                 const diffMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
 
-<<<<<<< Updated upstream
-                if (diffMinutes > 720) {
-                    console.log("Firma en cache expirada (> 720 minutos)");
-=======
                 if (diffMinutes > 4320) {
                     console.log("Firma en cache expirada (> 4320 minutos)");
->>>>>>> Stashed changes
                     parsed.signature = null;
                     parsed.signatureTimestamp = null;
                 }
