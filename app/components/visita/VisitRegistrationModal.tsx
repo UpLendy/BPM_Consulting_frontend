@@ -204,6 +204,15 @@ export default function VisitRegistrationModal({
     }
   };
 
+  const resolvedCompanyName = appointment.companyName || (appointment as any).company?.name || (appointment as any).company_name || '...';
+  const isEngineerOrAdmin = currentUser?.role === 'engineer' || currentUser?.role === 'admin';
+  const eng = (appointment as any).engineer || (appointment as any).ingeniero;
+  const resolvedEngineerName = appointment.engineerName 
+      || (eng?.user?.first_name ? `${eng.user.first_name} ${eng.user.last_name || ''}` : null)
+      || (eng?.first_name ? `${eng.first_name} ${eng.last_name || ''}` : null)
+      || eng?.name 
+      || (isEngineerOrAdmin && currentUser ? `${currentUser.first_name} ${currentUser.last_name}` : 'Ingeniero Asignado');
+
   return (
     <BaseModal
       isOpen={isOpen}
@@ -224,7 +233,7 @@ export default function VisitRegistrationModal({
                 <div>
                    <span className="block text-gray-700 text-xs font-black uppercase">Empresa</span>
                    <span className="font-black text-black">
-                     {appointment.companyName || (appointment as any).company?.name || (appointment as any).company_name || '...'}
+                     {resolvedCompanyName}
                    </span>
                 </div>
                 <div>
@@ -365,7 +374,7 @@ export default function VisitRegistrationModal({
                 <div className="grid grid-cols-[100px_1fr] text-xs">
                     <div className="p-2 border-r border-b border-gray-500 font-bold bg-gray-100 text-gray-800 uppercase">NOMBRE:</div>
                     <div className="p-2 border-b border-gray-500 uppercase font-bold text-gray-900">
-                        {currentUser ? `${currentUser.first_name} ${currentUser.last_name}` : ''}
+                        {resolvedEngineerName}
                     </div>
                     
                     <div className="p-2 border-r border-gray-500 font-bold bg-gray-100 text-gray-800 uppercase">CARGO:</div>
@@ -379,13 +388,33 @@ export default function VisitRegistrationModal({
                     INFORMACION DE QUIEN RECIBE LA VISITA
                 </div>
                 <div className="grid grid-cols-[100px_1fr] text-xs">
-                    <div className="p-2 border-r border-b border-gray-500 font-bold bg-gray-100 text-gray-800 uppercase">NOMBRE:</div>
-                    <div className="p-2 border-b border-gray-500 uppercase font-bold text-gray-900">
-                        {appointment.companyName || '__________________________'}
+                    <div className="p-2 border-r border-b border-gray-500 font-bold bg-gray-100 text-gray-800 uppercase flex items-center">NOMBRE:</div>
+                    <div className="p-0 border-b border-gray-500 bg-white">
+                        {readOnly ? (
+                            <div className="p-2 uppercase font-bold text-gray-900">{formData.contactName || resolvedCompanyName}</div>
+                        ) : (
+                            <input
+                                type="text"
+                                value={formData.contactName !== undefined ? formData.contactName : resolvedCompanyName}
+                                onChange={(e) => setFormData(prev => ({ ...prev, contactName: e.target.value }))}
+                                className="w-full h-full p-2 uppercase font-bold text-gray-900 bg-transparent border-0 focus:ring-0 focus:outline-none focus:bg-yellow-50/50"
+                            />
+                        )}
                     </div>
                     
-                    <div className="p-2 border-r border-gray-500 font-bold bg-gray-100 text-gray-800 uppercase">CARGO:</div>
-                    <div className="p-2 uppercase font-bold text-gray-900">Persona Encargada</div>
+                    <div className="p-2 border-r border-gray-500 font-bold bg-gray-100 text-gray-800 uppercase flex items-center">CARGO:</div>
+                    <div className="p-0 bg-white">
+                        {readOnly ? (
+                            <div className="p-2 uppercase font-bold text-gray-900">{formData.contactRole || 'Persona Encargada'}</div>
+                        ) : (
+                            <input
+                                type="text"
+                                value={formData.contactRole !== undefined ? formData.contactRole : 'Persona Encargada'}
+                                onChange={(e) => setFormData(prev => ({ ...prev, contactRole: e.target.value }))}
+                                className="w-full h-full p-2 uppercase font-bold text-gray-900 bg-transparent border-0 focus:ring-0 focus:outline-none focus:bg-yellow-50/50"
+                            />
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
@@ -398,6 +427,8 @@ export default function VisitRegistrationModal({
                         appointment={appointment}
                         formData={formData}
                         totalSuccessRate={calculateTotalSuccessRate()}
+                        companyNameStr={resolvedCompanyName}
+                        engineerNameStr={resolvedEngineerName}
                     />
                     <button
                         onClick={onClose}

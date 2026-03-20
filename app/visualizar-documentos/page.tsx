@@ -250,7 +250,8 @@ export default function VisualizarDocumentosPage() {
       setSelectedValidation({
           id: doc.validationId,
           appointmentId: doc.appointmentId,
-          companyName: doc.companyName
+          companyName: doc.companyName,
+          selectedDocId: doc.isActa ? 'ACTA_VISITA_ID' : doc.id
       });
       setIsModalOpen(true);
   };
@@ -324,9 +325,7 @@ export default function VisualizarDocumentosPage() {
                                     className="p-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 hover:border-blue-300 transition-all cursor-pointer flex items-start gap-3 shadow-sm"
                                 >
                                      <div className={`p-2 rounded flex-shrink-0 
-                                            ${doc.isActa ? 'bg-blue-600 text-white shadow-sm' : 
-                                              doc.status === 'APROBADO' ? 'bg-green-100 text-green-600' : 
-                                              doc.status === 'RECHAZADO' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'}`}>
+                                            ${doc.isActa ? 'bg-blue-600 text-white shadow-sm' : 'bg-gray-100 text-gray-600'}`}>
                                             {doc.isActa ? (
                                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
@@ -342,15 +341,7 @@ export default function VisualizarDocumentosPage() {
                                                 {formatFileName(doc.fileName || doc.originalName) || 'Documento sin nombre'}
                                             </p>
                                             <p className="text-[10px] text-gray-500 font-semibold mt-1 uppercase tracking-wider">Cita: {formatShortDate(doc.apptDate)}</p>
-                                            <div className="flex items-center gap-2 mt-1.5">
-                                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase
-                                                        ${doc.status === 'APROBADO' ? 'bg-green-50 text-green-700 border-green-200' : 
-                                                          doc.status === 'RECHAZADO' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`
-                                                    }>
-                                                        {(doc.status || 'PENDIENTE').replace(/_/g, ' ')}
-                                                    </span>
-                                            </div>
-                                    </div>
+                                     </div>
                                 </div>
                             ))}
                         </div>
@@ -536,6 +527,7 @@ export default function VisualizarDocumentosPage() {
           companyName={selectedValidation.companyName}
           appointmentId={selectedValidation.appointmentId}
           readOnly={true}
+          singleDocumentId={selectedValidation.selectedDocId}
         />
       )}
     </DashboardLayout>
