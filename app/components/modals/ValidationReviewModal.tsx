@@ -15,6 +15,7 @@ interface ValidationReviewModalProps {
   companyName: string;
   appointmentId?: string;
   readOnly?: boolean;
+  singleDocumentId?: string;
 }
 
 export default function ValidationReviewModal({
@@ -23,7 +24,8 @@ export default function ValidationReviewModal({
   validationId,
   companyName,
   appointmentId,
-  readOnly = false
+  readOnly = false,
+  singleDocumentId
 }: ValidationReviewModalProps) {
 
   const [documents, setDocuments] = useState<any[]>([]);
@@ -207,10 +209,18 @@ export default function ValidationReviewModal({
         }
       }
 
+      // If viewing a specific document from a folder, hide everything else
+      if (singleDocumentId) {
+          finalDocs = finalDocs.filter(d => 
+             d.id === singleDocumentId || 
+             (d.isActa && (singleDocumentId === 'ACTA' || singleDocumentId === 'ACTA_VISITA_ID'))
+          );
+      }
+
       setDocuments(finalDocs);
 
-      // Auto-select Acta if it's the first one
-      if (finalDocs.length > 0 && !activeDoc) {
+      // Auto-select the requested doc or the first one
+      if (finalDocs.length > 0) {
         handleSelectDoc(finalDocs[0]);
       }
 
@@ -475,10 +485,11 @@ export default function ValidationReviewModal({
           )}
 
         {/* Left Side: Document List + Evaluation Summary for Engineers */}
-        <div className="w-1/3 border-r border-gray-200 pr-4 flex flex-col gap-6 overflow-hidden">
+        {!singleDocumentId && (
+            <div className="w-1/3 border-r border-gray-200 pr-4 flex flex-col gap-6 overflow-hidden">
             
             {/* Evaluation Summary Card */}
-            {evaluation && (
+            {evaluation && !singleDocumentId && (
                 <div className="bg-gradient-to-br from-blue-700 to-blue-900 rounded-2xl p-5 text-white shadow-lg shrink-0">
                     <div className="flex justify-between items-start mb-4">
                         <h3 className="text-[10px] font-black uppercase tracking-widest text-blue-100">Evaluación de Visita</h3>
@@ -634,9 +645,10 @@ export default function ValidationReviewModal({
             )}
             </div>
         </div>
+        )}
 
         {/* Right Side: Preview Pane */}
-        <div className="w-2/3 flex flex-col gap-4">
+        <div className={`${singleDocumentId ? 'w-full' : 'w-2/3'} flex flex-col gap-4`}>
              <div className="flex-1 bg-gray-50 rounded-xl overflow-hidden flex flex-col relative border border-gray-200 min-h-0">
                 {previewLoading ? (
                      <div className="absolute inset-0 flex items-center justify-center bg-white/80 z-10">

@@ -143,6 +143,48 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'Helvetica-Bold',
     color: '#1E3A8A'
+  },
+  signatureContainer: {
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: '#9CA3AF',
+  },
+  signatureGrid: {
+    flexDirection: 'row',
+  },
+  signatureCol: {
+    flex: 1,
+    borderRightWidth: 1,
+    borderRightColor: '#9CA3AF',
+  },
+  signatureHeader: {
+    backgroundColor: '#F3F4F6',
+    padding: 3,
+    fontSize: 8,
+    fontFamily: 'Helvetica-Bold',
+    textAlign: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#9CA3AF',
+  },
+  signatureRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#9CA3AF',
+    fontSize: 8,
+  },
+  signatureLabel: {
+    width: '30%',
+    backgroundColor: '#F9FAFB',
+    padding: 4,
+    fontFamily: 'Helvetica-Bold',
+    borderRightWidth: 1,
+    borderRightColor: '#9CA3AF',
+    textTransform: 'uppercase',
+  },
+  signatureValue: {
+    width: '70%',
+    padding: 4,
+    textTransform: 'uppercase',
   }
 });
 
@@ -150,9 +192,11 @@ interface VisitEvaluationPDFProps {
   appointment: Appointment;
   formData: Record<string, any>;
   totalSuccessRate: number;
+  companyNameStr?: string;
+  engineerNameStr?: string;
 }
 
-const VisitEvaluationPDF: React.FC<VisitEvaluationPDFProps> = ({ appointment, formData, totalSuccessRate }) => {
+const VisitEvaluationPDF: React.FC<VisitEvaluationPDFProps> = ({ appointment, formData, totalSuccessRate, companyNameStr, engineerNameStr }) => {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -161,11 +205,11 @@ const VisitEvaluationPDF: React.FC<VisitEvaluationPDFProps> = ({ appointment, fo
           <Text style={styles.subtitle}>BPM CONSULTING</Text>
           
           <View style={styles.detailsRow}>
-            <Text>Empresa: <Text style={{ fontFamily: 'Helvetica-Bold' }}>{appointment.companyName}</Text></Text>
+            <Text>Empresa: <Text style={{ fontFamily: 'Helvetica-Bold' }}>{companyNameStr || appointment.companyName || 'Empresa'}</Text></Text>
             <Text>Fecha: <Text style={{ fontFamily: 'Helvetica-Bold' }}>{new Date(appointment.date).toLocaleDateString()}</Text></Text>
           </View>
           <View style={styles.detailsRow}>
-            <Text>Ingeniero: <Text style={{ fontFamily: 'Helvetica-Bold' }}>{appointment.engineerName}</Text></Text>
+            <Text>Ingeniero: <Text style={{ fontFamily: 'Helvetica-Bold' }}>{engineerNameStr || appointment.engineerName || 'Ingeniero'}</Text></Text>
             <Text>Hora: <Text style={{ fontFamily: 'Helvetica-Bold' }}>{appointment.startTime}</Text></Text>
           </View>
         </View>
@@ -244,6 +288,34 @@ const VisitEvaluationPDF: React.FC<VisitEvaluationPDFProps> = ({ appointment, fo
           <Text style={styles.summaryTitle}>Resumen de la Auditoría</Text>
           <Text style={styles.summaryText}>Porcentaje de Cumplimiento: <Text style={styles.summaryValue}>{totalSuccessRate.toFixed(1)}%</Text></Text>
           <Text style={styles.summaryText}>Concepto: <Text style={styles.summaryValue}>{totalSuccessRate >= 80 ? 'FAVORABLE' : totalSuccessRate >= 60 ? 'FAVORABLE CON REQUER. ' : 'DESFAVORABLE'}</Text></Text>
+        </View>
+
+        <View style={styles.signatureContainer} wrap={false}>
+          <View style={styles.signatureGrid}>
+            <View style={styles.signatureCol}>
+              <Text style={styles.signatureHeader}>INFORMACIÓN DE QUIEN REALIZA LA VISITA</Text>
+              <View style={styles.signatureRow}>
+                <Text style={styles.signatureLabel}>Nombre:</Text>
+                <Text style={styles.signatureValue}>{engineerNameStr ||'Ingeniero Asignado'}</Text>
+              </View>
+              <View style={[styles.signatureRow, { borderBottomWidth: 0 }]}>
+                <Text style={styles.signatureLabel}>Cargo:</Text>
+                <Text style={styles.signatureValue}>Ingeniero de Alimentos</Text>
+              </View>
+            </View>
+            
+            <View style={[styles.signatureCol, { borderRightWidth: 0 }]}>
+              <Text style={styles.signatureHeader}>INFORMACIÓN DE QUIEN RECIBE LA VISITA</Text>
+              <View style={styles.signatureRow}>
+                <Text style={styles.signatureLabel}>Nombre:</Text>
+                <Text style={styles.signatureValue}>{formData.contactName || companyNameStr || '__________________________'}</Text>
+              </View>
+              <View style={[styles.signatureRow, { borderBottomWidth: 0 }]}>
+                <Text style={styles.signatureLabel}>Cargo:</Text>
+                <Text style={styles.signatureValue}>{formData.contactRole || 'Persona Encargada'}</Text>
+              </View>
+            </View>
+          </View>
         </View>
 
         <Text style={styles.footer} fixed>
