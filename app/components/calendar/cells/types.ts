@@ -11,7 +11,7 @@
  * - Blue = Their own appointments (can view)
  */
 
-import { Appointment, AppointmentType, TimeSlot } from '@/app/types';
+import { Appointment, AppointmentType, AppointmentStatus, TimeSlot } from '@/app/types';
 
 /**
  * Props for Ingeniero appointment cell
@@ -47,7 +47,10 @@ export interface EmpresarioMyAppointmentCellProps {
 /**
  * Helper to get color for appointment type
  */
-export function getAppointmentColor(type: AppointmentType): string {
+export function getAppointmentColor(type: AppointmentType, status?: AppointmentStatus): string {
+    if (status === AppointmentStatus.CANCELADA) {
+        return 'bg-red-500 hover:bg-red-600 opacity-60 grayscale';
+    }
     switch (type) {
         case AppointmentType.ASESORIA:
             return 'bg-blue-500 hover:bg-blue-600';

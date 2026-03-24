@@ -256,6 +256,14 @@ export default function AdvisoryActModal({
     return `${day}/${month}/${year} ${formattedTime}`;
   };
 
+  const isEngineerOrAdmin = currentUser?.role === 'engineer' || currentUser?.role === 'admin';
+  const eng = (appointment as any)?.engineer || (appointment as any)?.ingeniero;
+  const resolvedEngineerName = appointment?.engineerName 
+      || (eng?.user?.first_name ? `${eng.user.first_name} ${eng.user.last_name || ''}` : null)
+      || (eng?.first_name ? `${eng.first_name} ${eng.last_name || ''}` : null)
+      || eng?.name 
+      || (isEngineerOrAdmin && currentUser ? `${currentUser.first_name} ${currentUser.last_name}` : 'Ingeniero Asignado');
+
   const containerRef = useRef<HTMLDivElement>(null);
   const [canvasDim, setCanvasDim] = useState({ width: 0, height: 200 });
 
@@ -808,7 +816,7 @@ export default function AdvisoryActModal({
                    <div className="flex flex-col pdf-info-item"><span className="text-[10px] font-black text-gray-400 uppercase pdf-label">Fecha y Hora</span><span className="text-gray-900 font-bold pdf-value">{formatDateTime(appointment.date, appointment.startTime)}</span></div>
                    <div className="flex flex-col pdf-info-item"><span className="text-[10px] font-black text-gray-400 uppercase pdf-label">Empresa</span><span className="text-gray-900 font-bold pdf-value">{appointment.companyName}</span></div>
                    <div className="flex flex-col pdf-info-item"><span className="text-[10px] font-black text-gray-400 uppercase pdf-label">Solicitante</span><span className="text-gray-900 font-bold pdf-value">{formData.representativeName || '---'}</span></div>
-                   <div className="flex flex-col pdf-info-item"><span className="text-[10px] font-black text-gray-400 uppercase pdf-label">Asesor Asignado</span><span className="text-gray-900 font-bold pdf-value">{currentUser ? `${currentUser.first_name} ${currentUser.last_name}` : '...'}</span></div>
+                    <div className="flex flex-col pdf-info-item"><span className="text-[10px] font-black text-gray-400 uppercase pdf-label">Asesor Asignado</span><span className="text-gray-900 font-bold pdf-value">{resolvedEngineerName}</span></div>
                    <div className="flex flex-col pdf-info-item"><span className="text-[10px] font-black text-gray-400 uppercase pdf-label">Tiempo Ejecutado</span><span className="text-gray-900 font-bold text-blue-800 pdf-value">{formatMinutesToHours(formData.executedTimeMinutes)}</span></div>
                 </div>
 

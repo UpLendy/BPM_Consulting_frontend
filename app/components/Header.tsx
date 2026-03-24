@@ -6,6 +6,7 @@ import { Appointment } from '@/app/types';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { formatUserFullName } from '@/app/utils/userUtils';
+import { formatShortDate } from '@/app/utils/dateUtils';
 
 interface HeaderProps {
   userName?: string;
@@ -110,8 +111,8 @@ export default function Header({
                                id: `apt-${apt.id}`,
                                title: 'Cita Programada',
                                message: role === 'company'
-                                  ? `Tienes una cita agendada para el ${startTime.toLocaleDateString()}`
-                                  : `Tienes una cita agendada con ${apt.companyName || 'Empresa'} el ${startTime.toLocaleDateString()}`,
+                                  ? `Tienes una cita agendada para el ${formatShortDate(apt.startTime || apt.date)}`
+                                  : `Tienes una cita agendada con ${apt.companyName || 'Empresa'} el ${formatShortDate(apt.startTime || apt.date)}`,
                                date: startTime,
                                type: 'info',
                                link: '/gestion-citas',
@@ -186,7 +187,7 @@ export default function Header({
                                           newNotifications.push({
                                               id: `val-${val.id}-completado`,
                                               title: 'Gestión Finalizada',
-                                              message: `Los documentos de su cita del ${startTime.toLocaleDateString()} ya se encuentran disponibles.`,
+                                              message: `Los documentos de su cita del ${formatShortDate(apt.startTime || apt.date)} ya se encuentran disponibles.`,
                                               date: new Date(val.updatedAt || apt.updatedAt || apt.date),
                                               type: 'success',
                                               link: '/visualizar-documentos',
@@ -204,7 +205,7 @@ export default function Header({
                            newNotifications.push({
                                id: `cancel-${apt.id}`,
                                title: 'Cita Cancelada',
-                               message: `La cita del ${startTime.toLocaleDateString()} ha sido cancelada por ${canceller}.`,
+                               message: `La cita del ${formatShortDate(apt.startTime || apt.date)} ha sido cancelada por ${canceller}. Motivo: ${apt.rejectReason || 'No especificado'}`,
                                date: new Date(apt.updatedAt || apt.date),
                                type: 'error',
                                link: '/gestion-citas',

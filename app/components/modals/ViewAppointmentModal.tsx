@@ -60,6 +60,13 @@ export default function ViewAppointmentModal({
     return formatLongDate(date);
   };
 
+  const eng = (appointment as any)?.engineer || (appointment as any)?.ingeniero;
+  const resolvedEngineerName = appointment?.engineerName 
+      || (eng?.user?.first_name ? `${eng.user.first_name} ${eng.user.last_name || ''}`.trim() : null)
+      || (eng?.first_name ? `${eng.first_name} ${eng.last_name || ''}`.trim() : null)
+      || eng?.name 
+      || 'No asignado';
+
   const refreshAppointment = async () => {
     if (!appointment) return;
     try {
@@ -142,6 +149,10 @@ export default function ViewAppointmentModal({
       setLoading(false);
     }
   };
+
+  const isEngineer = userRole === 'ingeniero' || userRole === 'engineer';
+  const isCompany = userRole === 'company' || userRole === 'empresa' || userRole === 'representative';
+  const cancellationPrefix = isEngineer ? 'Ingeniero: ' : isCompany ? 'Empresa: ' : '';
 
   const showStartButton =
     (userRole === 'ingeniero' || userRole === 'engineer') &&
@@ -231,7 +242,7 @@ export default function ViewAppointmentModal({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Ingeniero Asignado
             </label>
-            <p className="text-base text-gray-900">{appointment.engineerName || '-'}</p>
+            <p className="text-base text-gray-900">{resolvedEngineerName}</p>
           </div>
 
           {/* Fecha */}
@@ -420,6 +431,8 @@ export default function ViewAppointmentModal({
         reasonLabel="Motivo de la cancelación"
         reasonPlaceholder="Ej: Cambio de agenda, reprogramación solicitada por el cliente..."
         reasonRequired={true}
+        prefix={cancellationPrefix}
+        prefixEditable={false}
       />
     </>
   );

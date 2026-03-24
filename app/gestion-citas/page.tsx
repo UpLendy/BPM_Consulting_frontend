@@ -207,6 +207,10 @@ export default function GestionCitasPage() {
     setIsConfirmModalOpen(true);
   };
 
+  const isEngineer = (currentUser?.role as string) === 'engineer' || (currentUser?.role as string) === 'ingeniero';
+  const isCompany = (currentUser?.role as string) === 'company' || (currentUser?.role as string) === 'empresa' || (currentUser?.role as string) === 'representative' || (currentUser?.role as string) === 'empresario';
+  const cancellationPrefix = isEngineer ? 'Ingeniero: ' : isCompany ? 'Empresa: ' : '';
+
   const confirmCancelAppointment = async (reason?: string) => {
     if (!appointmentToDelete) return;
 
@@ -433,6 +437,8 @@ export default function GestionCitasPage() {
         showReasonField={true}
         reasonLabel="Motivo de la cancelación"
         reasonRequired={true}
+        prefix={cancellationPrefix}
+        prefixEditable={false}
       />
     </DashboardLayout>
   );

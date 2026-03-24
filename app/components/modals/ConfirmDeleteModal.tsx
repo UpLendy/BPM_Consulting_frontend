@@ -15,6 +15,8 @@ interface ConfirmDeleteModalProps {
   reasonLabel?: string;
   reasonPlaceholder?: string;
   reasonRequired?: boolean;
+  prefix?: string;
+  prefixEditable?: boolean;
 }
 
 export default function ConfirmDeleteModal({
@@ -28,17 +30,24 @@ export default function ConfirmDeleteModal({
   showReasonField = false,
   reasonLabel = 'Motivo de cancelación',
   reasonPlaceholder = 'Escribe el motivo de la cancelación...',
-  reasonRequired = true
+  reasonRequired = true,
+  prefix,
+  prefixEditable = false
 }: ConfirmDeleteModalProps) {
-  const [reason, setReason] = useState('');
+  const [reason, setReason] = useState(prefixEditable && prefix ? prefix : '');
   const [reasonError, setReasonError] = useState('');
 
   const handleConfirm = () => {
-    if (showReasonField && reasonRequired && !reason.trim()) {
+    let finalReason = reason.trim();
+    if (prefix && !prefixEditable) {
+        finalReason = `${prefix}${finalReason}`;
+    }
+
+    if (showReasonField && reasonRequired && !finalReason.replace(`${prefix}`, '').trim()) {
       setReasonError('Debes indicar un motivo');
       return;
     }
-    onConfirm(showReasonField ? reason.trim() : undefined);
+    onConfirm(showReasonField ? finalReason : undefined);
     setReason('');
     setReasonError('');
     onClose();
@@ -88,16 +97,24 @@ export default function ConfirmDeleteModal({
             <label className="block text-sm font-semibold text-gray-800 mb-1.5">
               {reasonLabel} {reasonRequired && <span className="text-red-500">*</span>}
             </label>
-            <textarea
-              value={reason}
-              onChange={(e) => {
-                setReason(e.target.value);
-                if (reasonError) setReasonError('');
-              }}
-              placeholder={reasonPlaceholder}
-              rows={3}
-              className={`w-full border ${reasonError ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-blue-100'} rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-4 focus:border-blue-500 outline-none transition-all resize-none`}
-            />
+            <div className="relative">
+              {!prefixEditable && prefix && (
+                <div className="absolute left-3 top-2.5 pointer-events-none">
+                  <span className="text-gray-950 font-black italic uppercase text-xs tracking-tighter bg-gray-100 px-1 py-0.5 rounded border border-gray-200">{prefix}</span>
+                </div>
+              )}
+              <textarea
+                value={reason}
+                onChange={(e) => {
+                  setReason(e.target.value);
+                  if (reasonError) setReasonError('');
+                }}
+                placeholder={reasonPlaceholder}
+                rows={4}
+                style={{ paddingLeft: !prefixEditable && prefix ? `${prefix.length * 8 + 24}px` : undefined }}
+                className={`w-full border ${reasonError ? 'border-red-400 focus:ring-red-200' : 'border-gray-300 focus:ring-blue-100'} rounded-lg px-3 py-2 text-sm text-gray-900 focus:ring-4 focus:border-blue-500 outline-none transition-all resize-none shadow-sm`}
+              />
+            </div>
             {reasonError && (
               <p className="text-xs text-red-500 font-medium mt-1">{reasonError}</p>
             )}
