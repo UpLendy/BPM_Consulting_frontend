@@ -15,8 +15,10 @@ export default function IngenieroAppointmentCell({
   className = '',
   isOwn = false
 }: IngenieroAppointmentCellProps) {
-  // If isOwn is true, use a distinct color (e.g., Emerald/Green), otherwise use type color
-  const colorClass = isOwn ? 'bg-emerald-600 hover:bg-emerald-700 ring-2 ring-emerald-400' : getAppointmentColor(appointment.appointmentType);
+  // Map the color based on status and then type. Color-coded red for Canceled.
+  const colorClass = appointment.status === 'CANCELADA' 
+      ? 'bg-red-500 hover:bg-red-600 opacity-70 grayscale border-red-300' 
+      : (isOwn ? 'bg-emerald-600 hover:bg-emerald-700 ring-2 ring-emerald-400' : getAppointmentColor(appointment.appointmentType, appointment.status));
   
   return (
     <button

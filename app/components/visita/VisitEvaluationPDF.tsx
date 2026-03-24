@@ -2,6 +2,8 @@ import React from 'react';
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
 import { DIAGNOSTIC_CONFIG, DEFAULT_DIAGNOSTIC_TYPE, DiagnosticType } from '@/app/constants/visitSections';
 import { Appointment } from '@/app/types';
+import { formatShortDate } from '@/app/utils/dateUtils';
+import { getDisplayTime } from '@/app/components/calendar/utils';
 
 const styles = StyleSheet.create({
   page: {
@@ -203,11 +205,11 @@ const VisitEvaluationPDF: React.FC<VisitEvaluationPDFProps> = ({ appointment, fo
           
           <View style={styles.detailsRow}>
             <Text>Empresa: <Text style={{ fontFamily: 'Helvetica-Bold' }}>{appointment.companyName || 'Empresa'}</Text></Text>
-            <Text>Fecha: <Text style={{ fontFamily: 'Helvetica-Bold' }}>{new Date(appointment.date).toLocaleDateString()}</Text></Text>
+            <Text>Fecha: <Text style={{ fontFamily: 'Helvetica-Bold' }}>{formatShortDate(appointment.date)}</Text></Text>
           </View>
           <View style={styles.detailsRow}>
             <Text>Ingeniero: <Text style={{ fontFamily: 'Helvetica-Bold' }}>{engineerNameStr || appointment.engineerName || 'Ingeniero'}</Text></Text>
-            <Text>Hora: <Text style={{ fontFamily: 'Helvetica-Bold' }}>{appointment.startTime}</Text></Text>
+            <Text>Hora: <Text style={{ fontFamily: 'Helvetica-Bold' }}>{getDisplayTime(appointment.startTime)}</Text></Text>
           </View>
         </View>
 
@@ -304,7 +306,7 @@ const VisitEvaluationPDF: React.FC<VisitEvaluationPDFProps> = ({ appointment, fo
         </View>
 
         <Text style={styles.footer} fixed>
-          Generado el {new Date().toLocaleDateString()} a través de BPM Consulting - Página {""}
+          Generado el {formatShortDate(new Date())} a través de BPM Consulting - Página {""}
           <Text render={({ pageNumber, totalPages }) => `${pageNumber} de ${totalPages}`} />
         </Text>
       </Page>

@@ -6,6 +6,7 @@ import Calendar from '@/app/components/calendar/Calendar';
 import { getDisplayTime } from '@/app/components/calendar/utils';
 import { appointmentService } from '@/app/services/appointments';
 import { representativeService } from '@/app/services/representatives/representativeService';
+import { formatShortDate } from '@/app/utils/dateUtils';
 import {
   EmpresarioAvailableCell,
   EmpresarioOccupiedCell,
@@ -313,7 +314,7 @@ export default function EmpresarioCalendarView({
                   <div>
                     <h3 className="text-lg font-black">Acta rechazada por falta de firma</h3>
                     <p className="text-sm text-red-100 mt-1">
-                      Cita con <span className="font-bold text-white">{apt.engineerName}</span> el {localDate.toLocaleDateString()} — Por favor firma nuevamente el acta para proceder.
+                      Cita con <span className="font-bold text-white">{apt.engineerName}</span> el {formatShortDate(apt.date)} — Por favor firma nuevamente el acta para proceder.
                     </p>
                   </div>
                   <button 

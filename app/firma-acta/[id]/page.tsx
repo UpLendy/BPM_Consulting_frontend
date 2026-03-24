@@ -8,6 +8,8 @@ import { HiCheckCircle, HiTrash, HiDocumentText, HiPencil, HiRefresh } from 'rea
 import { appointmentService } from '@/app/services/appointments/appointmentService';
 import { representativeService } from '@/app/services/representatives/representativeService';
 import { Appointment } from '@/app/types';
+import { formatShortDate } from '@/app/utils/dateUtils';
+import { getDisplayTime } from '@/app/components/calendar/utils';
 
 export default function FirmaActaPage() {
   const params = useParams();
@@ -190,6 +192,13 @@ export default function FirmaActaPage() {
        </DashboardLayout>
     );
   }
+  
+  const eng = (appointment as any)?.engineer || (appointment as any)?.ingeniero;
+  const resolvedEngineerName = appointment?.engineerName 
+      || (eng?.user?.first_name ? `${eng.user.first_name} ${eng.user.last_name || ''}`.trim() : null)
+      || (eng?.first_name ? `${eng.first_name} ${eng.last_name || ''}`.trim() : null)
+      || eng?.name 
+      || 'Ingeniero Asignado';
 
   return (
     <DashboardLayout>
@@ -223,11 +232,11 @@ export default function FirmaActaPage() {
                 <div className="bg-gray-50 border border-gray-100 rounded-2xl p-5 flex flex-col md:flex-row gap-6 justify-between">
                     <div>
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Fecha de la Cita</p>
-                        <p className="text-sm font-bold text-gray-800">{new Date(appointment.date).toLocaleDateString()} a las {appointment.startTime.includes('T') ? appointment.startTime.substring(11,16) : appointment.startTime}</p>
+                        <p className="text-sm font-bold text-gray-800">{formatShortDate(appointment.date)} a las {getDisplayTime(appointment.startTime)}</p>
                     </div>
                     <div>
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Ingeniero / Asesor</p>
-                        <p className="text-sm font-bold text-gray-800">{appointment.engineerName}</p>
+                        <p className="text-sm font-bold text-gray-800">{resolvedEngineerName}</p>
                     </div>
                     <div>
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Tipo de Servicio</p>
