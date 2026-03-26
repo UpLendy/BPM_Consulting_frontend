@@ -5,11 +5,8 @@ import BaseModal from '@/app/components/modals/BaseModal';
 import { Appointment } from '@/app/types';
 import SignatureCanvas from 'react-signature-canvas';
 import { HiCamera, HiCheckCircle, HiPencil, HiTrash, HiDocumentText, HiExclamation } from 'react-icons/hi';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import { appointmentService } from '@/app/services/appointments/appointmentService';
 import { representativeService } from '@/app/services/representatives/representativeService';
-import { PDF_STYLES } from '../../constants/pdfStyles';
 
 interface AdvisoryActModalProps {
   isOpen: boolean;
@@ -362,8 +359,6 @@ export default function AdvisoryActModal({
   };
 
   const handleSaveFinal = async () => {
-    if (!previewRef.current) return;
-
     // Signature existence check (Final Gate)
     const hasValidSignature = !!(formData.signature && formData.signatureTimestamp);
 
@@ -378,83 +373,38 @@ export default function AdvisoryActModal({
     try {
       setIsSaving(true);
       
-      // 1. Generate High-Quality Canvas
-      await new Promise(resolve => setTimeout(resolve, 600));
+      // 1. Generate PDF using the new native engine
+      const { pdf } = await import('@react-pdf/renderer');
+      const AdvisoryActPDF = (await import('./AdvisoryActPDF')).default;
       
-      const canvas = await html2canvas(previewRef.current, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-        onclone: (clonedDoc) => {
-          // Robust cleanup to avoid LAB/OKLCH errors
-          const styles = clonedDoc.querySelectorAll('style, link[rel="stylesheet"]');
-          styles.forEach(s => s.remove());
+      const blob = await pdf(
+        <AdvisoryActPDF 
+          appointment={appointment} 
+          formData={formData} 
+          engineerName={resolvedEngineerName} 
+        />
+      ).toBlob();
 
-          const safeStyle = clonedDoc.createElement('style');
-          safeStyle.innerHTML = PDF_STYLES;
-          clonedDoc.head.appendChild(safeStyle);
-          
-          const junk = clonedDoc.querySelectorAll('button, [data-html2canvas-ignore="true"]');
-          junk.forEach(j => j.remove());
-        }
-      });
-
-      // 2. Multipage Logic
-      const imgData = canvas.toDataURL('image/png', 1.0);
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgPdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      
-      let heightLeft = imgPdfHeight;
-      let position = 0;
-
-      // Add first page
-      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgPdfHeight, undefined, 'FAST');
-      heightLeft -= pdfHeight;
-
-      // Add more pages if needed
-      while (heightLeft > 0) {
-        position = heightLeft - imgPdfHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgPdfHeight, undefined, 'FAST');
-        heightLeft -= pdfHeight;
-      }
-
-      // 3. Finalize
+      // 2. Finalize
       const companyName = (appointment.companyName || 'Empresa')
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "") // Eliminar acentos
         .replace(/\s+/g, '_')
         .replace(/[^a-zA-Z0-9._-]/g, '_'); // Solo caracteres seguros
       
-      // Inject Signature into PDF Metadata AND LocalStorage
+      // Metadata backup in localStorage
       if (formData.signature) {
-        // 1. Local Backup (The lifesaver for CORS issues)
         try {
             localStorage.setItem(`sig_backup_${appointment.id}`, JSON.stringify({
                 signature: formData.signature,
                 timestamp: new Date().toISOString()
             }));
         } catch (e) { console.warn("Local storage full", e); }
-
-        // 2. PDF Metadata (Standard cross-device method)
-        pdf.setProperties({
-            title: `Acta ${companyName}`,
-            subject: formData.signature, 
-            author: formData.representativeName || 'Ingeniero BPM',
-            keywords: 'Acta, Firma Digital, BPM', 
-            creator: 'BPM Consulting App'
-        });
       }
       
       const dateStr = new Date(appointment.date).toISOString().split('T')[0];
       const fileName = `acta_asesoria_${companyName}_${dateStr}`;
-      const pdfBlob = pdf.output('blob');
-      const pdfFile = new File([pdfBlob], `${fileName}.pdf`, { type: 'application/pdf' });
+      const pdfFile = new File([blob], `${fileName}.pdf`, { type: 'application/pdf' });
       
       const uploadRes = await appointmentService.uploadAppointmentRecord(appointment.id, pdfFile, fileName);
       if (!uploadRes.success) {
