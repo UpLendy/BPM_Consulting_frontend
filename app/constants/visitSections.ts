@@ -232,7 +232,7 @@ export const SECTIONS_SECRETARIA: Section[] = [
         "title": "1.1 Localización y diseño",
         "items": [
           { "id": "1.1-1-i", "numeral": "1.1", "text": "Estarán ubicados en lugares aislados de cualquier foco de insalubridad que represente riesgos potenciales para la contaminación del alimento." },
-          { "id": "1.1-2-i", "numeral": "1.2", "text": "Su funcionamiento no debe poner en riesgo la salud y el bienestar de la comunidad. represente riesgos potenciales para la contaminación del alimento." },
+          { "id": "1.1-2-i", "numeral": "1.2", "text": "Su funcionamiento no debe poner en riesgo la salud y el bienestar de la comunidad." },
           { "id": "1.1-3-i", "numeral": "1.3", "text": "Sus accesos y alrededores se mantendrán limpios, libres de acumulación de basuras y deberán tener superficies pavimentadas o recubiertas con materiales que faciliten el mantenimiento sanitario e impidan la generación de polvo, el estancamiento de aguas o la presencia de otras fuentes de contaminación para el alimento." },
           { "id": "1.1-4-i", "numeral": "2.1", "text": "La edificación debe estar diseñada y construida de manera que proteja los ambientes de producción e impida la entrada de polvo, lluvia, suciedades u otros contaminantes, así como del ingreso y refugio de plagas y animales domésticos." },
           { "id": "1.1-5-i", "numeral": "2.3", "text": "Los diversos ambientes de la edificación deben tener el tamaño adecuado para la instalación, operación y mantenimiento de los equipos, así como para la circulación del personal y el traslado de materiales o productos. Estos ambientes deben estar ubicados según la secuencia lógica del proceso, desde la recepción de los insumas hasta el despacho del producto terminado, de tal manera que se eviten retrasos indebidos y la contaminación cruzada. De ser requerido, tales ambientes deben dotarse de las condiciones de temperatura, humedad u otras necesarias para la ejecución higiénica de las operaciones de producción y/o para la conservación del alimento." },
@@ -273,7 +273,6 @@ export const SECTIONS_SECRETARIA: Section[] = [
           { "id": "1.3-10-i", "numeral": "7.3", "text": "Las lámparas, accesorios y otros medios de iluminación del establecimiento deben ser del tipo de seguridad y estar protegidos para evitar la contaminación en caso de ruptura y, en general, contar con una iluminación uniforme que no altere los colores naturales" },
           { "id": "1.3-11-i", "numeral": "8.1", "text": " Las áreas de elaboración poseerán sistemas de ventilación directa o indirecta, los cuales no deben crear condiciones que contribuyan a la contaminación de estas o a la incomodidad del personal. La ventilación debe ser adecuada para prevenir la condensación del vapor, polvo y facilitar la remoción del calor. Las aberturas para circulación del aire estarán protegidas con mallas anti-insectos de material no corrosivo y serán fácilmente removibles para su limpieza y reparación." },
           { "id": "1.3-12-i", "numeral": "8.2", "text": "Los sistemas de ventilación deben filtrar el aire y proyectarse y construirse de manera que el aire no fluya nunca de zonas contaminadas a zonas limpias, y de forma que se les realice limpieza y mantenimiento periódico." },
-          { "id": "1.3-13-i", "numeral": "4", "text": "Los techos deben estar diseñados de manera que se evite la acumulación de suciedad, la condensación, la formación de hongos, el desprendimiento superficial y además se facilite la limpieza y al mantenimiento. En lo posible, no se debe permitir el uso de techos falsos o dobles techos." }
         ]
       },
       {
@@ -450,7 +449,6 @@ export const SECTIONS_SECRETARIA: Section[] = [
         "items": [
           { "id": "5.2-1-i", "numeral": "4.1", "text": "Dispondrán de sistemas sanitarios adecuados para la recolección, el tratamiento y la disposición de aguas residuales, aprobadas por la autoridad competente." },
           { "id": "5.2-2-i", "numeral": "4.2", "text": "El manejo de residuos líquidos dentro del establecimiento debe realizarse de manera que impida la contaminación del alimento o de las superficies de potencial contacto con éste." },
-          { "id": "5.2-3-i", "numeral": "5", "text": " El manejo de residuos líquidos debe realizarse de manera que impida la contaminación del alimento o de las superficies de potencial contacto con éste." },
           { "id": "5.2-4-i", "numeral": "10", "text": "Deben tener sistemas sanitarios adecuados, para la disposición de aguas servidas y excretas." }
         ]
       },

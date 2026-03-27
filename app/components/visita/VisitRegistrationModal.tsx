@@ -228,7 +228,7 @@ export default function VisitRegistrationModal({
     <BaseModal
       isOpen={isOpen}
       onClose={onClose}
-      title="ACTA DE ASESORIA PARA ACOMPAÑAMIENTO"
+      title={DIAGNOSTIC_CONFIG[diagnosticType].title.toUpperCase()}
       size="xl" 
     >
       <div className="max-h-[85vh] overflow-y-auto pr-2 pb-8">
@@ -276,12 +276,6 @@ export default function VisitRegistrationModal({
                 <div>
                    <span className="block text-gray-700 text-xs font-black uppercase">Municipio</span>
                    <span className="font-black text-black">{appointment.location || (appointment as any).company?.city || 'Manizales'}</span>
-                </div>
-                <div>
-                   <span className="block text-gray-700 text-xs font-black uppercase">Tipo de Acta</span>
-                   <span className="font-black text-blue-800">
-                     {DIAGNOSTIC_CONFIG[diagnosticType].title}
-                   </span>
                 </div>
                 <div>
                    <span className="block text-gray-800 text-xs font-black uppercase">
