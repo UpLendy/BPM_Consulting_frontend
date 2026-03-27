@@ -61,8 +61,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   // Table columns widths
-  colNum: { width: '8%' },
-  colReq: { width: '47%' },
+  colNum: { width: '12%' },
+  colReq: { width: '43%' },
   colC: { width: '5%' },
   colCP: { width: '5%' },
   colNC: { width: '5%' },
@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 0,
     borderColor: '#9CA3AF',
     backgroundColor: '#F3F4F6',
-    padding: 4,
+    padding: 6,
     justifyContent: 'center',
     alignItems: 'center'
   },
@@ -86,7 +86,7 @@ const styles = StyleSheet.create({
     borderLeftWidth: 0,
     borderTopWidth: 0,
     borderColor: '#9CA3AF',
-    padding: 4,
+    padding: 6,
     justifyContent: 'center'
   },
   tableColCenter: {
@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
     borderLeftWidth: 0,
     borderTopWidth: 0,
     borderColor: '#9CA3AF',
-    padding: 4,
+    padding: 6,
     justifyContent: 'center',
     alignItems: 'center'
   },
@@ -147,10 +147,11 @@ const styles = StyleSheet.create({
     color: '#1E3A8A'
   },
   signatureContainer: {
-    marginTop: 40,
+    marginTop: 30,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 20
+    paddingHorizontal: 20,
+    marginBottom: 40 // Ensure space at the bottom for footer
   },
   signatureBox: {
     width: '45%',
@@ -161,7 +162,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#000',
     marginBottom: 5,
-    marginTop: 50
+    marginTop: 40
   },
   signatureName: {
     fontSize: 9,
@@ -204,7 +205,7 @@ const VisitEvaluationPDF: React.FC<VisitEvaluationPDFProps> = ({ appointment, fo
           <Text style={styles.subtitle}>BPM CONSULTING</Text>
           
           <View style={styles.detailsRow}>
-            <Text>Empresa: <Text style={{ fontFamily: 'Helvetica-Bold' }}>{appointment.companyName || 'Empresa'}</Text></Text>
+            <Text>Empresa: <Text style={{ fontFamily: 'Helvetica-Bold' }}>{appointment.companyName || (appointment as any).company?.name || (appointment as any).company_name || 'N/A'}</Text></Text>
             <Text>Fecha: <Text style={{ fontFamily: 'Helvetica-Bold' }}>{formatShortDate(appointment.date)}</Text></Text>
           </View>
           <View style={styles.detailsRow}>
@@ -214,7 +215,7 @@ const VisitEvaluationPDF: React.FC<VisitEvaluationPDFProps> = ({ appointment, fo
         </View>
 
         {sections.map((section) => (
-          <View key={section.id} style={styles.sectionContainer} wrap={false}>
+          <View key={section.id} style={styles.sectionContainer}>
             <Text style={styles.sectionTitle}>{section.title}</Text>
             
             <View style={styles.table}>
@@ -300,7 +301,7 @@ const VisitEvaluationPDF: React.FC<VisitEvaluationPDFProps> = ({ appointment, fo
           <View style={styles.signatureBox}>
             <Text style={styles.signatureLabel}>Persona que recibe</Text>
             <View style={styles.signatureLine} />
-            <Text style={styles.signatureName}>{recipientNameStr || appointment.companyName || '__________________________'}</Text>
+            <Text style={styles.signatureName}>{recipientNameStr || appointment.companyName || (appointment as any).company?.name || '__________________________'}</Text>
             <Text style={styles.signatureRole}>{formData.contactRole || 'Persona Encargada'}</Text>
           </View>
         </View>
