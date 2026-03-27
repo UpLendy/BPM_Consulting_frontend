@@ -153,6 +153,25 @@ export const userService = {
         return data;
     },
 
+    async updateUserPassword(userId: string, data: { new_password: string }): Promise<{ message: string, password: string }> {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/users/${userId}/password`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) authService.handleUnauthorized();
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.message || 'Error al actualizar la contraseña');
+        }
+        return response.json();
+    },
+
     clearCache() {
         clearCacheKey(USERS_CACHE_KEY);
         clearCacheKey(ROLES_CACHE_KEY);

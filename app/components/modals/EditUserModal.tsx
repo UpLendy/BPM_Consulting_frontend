@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import BaseModal from './BaseModal';
+import ChangePasswordModal from './ChangePasswordModal';
 import { UpdateUserDTO, UserBackend } from '@/app/types';
 import { userService } from '@/app/services/users/userService';
 
@@ -28,6 +29,7 @@ export default function EditUserModal({
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   // Fetch and populate form with user data
   useEffect(() => {
@@ -35,9 +37,9 @@ export default function EditUserModal({
       if (!isOpen || !userId) return;
       
       try {
-        // Fetch all users and find the one we need
-        const users = await userService.getAllUsers();
-        const user = users.find((u: any) => u.id === userId);
+        // Fetch the user data directly by ID
+        const response = await userService.getUserById(userId);
+        const user = response?.data || response;
         
         if (user) {
           setFormState({
@@ -230,15 +232,29 @@ export default function EditUserModal({
         </div>
 
         {/* Actions */}
-        <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+        <div className="flex justify-between items-center pt-4 border-t border-gray-200">
           <button
             type="button"
-            onClick={handleClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            onClick={() => setShowPasswordModal(true)}
+            className="px-4 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-50 rounded-lg transition-all flex items-center gap-2"
             disabled={isSubmitting}
           >
-            Cancelar
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+            </svg>
+            Cambiar Contraseña
           </button>
+          
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={handleClose}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              disabled={isSubmitting}
+            >
+              Cancelar
+            </button>
+          </div>
           <button
             type="submit"
             className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -248,6 +264,13 @@ export default function EditUserModal({
           </button>
         </div>
       </form>
+
+      <ChangePasswordModal
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        userId={userId}
+        userName={`${formState.first_name} ${formState.last_name}`}
+      />
     </BaseModal>
   );
 }
