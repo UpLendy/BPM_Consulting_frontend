@@ -39,58 +39,27 @@ export default function ForgotPasswordPage() {
           <h2 className="text-lg font-bold text-blue-900 mt-4">RECUPERAR CONTRASEÑA</h2>
         </div>
 
-        {(!message || message.type === 'error') ? (
-             <form onSubmit={handleSubmit} className="space-y-6">
-              <p className="text-sm text-blue-900 text-center">
-                Ingresa tu correo electrónico registrado.
+          <div className="text-center space-y-4">
+            <div className="bg-white/80 p-4 rounded-lg border border-yellow-500 shadow-sm">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 mb-3">
+                <svg className="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <p className="text-blue-900 text-sm font-bold">
+                Opción Deshabilitada Temporalmente
               </p>
-
-              <div className="relative">
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Email"
-                  className="w-full px-4 py-3 pl-10 rounded bg-white text-gray-900 placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-                <span className="absolute left-3 top-3 text-gray-500">📧</span>
-              </div>
-
-              {message && (
-                <p className="text-red-700 text-sm text-center font-bold bg-white/50 p-2 rounded">{message.text}</p>
-              )}
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full bg-blue-900 text-white py-3 rounded font-semibold hover:bg-blue-800 disabled:bg-blue-700 disabled:cursor-not-allowed transition-colors"
-              >
-                {isLoading ? 'Enviando...' : 'Recuperar contraseña'}
-              </button>
-
-              <div className="text-center mt-4">
-                <Link href="/login" className="text-sm text-blue-900 hover:text-blue-700 underline font-medium">
-                  ← Volver al Login
-                </Link>
-              </div>
-            </form>
-        ) : (
-            <div className="text-center space-y-6 animate-fade-in">
-                <div className="bg-white/90 p-4 rounded-lg border border-blue-100 shadow-sm">
-                    <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-3">
-                        <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                    </div>
-                    <p className="text-blue-900 text-sm font-medium">{message.text}</p>
-                </div>
-                 <Link 
-                    href="/login" 
-                    className="block w-full bg-blue-900 text-white py-3 rounded font-semibold hover:bg-blue-800 transition-colors"
-                 >
-                  Volver al Login
-                </Link>
+              <p className="text-blue-800 text-xs mt-2">
+                Por favor, contacta al administrador para gestionar el acceso a tu cuenta.
+              </p>
             </div>
-        )}
+            <Link 
+              href="/login" 
+              className="block w-full bg-blue-900 text-white py-3 rounded font-semibold hover:bg-blue-800 transition-colors"
+            >
+              Volver al Login
+            </Link>
+          </div>
       </div>
     </div>
   );
