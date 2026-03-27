@@ -156,6 +156,24 @@ const AdvisoryActPDF: React.FC<AdvisoryActPDFProps> = ({ appointment, formData, 
     return `${h}h ${m}m`;
   };
 
+  const formatHoraInicio = (timeStr: string) => {
+    if (!timeStr) return 'N/A';
+    if (timeStr.includes('T')) {
+      try {
+        const date = new Date(timeStr);
+        return date.toLocaleTimeString('es-CO', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+            timeZone: 'America/Bogota'
+        });
+      } catch (e) {
+        return timeStr.substring(11, 16);
+      }
+    }
+    return timeStr;
+  };
+
   return (
     <Document title={`Acta de Asesoría - ${appointment.companyName}`}>
       <Page size="A4" style={styles.page}>
@@ -186,7 +204,7 @@ const AdvisoryActPDF: React.FC<AdvisoryActPDFProps> = ({ appointment, formData, 
             </View>
             <View style={styles.infoItem}>
               <Text style={styles.label}>Hora de Inicio</Text>
-              <Text style={styles.value}>{appointment.startTime || 'N/A'}</Text>
+              <Text style={styles.value}>{formatHoraInicio(appointment.startTime)}</Text>
             </View>
           </View>
         </View>
@@ -236,18 +254,26 @@ const AdvisoryActPDF: React.FC<AdvisoryActPDFProps> = ({ appointment, formData, 
           </View>
         )}
 
-        <View style={styles.signatureArea} wrap={false}>
+        <View style={styles.signatureArea} wrap={true}>
           {formData.signature ? (
-            <>
-              <Image src={formData.signature} style={styles.signatureImg} />
+            <View style={{ alignItems: 'center' }}>
+              <Image 
+                src={formData.signature} 
+                style={{
+                  width: 200,
+                  height: 80,
+                  objectFit: 'contain',
+                  marginBottom: 5
+                }} 
+              />
               <View style={styles.signatureLine} />
               <Text style={styles.signatureText}>Firma de Conformidad</Text>
-            </>
+            </View>
           ) : (
-            <>
+            <View style={{ alignItems: 'center' }}>
               <View style={[styles.signatureLine, { marginTop: 40 }]} />
               <Text style={styles.signatureText}>Pendiente de Firma</Text>
-            </>
+            </View>
           )}
         </View>
 
