@@ -22,7 +22,7 @@ export default function CalendarDay({
   if (!isCurrentMonth) {
     dayClasses += 'bg-gray-50 text-gray-400 ';
   } else if (isPast) {
-    dayClasses += 'bg-white text-gray-500 ';
+    dayClasses += 'bg-white text-gray-500 hover:bg-gray-50 cursor-pointer ';
   } else {
     dayClasses += 'bg-white text-gray-900 hover:bg-gray-50 cursor-pointer ';
   }
@@ -32,7 +32,7 @@ export default function CalendarDay({
   }
   
   const handleClick = () => {
-    if (!isPast && isCurrentMonth && onClick) {
+    if (isCurrentMonth && onClick) {
       onClick();
     }
   };

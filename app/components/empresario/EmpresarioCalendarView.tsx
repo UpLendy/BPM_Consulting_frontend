@@ -47,6 +47,14 @@ export default function EmpresarioCalendarView({
   
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   /* State for Owned Appointments (API Check) */
   const [ownedAppointmentIds, setOwnedAppointmentIds] = useState<Set<string>>(new Set());
@@ -179,7 +187,7 @@ export default function EmpresarioCalendarView({
           const appointment = myAppointments.find((apt) => String(apt.id) === String(slot.appointmentId));
           if (appointment) {
             return (
-              <div key={idx} className="pointer-events-auto">
+              <div key={idx} className={isMobile ? 'pointer-events-none' : 'pointer-events-auto'}>
                   <EmpresarioMyAppointmentCell
                     appointment={appointment}
                     slot={slot}
@@ -406,6 +414,12 @@ export default function EmpresarioCalendarView({
             // Add onDayClick handler
             onDayClick={handleDayClick}
             slots={mySlots}
+            onSlotClick={(slot) => {
+                if (isMobile) {
+                    handleDayClick(slot.date);
+                    return;
+                }
+            }}
             onMonthChange={onMonthChange}
             renderDayContent={renderDayContent}
           />
