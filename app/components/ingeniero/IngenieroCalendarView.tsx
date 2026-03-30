@@ -28,6 +28,14 @@ export default function IngenieroCalendarView({
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [prefilledTime, setPrefilledTime] = useState<string | undefined>(undefined);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // New handler for clicking on a day cell
   const handleDayClick = (date: Date) => {
@@ -86,7 +94,7 @@ export default function IngenieroCalendarView({
     const remaining = daySlots.length - displaySlots.length;
 
     return (
-      <div className="mt-1 space-y-1">
+      <div className={`mt-1 space-y-1 ${isMobile ? 'pointer-events-none' : ''}`}>
         {displaySlots.map((slot, idx) => {
           const appointment = myAppointments.find((apt) => String(apt.id) === String(slot.appointmentId));
           if (!appointment) return null;
@@ -144,6 +152,10 @@ export default function IngenieroCalendarView({
             slots={slots}
             onMonthChange={onMonthChange}
             onSlotClick={(slot) => {
+                if (isMobile) {
+                    handleDayClick(slot.date);
+                    return;
+                }
                 if (slot.appointmentId) {
                     const apt = myAppointments.find(a => String(a.id) === String(slot.appointmentId));
                     if (apt) handleViewAppointment(apt);

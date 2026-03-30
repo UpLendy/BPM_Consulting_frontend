@@ -66,6 +66,8 @@ export default function DayScheduleModal({
     });
   };
 
+  const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
+
   return (
     <BaseModal
       isOpen={isOpen}
@@ -78,7 +80,9 @@ export default function DayScheduleModal({
         <div className="space-y-2">
             <h3 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-2">Mis Citas</h3>
             {myDayAppointments.length === 0 ? (
-                <p className="text-sm text-gray-500 italic py-2">No tienes citas programadas para este día.</p>
+                <p className="text-sm text-gray-500 italic py-2">
+                  {isPast ? 'No hubo citas registradas para este día.' : 'No tienes citas programadas para este día.'}
+                </p>
             ) : (
                 myDayAppointments.map((apt) => (
                     <button
@@ -111,8 +115,8 @@ export default function DayScheduleModal({
             )}
         </div>
 
-        {/* Available slots - ONLY if onSelectSlot is provided */}
-        {onSelectSlot && (
+        {/* Available slots - ONLY if onSelectSlot is provided AND it is NOT a past date */}
+        {onSelectSlot && !isPast && (
             <div className="pt-4 border-t border-gray-100">
                 <h3 className="text-xs font-black text-gray-400 uppercase tracking-wider mb-2">Horarios para Agendar</h3>
                 <div className="grid grid-cols-1 gap-2">
