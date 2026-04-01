@@ -42,6 +42,7 @@ export default function AdvisoryActModal({
 }: AdvisoryActModalProps) {
   const [step, setStep] = useState<'form' | 'preview'>('form');
   const [isSaving, setIsSaving] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [statusError, setStatusError] = useState<string | null>(null);
   const [showSignatureSuccess, setShowSignatureSuccess] = useState(false);
@@ -180,28 +181,27 @@ export default function AdvisoryActModal({
       }
     }
     
-    // Load cache or initialize representative name
     if (isOpen && appointment) {
       const cacheKey = `act_form_data_${appointment.id}`;
       const cached = localStorage.getItem(cacheKey);
-      
+
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
           if (Object.keys(parsed).length > 0) {
             // Check if signature in cache is expired
             if (parsed.signature && parsed.signatureTimestamp) {
-                const createdAt = new Date(parsed.signatureTimestamp);
-                const now = new Date();
-                const diffMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
+              const createdAt = new Date(parsed.signatureTimestamp);
+              const now = new Date();
+              const diffMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
 
-                if (diffMinutes > 4320) {
-                    console.log("Firma en cache expirada (> 4320 minutos)");
-                    parsed.signature = null;
-                    parsed.signatureTimestamp = null;
-                }
+              if (diffMinutes > 4320) {
+                console.log("Firma en cache expirada (> 4320 minutos)");
+                parsed.signature = null;
+                parsed.signatureTimestamp = null;
+              }
             }
-            
+
             setFormData(prev => ({ ...prev, ...parsed }));
           }
         } catch (e) {
@@ -213,12 +213,13 @@ export default function AdvisoryActModal({
           representativeName: (appointment as any).representativeName || ''
         }));
       }
+      setIsInitialized(true);
     }
   }, [isOpen, appointment]);
 
   // Save cache when formData changes
   useEffect(() => {
-    if (isOpen && appointment) {
+    if (isOpen && appointment && isInitialized) {
       const cacheKey = `act_form_data_${appointment.id}`;
       try {
         localStorage.setItem(cacheKey, JSON.stringify(formData));
@@ -226,7 +227,7 @@ export default function AdvisoryActModal({
         console.warn("No se pudo guardar la caché local", e);
       }
     }
-  }, [formData, isOpen, appointment]);
+  }, [formData, isOpen, appointment, isInitialized]);
 
   const formatDateTime = (date: Date | string, time: string) => {
     // If date is a string (ISO), extract the date part directly

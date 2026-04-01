@@ -51,7 +51,8 @@ export default function RegistroVisitaPage() {
           if (response.success && response.data) {
             const pageData = response.data.data || [];
             allFetchedAppointments = [...allFetchedAppointments, ...pageData];
-            hasMore = response.data.meta?.hasNextPage || false;
+            const meta = response.data.meta as any;
+            hasMore = meta ? (page < (meta.pages || meta.totalPages || 1)) : false;
             page++;
           } else {
             hasMore = false;

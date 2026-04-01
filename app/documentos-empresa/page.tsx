@@ -17,6 +17,8 @@ export default function DocumentosEmpresaPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentUserRole, setCurrentUserRole] = useState<string>(''); // Store role
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   
   // Modal state
   const [selectedDoc, setSelectedDoc] = useState<any>(null);
@@ -73,17 +75,32 @@ export default function DocumentosEmpresaPage() {
             setCurrentUserRole(role); // Set role
 
             if (role === 'admin') {
-                // ... existing admin fetch logic ...
                  try {
-                     const valResponse = await appointmentService.getAllValidations({
-                         limit: 100
-                     });
-                     
-                     if (valResponse.success && valResponse.data) {
-                         const validationsData = valResponse.data;
-                         const items = Array.isArray(validationsData) ? validationsData : (validationsData.data || []);
+                     let allValidations: any[] = [];
+                     let page = 1;
+                     let hasMore = true;
+
+                     while (hasMore && page <= 10) { // Max 10 pages
+                         const valResponse = await appointmentService.getAllValidations({
+                             page,
+                             limit: 100
+                         });
                          
-                        const mappedList = await Promise.all(items.map(async (val: any) => {
+                         if (valResponse.success && valResponse.data) {
+                             const validationsData = valResponse.data;
+                             const items = Array.isArray(validationsData) ? validationsData : (validationsData.data || []);
+                             allValidations = [...allValidations, ...items];
+                             // API returns meta.pages (total pages count), not hasNextPage
+                             const meta = validationsData.meta;
+                             hasMore = meta ? (page < (meta.pages || meta.totalPages || 1)) : false;
+                             page++;
+                         } else {
+                             hasMore = false;
+                         }
+                     }
+                     
+                     if (allValidations.length > 0) {
+                        const mappedList = await Promise.all(allValidations.map(async (val: any) => {
                              let actaStatus = null;
                              // If validation is APPROVED, we check Acta status to know if we can complete
                              if (val.status === 'APROBADO') {
@@ -114,12 +131,15 @@ export default function DocumentosEmpresaPage() {
                                  actaStatus: actaStatus
                              };
                          }));
-                         setDocs(mappedList);
+
+                        // Sort by date (most recent first)
+                        mappedList.sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
+                        setDocs(mappedList);
                      }
                  } catch (e) {
                      console.error('Admin fetch error', e);
                  }
-            } else {            
+            } else {   
                 // Engineer fetch logic with pagination
                 if (!targetId) {
                     setIsLoading(false);
@@ -140,7 +160,8 @@ export default function DocumentosEmpresaPage() {
                     if (aptResponse.success && aptResponse.data) {
                         const pageData = aptResponse.data.data || [];
                         allAppointments = [...allAppointments, ...pageData];
-                        hasMore = aptResponse.data.meta?.hasNextPage || false;
+                        const meta = aptResponse.data.meta as any;
+                        hasMore = meta ? (page < (meta.pages || meta.totalPages || 1)) : false;
                         page++;
                     } else {
                         hasMore = false;
@@ -229,6 +250,20 @@ export default function DocumentosEmpresaPage() {
     doc.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     doc.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Client-side pagination
+  const totalPages = Math.ceil(filteredDocs.length / itemsPerPage);
+  const paginatedDocs = filteredDocs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  // Reset page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const handleCardClick = (doc: any) => {
       // If Admin, always open Review Modal for relevant statuses, or maybe generic info?
@@ -440,7 +475,7 @@ export default function DocumentosEmpresaPage() {
 
         {/* Documentation Cards List */}
         <div className="grid gap-6">
-          {filteredDocs.map((doc) => (
+          {paginatedDocs.map((doc) => (
             <DocCard
               key={doc.id}
               companyName={doc.companyName}
@@ -497,6 +532,34 @@ export default function DocumentosEmpresaPage() {
             </div>
           )}
         </div>
+
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="mt-8 flex items-center justify-between bg-white px-6 py-4 rounded-xl border border-gray-200 shadow-sm">
+            <div className="text-sm text-gray-600 font-inter">
+              Mostrando página <span className="font-bold">{currentPage}</span> de{' '}
+              <span className="font-bold">{totalPages}</span>
+              {' • '}
+              <span className="font-bold">{filteredDocs.length}</span> validaciones en total
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage <= 1}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                ← Anterior
+              </button>
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage >= totalPages}
+                className="px-4 py-2 bg-[#525298] text-white rounded-lg text-sm font-medium hover:bg-[#434380] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Siguiente →
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Upload Modal */}

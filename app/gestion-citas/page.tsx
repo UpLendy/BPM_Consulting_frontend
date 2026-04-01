@@ -86,7 +86,7 @@ export default function GestionCitasPage() {
             setEngineerId(discoveredId);
         }
 
-        // Helper to fetch all pages (max 5 pages of 100 items each = 500 items)
+        // Helper to fetch all pages (max 10 pages of 100 items each = 1000 items)
         const fetchAllItems = async (serviceFn: Function, firstArg?: string, disableDateFilter?: boolean) => {
             let allItems: Appointment[] = [];
             let page = 1;
@@ -96,7 +96,7 @@ export default function GestionCitasPage() {
             const fechaInicio = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
             const fechaFin = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0, 23, 59, 59);
 
-            while (hasMore && page <= 5) {
+            while (hasMore && page <= 10) {
                 const filters: any = { 
                     page, 
                     limit: 100
