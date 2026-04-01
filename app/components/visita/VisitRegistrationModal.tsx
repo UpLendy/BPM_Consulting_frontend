@@ -34,6 +34,7 @@ export default function VisitRegistrationModal({
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Load user info and fetch visit data (last visit if editing, current if read-only)
   useEffect(() => {
@@ -115,6 +116,7 @@ export default function VisitRegistrationModal({
           console.error('VisitRegistrationModal: Error loading visit data:', error);
         } finally {
           setIsLoadingLastVisit(false);
+          setIsInitialized(true);
         }
       }
     };
@@ -126,7 +128,7 @@ export default function VisitRegistrationModal({
 
   // Guardar en la caché cada vez que formData cambia
   useEffect(() => {
-    if (isOpen && appointment && !readOnly && Object.keys(formData).length > 0) {
+    if (isOpen && appointment && !readOnly && isInitialized) {
       const cacheKey = `visit_form_data_${appointment.id}`;
       try {
         localStorage.setItem(cacheKey, JSON.stringify({ ...formData, diagnosticType }));
@@ -134,7 +136,7 @@ export default function VisitRegistrationModal({
         console.warn('No se pudo guardar la caché local', e);
       }
     }
-  }, [formData, diagnosticType, isOpen, appointment, readOnly]);
+  }, [formData, diagnosticType, isOpen, appointment, readOnly, isInitialized]);
 
   const handleScoreChange = (itemId: string, score: 'A' | 'AR' | 'I' | 'NA') => {
     const numericScore = score === 'A' ? "2" : score === 'AR' ? "1" : score === 'I' ? "0" : "NA";

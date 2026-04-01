@@ -61,6 +61,9 @@ export default function GestionUsuariosPage() {
   // Track users who already have representative assignments
   const [usersWithAssignments, setUsersWithAssignments] = useState<Set<string>>(new Set());
   
+  // Track phone numbers by user ID
+  const [userPhoneNumbers, setUserPhoneNumbers] = useState<Record<string, string>>({});
+  
   // Edit User Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<UserListData | null>(null);
@@ -125,6 +128,14 @@ export default function GestionUsuariosPage() {
             .map(rep => rep.userId)
         );
         setUsersWithAssignments(assignedUserIds);
+
+        const phoneMap: Record<string, string> = {};
+        representativesData.forEach(rep => {
+            if (rep.phone_number) {
+                phoneMap[rep.userId] = rep.phone_number;
+            }
+        });
+        setUserPhoneNumbers(phoneMap);
       } catch (err: any) {
         if (isMounted) {
           console.error('Error fetching data:', err);
@@ -405,6 +416,7 @@ export default function GestionUsuariosPage() {
                   <th className="px-6 py-4 text-sm font-bold text-gray-700 font-inter">Usuario</th>
                   <th className="px-6 py-4 text-sm font-bold text-gray-700 font-inter">ID / Documento</th>
                   <th className="px-6 py-4 text-sm font-bold text-gray-700 font-inter">Rol</th>
+                  <th className="px-6 py-4 text-sm font-bold text-gray-700 font-inter">Teléfono</th>
                   <th className="px-6 py-4 text-sm font-bold text-gray-700 font-inter">Estado</th>
                   <th className="px-6 py-4 text-sm font-bold text-gray-700 font-inter text-center">Asignación</th>
                   <th className="px-6 py-4 text-sm font-bold text-gray-700 font-inter text-right">Acciones</th>
@@ -413,7 +425,7 @@ export default function GestionUsuariosPage() {
               <tbody className="divide-y divide-gray-50">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-20 text-center">
+                    <td colSpan={7} className="px-6 py-20 text-center">
                       <div className="flex flex-col items-center gap-3">
                         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
                         <p className="text-gray-500 font-inter">Cargando usuarios...</p>
@@ -441,6 +453,11 @@ export default function GestionUsuariosPage() {
                               : 'bg-green-50 text-green-700'
                         }`}>
                           {user.role?.name || 'Usuario'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-gray-600 font-inter">
+                          {userPhoneNumbers[user.id] || ''}
                         </span>
                       </td>
                       <td className="px-6 py-4">
@@ -504,7 +521,7 @@ export default function GestionUsuariosPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={5} className="px-6 py-20 text-center">
+                    <td colSpan={7} className="px-6 py-20 text-center">
                       <p className="text-gray-500 font-inter">No se encontraron usuarios que coincidan con la búsqueda.</p>
                     </td>
                   </tr>
