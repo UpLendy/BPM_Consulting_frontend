@@ -77,7 +77,8 @@ export default function ValidationReviewModal({
     if (userStr) {
       try {
         const user = JSON.parse(userStr);
-        setUserRole(user.role);
+        const role = user.role?.name || user.role || '';
+        setUserRole(typeof role === 'string' ? role.toLowerCase() : '');
       } catch (err) {
         console.error('Error parsing user for role check', err);
       }
@@ -706,77 +707,90 @@ export default function ValidationReviewModal({
                 )}
             </div>
 
-            {/* Unified Document Review Section */}
-            {activeDoc && !readOnly && (activeDoc.status !== 'APROBADO' && activeDoc.status !== 'ACEPTADA') && (
+
+            {/* Unified Document Pane: Info + Review Actions */}
+            {activeDoc && (
                 <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col gap-3">
-                    <div className="border-b border-gray-100 pb-3 flex justify-between items-center">
-                        <h4 className="font-medium text-gray-900 min-w-0 break-words flex-1">
-                            Revisión: {formatFileName(activeDoc.fileName)}
-                        </h4>
-                        {!activeDoc.isActa && !isRejecting && (
+                    {/* Top Row: Filename + Admin Delete */}
+                    <div className={`${(!readOnly && (activeDoc.status !== 'APROBADO' && activeDoc.status !== 'ACEPTADA')) ? 'border-b border-gray-100 pb-3' : ''} flex justify-between items-center gap-4`}>
+                        <div className="min-w-0 flex-1">
+                            <h4 className="font-medium text-gray-900 truncate" title={formatFileName(activeDoc.fileName)}>
+                                {formatFileName(activeDoc.fileName)}
+                            </h4>
+                            <div className="flex items-center gap-2 mt-0.5">
+                                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border uppercase tracking-widest
+                                    ${activeDoc.status === 'APROBADO' || activeDoc.status === 'ACEPTADA' ? 'bg-green-50 text-green-700 border-green-200' : 
+                                      activeDoc.status === 'RECHAZADO' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-gray-50 text-gray-700 border-gray-200'}`}>
+                                    Estado: {activeDoc.status || 'SUBIDO'}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Delete Button: Always visible for Admin (except Acta) */}
+                        {(userRole === 'admin' || userRole === 'administrador') && !activeDoc.isActa && (
                             <button 
                                 onClick={() => setShowDeleteConfirm(true)}
-                                className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 hover:bg-gray-100 transition-colors border border-gray-200"
+                                className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest text-red-600 bg-red-50 hover:bg-red-100 transition-all border border-red-200 shadow-sm flex items-center gap-2 shrink-0"
                             >
-                                Eliminar
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                {!singleDocumentId ? 'Eliminar' : 'Eliminar Documento'}
                             </button>
                         )}
                     </div>
                     
-                    {/* Rejection UI Logic */}
-                    {!activeDoc.isActa && isRejecting ? (
-                         <div className="animate-in fade-in slide-in-from-top-2 duration-200">
-                             <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-1">Razón del rechazo (Requerido)</label>
-                             <textarea
-                                 value={rejectionReason}
-                                 onChange={(e) => setRejectionReason(e.target.value)}
-                                 placeholder="Indica detalladamente por qué se rechaza este documento..."
-                                 className="w-full text-sm p-3 border border-gray-400 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none resize-none text-black font-bold mb-3"
-                                 rows={2}
-                             />
-                             <div className="flex gap-2 justify-end">
-                                <button 
-                                    onClick={() => { setIsRejecting(false); setRejectionReason(''); }}
-                                    className="text-gray-500 text-sm hover:text-gray-700 px-3 py-2"
-                                >
-                                    Cancelar
-                                </button>
-                                <button 
-                                    onClick={handleReject}
-                                    disabled={actionProcessing}
-                                    className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 shadow-sm disabled:opacity-50"
-                                >
-                                    {actionProcessing ? 'Procesando...' : 'Confirmar Rechazo'}
-                                </button>
-                             </div>
-                         </div>
-                    ) : (
-                        /* Standard Actions */
-                        <div className="flex gap-2 flex-wrap">
-                            <button 
-                                onClick={activeDoc.isActa ? handleRejectActa : () => setIsRejecting(true)}
-                                disabled={actionProcessing}
-                                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-white border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 flex-1 sm:flex-none"
-                            >
-                                {actionProcessing ? '...' : (activeDoc.isActa ? 'Rechazar Acta' : 'Rechazar')}
-                            </button>
-                            <button 
-                                onClick={activeDoc.isActa ? handleApproveActa : handleApprove}
-                                disabled={actionProcessing}
-                                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-green-600 text-white hover:bg-green-700 shadow-sm disabled:opacity-50 flex-1 sm:flex-none"
-                            >
-                                {actionProcessing ? '...' : (activeDoc.isActa ? 'Aprobar Acta' : 'Aprobar')}
-                            </button>
+                    {/* Bottom Row: Review Actions (Approve/Reject) */}
+                    {!readOnly && (activeDoc.status !== 'APROBADO' && activeDoc.status !== 'ACEPTADA') && (
+                        <div className="mt-1">
+                            {/* Rejection UI Logic */}
+                            {isRejecting ? (
+                                <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <label className="block text-[10px] font-black text-black uppercase tracking-widest mb-1">Razón del rechazo (Requerido)</label>
+                                    <textarea
+                                        value={rejectionReason}
+                                        onChange={(e) => setRejectionReason(e.target.value)}
+                                        placeholder="Indica detalladamente por qué se rechaza este documento..."
+                                        className="w-full text-sm p-3 border border-gray-400 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none resize-none text-black font-bold mb-3"
+                                        rows={2}
+                                    />
+                                    <div className="flex gap-2 justify-end">
+                                        <button 
+                                            onClick={() => { setIsRejecting(false); setRejectionReason(''); }}
+                                            className="text-gray-500 text-sm hover:text-gray-700 px-3 py-2"
+                                        >
+                                            Cancelar
+                                        </button>
+                                        <button 
+                                            onClick={handleReject}
+                                            disabled={actionProcessing}
+                                            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 shadow-sm disabled:opacity-50"
+                                        >
+                                            {actionProcessing ? 'Procesando...' : 'Confirmar Rechazo'}
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                /* Standard Actions */
+                                <div className="flex gap-2 flex-wrap">
+                                    <button 
+                                        onClick={activeDoc.isActa ? handleRejectActa : () => setIsRejecting(true)}
+                                        disabled={actionProcessing}
+                                        className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-white border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 flex-1 sm:flex-none"
+                                    >
+                                        {actionProcessing ? '...' : (activeDoc.isActa ? 'Rechazar Acta' : 'Rechazar')}
+                                    </button>
+                                    <button 
+                                        onClick={activeDoc.isActa ? handleApproveActa : handleApprove}
+                                        disabled={actionProcessing}
+                                        className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-green-600 text-white hover:bg-green-700 shadow-sm disabled:opacity-50 flex-1 sm:flex-none"
+                                    >
+                                        {actionProcessing ? '...' : (activeDoc.isActa ? 'Aprobar Acta' : 'Aprobar')}
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
-                </div>
-            )}
-
-
-            {/* Read Only Info Bar */}
-            {activeDoc && readOnly && (
-                <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex justify-between items-center">
-                    <h4 className="font-medium text-gray-900">Visualizando: {formatFileName(activeDoc.fileName)}</h4>
                 </div>
             )}
         </div>
