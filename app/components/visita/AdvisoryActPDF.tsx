@@ -4,7 +4,10 @@ import { Appointment } from '@/app/types';
 
 const styles = StyleSheet.create({
   page: {
-    padding: 50,
+    paddingTop: 50,
+    paddingBottom: 75,
+    paddingLeft: 50,
+    paddingRight: 50,
     fontFamily: 'Helvetica',
     fontSize: 10,
     backgroundColor: '#ffffff'
@@ -246,7 +249,7 @@ const AdvisoryActPDF: React.FC<AdvisoryActPDFProps> = ({ appointment, formData, 
         </View>
 
         {formData.evidencePhoto && (
-          <View style={styles.section}>
+          <View style={styles.section} wrap={false}>
             <Text style={styles.sectionTitle}>Evidencia Fotográfica</Text>
             <View style={styles.evidenceContainer}>
               <Image src={formData.evidencePhoto} style={styles.evidencePhoto} />
@@ -254,7 +257,7 @@ const AdvisoryActPDF: React.FC<AdvisoryActPDFProps> = ({ appointment, formData, 
           </View>
         )}
 
-        <View style={styles.signatureArea} wrap={true}>
+        <View style={styles.signatureArea} wrap={false}>
           {formData.signature ? (
             <View style={{ alignItems: 'center' }}>
               <Image 

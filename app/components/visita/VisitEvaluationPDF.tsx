@@ -7,7 +7,10 @@ import { getDisplayTime } from '@/app/components/calendar/utils';
 
 const styles = StyleSheet.create({
   page: {
-    padding: 30,
+    paddingTop: 30,
+    paddingBottom: 55,
+    paddingLeft: 30,
+    paddingRight: 30,
     fontFamily: 'Helvetica',
     fontSize: 9,
     backgroundColor: '#ffffff'
