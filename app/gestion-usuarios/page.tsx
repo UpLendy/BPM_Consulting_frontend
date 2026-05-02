@@ -569,19 +569,38 @@ export default function GestionUsuariosPage() {
                       </svg>
                     </button>
                     
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
-                      <button
-                        key={pageNum}
-                        onClick={() => setCurrentPage(pageNum)}
-                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                          currentPage === pageNum
-                            ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                            : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    ))}
+                    {(() => {
+                      let pages = [];
+                      if (totalPages <= 7) {
+                        pages = Array.from({ length: totalPages }, (_, i) => i + 1);
+                      } else if (currentPage <= 4) {
+                        pages = [1, 2, 3, 4, 5, '...', totalPages];
+                      } else if (currentPage >= totalPages - 3) {
+                        pages = [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+                      } else {
+                        pages = [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages];
+                      }
+                      
+                      return pages.map((pageNum, idx) => (
+                        pageNum === '...' ? (
+                          <span key={`dots-${idx}`} className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                            ...
+                          </span>
+                        ) : (
+                          <button
+                            key={pageNum}
+                            onClick={() => setCurrentPage(pageNum as number)}
+                            className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium transition-colors ${
+                              currentPage === pageNum
+                                ? 'z-10 bg-blue-50 border-blue-500 text-blue-700 font-bold'
+                                : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        )
+                      ));
+                    })()}
 
                     <button
                       onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
