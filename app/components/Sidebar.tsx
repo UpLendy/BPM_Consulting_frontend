@@ -42,6 +42,13 @@ const MENU_ITEMS = [
     roles: ['admin', 'administrador']
   },
   {
+    key: 'registrar-empresa-invima',
+    label: 'Registrar empresa INVIMA',
+    icon: '🏥',
+    path: '/registrar-empresa-invima',
+    roles: ['admin', 'administrador']
+  },
+  {
     key: 'reportes',
     label: 'Reportes/Estadísticas',
     icon: '📈',
@@ -59,6 +66,14 @@ const MENU_ITEMS = [
     icon: '📅',
     path: '/gestion-citas',
     roles: ['admin', 'administrador', 'engineer', 'ingeniero', 'company', 'empresa', 'empresario']
+  },
+
+  {
+    key: 'crear-solicitud',
+    label: 'Crear Solicitud',
+    icon: '📝',
+    path: '/crear-solicitud',
+    roles: ['admin', 'administrador', 'engineer', 'ingeniero', 'invima']
   },
 
   // "Documentos empresa" -> Admin, Engineer
@@ -86,6 +101,13 @@ const MENU_ITEMS = [
     roles: ['engineer', 'ingeniero']
   },
 
+  {
+    key: 'seguimiento-invima',
+    label: 'Seguimiento INVIMA',
+    icon: '🏢',
+    path: '/seguimiento-invima',
+    roles: ['admin', 'administrador', 'engineer', 'ingeniero', 'invima']
+  },
   // Company specific
   {
     key: 'visualizar-documentos',

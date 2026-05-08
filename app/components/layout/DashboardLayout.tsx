@@ -18,6 +18,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     // Check auth
     if (!authService.isAuthenticated()) {
         window.location.href = '/login';
+    } else {
+        // Sync profile to get fresh engineerId
+        authService.getProfile();
     }
     
     // Check if we are on mobile to decide default state

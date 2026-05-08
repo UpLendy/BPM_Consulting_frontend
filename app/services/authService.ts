@@ -100,7 +100,12 @@ export const authService = {
       data = await response.json();
     }
 
-    return data;
+    const userData = data.user || data;
+    if (userData && typeof window !== 'undefined') {
+      localStorage.setItem('user', JSON.stringify(userData));
+    }
+
+    return userData;
   },
 
   handleUnauthorized() {

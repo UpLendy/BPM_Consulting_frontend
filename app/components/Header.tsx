@@ -242,7 +242,15 @@ export default function Header({
 
   // Derive userName and userRole from user state
   const userName = propUserName || (user ? formatUserFullName(user.first_name || '', user.last_name || '') : null) || user?.email || 'Cargando...';
-  const userRole = propUserRole || (user ? mapBackendRoleToFrontend(user.role as BackendRole).charAt(0).toUpperCase() + mapBackendRoleToFrontend(user.role as BackendRole).slice(1) : null) || '...';
+  let derivedRoleStr = 'Usuario';
+  if (user && user.role) {
+    const rName = typeof user.role === 'object' ? (user.role as any).name : user.role;
+    const mapped = mapBackendRoleToFrontend(rName as any);
+    derivedRoleStr = typeof mapped === 'string' ? mapped : String(mapped || 'Usuario');
+  }
+  
+  const formattedRole = derivedRoleStr ? derivedRoleStr.charAt(0).toUpperCase() + derivedRoleStr.slice(1) : 'Usuario';
+  const userRole = propUserRole || formattedRole || '...';
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);

@@ -28,6 +28,8 @@ export default function LoginForm() {
       
       if (roleName === 'admin' || roleName === 'administrador') {
         window.location.href = '/admin-dashboard';
+      } else if (roleName === 'invima') {
+        window.location.href = '/seguimiento-invima';
       } else {
         window.location.href = '/gestion-citas';
       }
