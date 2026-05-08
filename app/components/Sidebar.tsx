@@ -67,6 +67,13 @@ const MENU_ITEMS = [
     path: '/gestion-citas',
     roles: ['admin', 'administrador', 'engineer', 'ingeniero', 'company', 'empresa', 'empresario']
   },
+  {
+    key: 'seguimiento-invima',
+    label: 'Seguimiento INVIMA',
+    icon: '📋',
+    path: '/seguimiento-invima',
+    roles: ['admin', 'administrador', 'engineer', 'ingeniero', 'invima']
+  },
 
   {
     key: 'crear-solicitud',
@@ -101,13 +108,6 @@ const MENU_ITEMS = [
     roles: ['engineer', 'ingeniero']
   },
 
-  {
-    key: 'seguimiento-invima',
-    label: 'Seguimiento INVIMA',
-    icon: '🏢',
-    path: '/seguimiento-invima',
-    roles: ['admin', 'administrador', 'engineer', 'ingeniero', 'invima']
-  },
   // Company specific
   {
     key: 'visualizar-documentos',
