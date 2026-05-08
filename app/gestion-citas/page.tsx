@@ -79,7 +79,8 @@ export default function GestionCitasPage() {
       try {
         const profile = await authService.getProfile();
         let engineerIdToUse = currentUser.id;
-        const discoveredId = profile?.user?.engineerId;
+        // The profile object from getProfile() is the user data itself
+        const discoveredId = profile?.engineerId || profile?.user?.engineerId;
         
         if (discoveredId) {
             engineerIdToUse = discoveredId;
@@ -139,13 +140,16 @@ export default function GestionCitasPage() {
             return allItems;
         }
 
-        if (currentUser.role === 'company') {
+        const rawRole = (currentUser.role as any)?.name || currentUser.role || '';
+        const role = String(rawRole).toLowerCase();
+
+        if (role === 'company' || role === 'empresa' || role === 'empresario' || role === 'representative') {
              const allData = await fetchAllItems(appointmentService.getCompanyEngineerAppointments.bind(appointmentService));
              setAppointments(allData);
-        } else if (currentUser.role === 'engineer') {
+        } else if (role === 'engineer' || role === 'ingeniero') {
              const allData = await fetchAllItems(appointmentService.getAppointmentsByEngineer.bind(appointmentService), engineerIdToUse);
              setAppointments(allData);
-        } else if (currentUser.role === 'admin') {
+        } else if (role === 'admin' || role === 'administrador') {
              // Always fetch all items across dates to easily allow global sorting and searching
              const allData = await fetchAllItems(appointmentService.getAllAppointments.bind(appointmentService), undefined, true);
              
@@ -207,8 +211,11 @@ export default function GestionCitasPage() {
     setIsConfirmModalOpen(true);
   };
 
-  const isEngineer = (currentUser?.role as string) === 'engineer' || (currentUser?.role as string) === 'ingeniero';
-  const isCompany = (currentUser?.role as string) === 'company' || (currentUser?.role as string) === 'empresa' || (currentUser?.role as string) === 'representative' || (currentUser?.role as string) === 'empresario';
+  const currentRoleRaw = (currentUser?.role as any)?.name || currentUser?.role || '';
+  const currentRole = String(currentRoleRaw).toLowerCase();
+  
+  const isEngineer = currentRole === 'engineer' || currentRole === 'ingeniero';
+  const isCompany = currentRole === 'company' || currentRole === 'empresa' || currentRole === 'representative' || currentRole === 'empresario';
   const cancellationPrefix = isEngineer ? 'Ingeniero: ' : isCompany ? 'Empresa: ' : '';
 
   const confirmCancelAppointment = async (reason?: string) => {

@@ -34,7 +34,8 @@ export default function RegistroVisitaPage() {
         
         const user = JSON.parse(userStr);
         const profile = await authService.getProfile();
-        const engineerId = profile?.user?.engineerId || user.id;
+        // The profile object from getProfile() is the user data itself
+        const engineerId = profile?.engineerId || profile?.user?.engineerId || user.id;
 
         // Fetch ALL appointments (we'll paginate client-side)
         let allFetchedAppointments: Appointment[] = [];

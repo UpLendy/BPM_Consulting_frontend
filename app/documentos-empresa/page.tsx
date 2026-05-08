@@ -63,18 +63,21 @@ export default function DocumentosEmpresaPage() {
             
             let targetId = user.id; 
             
-            if (profileRes && profileRes.user) {
-                 if (profileRes.user.engineerId) {
-                     targetId = profileRes.user.engineerId;
-                 } else if (profileRes.user.id) {
-                     targetId = profileRes.user.id;
-                 }
+            // The profileRes from getProfile() is the user data itself
+            const discoveredEngineerId = profileRes?.engineerId || profileRes?.user?.engineerId;
+            const discoveredUserId = profileRes?.id || profileRes?.user?.id;
+
+            if (discoveredEngineerId) {
+                targetId = discoveredEngineerId;
+            } else if (discoveredUserId) {
+                targetId = discoveredUserId;
             }
 
-            const role = (user.role || profileRes?.user?.role || '').toLowerCase();
+            const rawRole = user.role?.name || user.role || profileRes?.role?.name || profileRes?.role || '';
+            const role = String(rawRole).toLowerCase();
             setCurrentUserRole(role); // Set role
 
-            if (role === 'admin') {
+            if (role === 'admin' || role === 'administrador') {
                  try {
                      let allValidations: any[] = [];
                      let page = 1;

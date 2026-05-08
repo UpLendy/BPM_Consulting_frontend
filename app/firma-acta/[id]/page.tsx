@@ -41,8 +41,11 @@ export default function FirmaActaPage() {
     }
     try {
       const user = JSON.parse(userStr);
-      if (user.role !== 'company' && user.role !== 'empresario') {
-        router.push('/dashboard'); // Redirect unauthorized
+      const rawRole = user.role?.name || user.role || '';
+      const role = String(rawRole).toLowerCase();
+      
+      if (role !== 'company' && role !== 'empresa' && role !== 'empresario' && role !== 'representative') {
+        router.push('/gestion-citas'); // Redirect unauthorized
         return;
       }
     } catch (e) {
