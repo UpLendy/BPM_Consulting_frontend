@@ -105,6 +105,7 @@ export const invimaService = {
 
     if (!response.ok) {
       if (response.status === 401) authService.handleUnauthorized();
+      if (response.status === 404) return null; // Graceful handle for no profile
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || 'Error al obtener el perfil INVIMA');
     }
