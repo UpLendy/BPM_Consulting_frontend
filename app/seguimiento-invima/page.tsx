@@ -202,15 +202,29 @@ export default function InvimaDashboard() {
     etapasIds: []
   });
 
-  const canWrite = useMemo(() => {
-    if (!role || !user) return false;
-    if (role === 'admin' || role === 'administrador') return true;
-    if (role === 'engineer' || role === 'ingeniero') return true;
-    if (role === 'invima') {
-      const tipo = user.tipo || user.invimaProfile?.tipo;
-      return tipo === 'ADMINISTRATIVO';
+  const { canManageProcess, canUploadDocuments, canReviewDocuments } = useMemo(() => {
+    if (!role || !user) return { canManageProcess: false, canUploadDocuments: false, canReviewDocuments: false };
+    
+    const tipoRaw = user.tipo || user.invimaProfile?.tipo || '';
+    const tipo = String(tipoRaw).toUpperCase();
+    
+    // DEBUG LOGS - View these in Browser Console (F12)
+    console.log('[Permission Check]', { role, tipo, userEmail: user.email });
+
+    // 1. If profile is explicitly COMERCIAL, NO write access EVER
+    if (tipo === 'COMERCIAL') {
+      return { canManageProcess: false, canUploadDocuments: false, canReviewDocuments: false };
     }
-    return false;
+
+    const isAdmin = role === 'admin' || role === 'administrador';
+    const isEngineer = role === 'engineer' || role === 'ingeniero';
+    const isInvimaAdmin = role === 'invima' && tipo === 'ADMINISTRATIVO';
+
+    return {
+      canManageProcess: isAdmin || isEngineer,
+      canReviewDocuments: isAdmin || isEngineer,
+      canUploadDocuments: isAdmin || isEngineer || isInvimaAdmin,
+    };
   }, [role, user]);
 
   // Fetch user data and dashboard data
@@ -222,12 +236,25 @@ export default function InvimaDashboard() {
       const r = ((parsed.role as any)?.name || parsed.role || '').toLowerCase();
       setRole(r);
 
-      // Fetch additional profile data if INVIMA to get 'tipo' (COMERCIAL/ADMINISTRATIVO)
-      if (r === 'invima') {
+      // Fetch additional profile data if INVIMA or ADMIN to get 'tipo' (COMERCIAL/ADMINISTRATIVO)
+      if (r === 'invima' || r === 'admin' || r === 'administrador') {
         const userId = parsed.id;
         if (userId) {
           invimaService.getProfileByUserId(userId).then(profile => {
-            setUser((prev: any) => ({ ...prev, ...profile }));
+            console.log('[InvimaDashboard] Profile fetched:', profile);
+            
+            // Handle paginated responses where the profile is inside a 'data' array
+            let actualProfile = profile;
+            if (profile && profile.data && Array.isArray(profile.data) && profile.data.length > 0) {
+                actualProfile = profile.data[0];
+            } else if (profile && profile.data && typeof profile.data === 'object' && !Array.isArray(profile.data)) {
+                actualProfile = profile.data;
+            }
+
+            const updatedUser = { ...parsed, ...actualProfile };
+            setUser(updatedUser);
+            // Sync with localStorage so other components (like Header) can see the update
+            localStorage.setItem('user', JSON.stringify(updatedUser));
           }).catch(err => {
             console.error('[InvimaDashboard] Error fetching profile:', err);
             // Fallback: if we can't fetch, we might already have it in parsed
@@ -934,7 +961,7 @@ export default function InvimaDashboard() {
                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                    Exportar
                </button>
-               {canWrite && (
+               {canManageProcess && (
                  <button onClick={() => setShowNewTramiteModal(true)} className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-blue-700 transition-all shadow-sm shadow-blue-200">
                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                      Nuevo Trámite
@@ -1113,7 +1140,7 @@ export default function InvimaDashboard() {
                                 <h4 className="text-xs font-bold uppercase tracking-wider mb-1 opacity-80">Estado / Observación Actual</h4>
                                 <p className="text-sm font-medium">{selectedProduct.observacion}</p>
                             </div>
-                            {selectedProduct.estado === 'OBSERVACIONES' && (
+                            {selectedProduct.estado === 'OBSERVACIONES' && canManageProcess && (
                               <button onClick={() => setShowResponderAutoModal(true)} className="ml-auto bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors whitespace-nowrap shadow-sm">
                                 Responder Auto
                               </button>
@@ -1381,7 +1408,7 @@ export default function InvimaDashboard() {
                                                 : 'Todos los documentos deben estar verificados para completar esta etapa.'}
                                             </p>
                                           )}
-                                          {canWrite && (
+                                          {canManageProcess && (
                                             <div className="flex justify-end">
                                               <button
                                                 disabled={!canComplete}
@@ -1440,7 +1467,7 @@ export default function InvimaDashboard() {
                               <h3 className="font-black text-gray-900 text-base">Documentos Subidos</h3>
                               <p className="text-gray-500 text-sm mt-0.5">{docsSubidos.length} archivo{docsSubidos.length !== 1 ? 's' : ''} en la etapa de Verificación Documental.</p>
                             </div>
-                            {selectedProduct.estado !== 'APROBADO' && canWrite && (
+                            {selectedProduct.estado !== 'APROBADO' && canUploadDocuments && (
                               <button onClick={() => setShowUploadModal(true)} className="text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-xl transition-colors flex items-center gap-2 shadow-sm shadow-blue-200">
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                                 Subir Documento
@@ -1898,9 +1925,9 @@ export default function InvimaDashboard() {
                         </div>
                       </div>
 
-                      {(canWrite || selectedReviewDoc.status === 'RECHAZADO' || selectedReviewDoc.status === 'REQUIERE_CORRECCION') && (
+                      {(canReviewDocuments || canUploadDocuments) && (
                         <div className="space-y-3 pt-6 border-t border-gray-100 mt-auto">
-                          {canWrite && (
+                          {canReviewDocuments && (
                             <>
                               <p className="text-[10px] font-black text-gray-700 text-center uppercase tracking-widest mb-3">Acciones de Revisión</p>
                               <div className="grid grid-cols-2 gap-3">
@@ -1928,8 +1955,8 @@ export default function InvimaDashboard() {
                               </div>
                             </>
                           )}
-                          {(selectedReviewDoc.status === 'RECHAZADO' || selectedReviewDoc.status === 'REQUIERE_CORRECCION') && canWrite && (
-                            <div className={`relative mt-2 ${canWrite ? 'border-t border-gray-100 pt-3' : ''}`}>
+                          {(selectedReviewDoc.status === 'RECHAZADO' || selectedReviewDoc.status === 'REQUIERE_CORRECCION') && canUploadDocuments && (
+                            <div className={`relative mt-2 ${canUploadDocuments ? 'border-t border-gray-100 pt-3' : ''}`}>
                             <input 
                               type="file" 
                               ref={replaceFileInputRef}
