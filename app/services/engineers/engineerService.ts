@@ -88,26 +88,6 @@ export const engineerService = {
         return null;
     },
 
-    /**
-     * Helper method to perform both steps: Create Engineer (if not exists) and Assign Company
-     */
-    async createAndAssign(userId: string, companyId: string): Promise<any> {
-        let engineerId: string;
-
-        // Check if engineer already exists
-        const existingEngineer = await this.getEngineerByUserId(userId);
-
-        if (existingEngineer) {
-            engineerId = existingEngineer.id;
-        } else {
-            // Step 1: Create the engineer
-            const newEngineer = await this.createEngineer({ userId });
-            engineerId = newEngineer.id;
-        }
-
-        // Step 2: Assign the company using the engineer's id
-        return await this.assignCompany(engineerId, { companyId });
-    },
 
     /**
      * Get all active engineers

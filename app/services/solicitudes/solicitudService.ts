@@ -62,9 +62,9 @@ export const solicitudService = {
     if (soloConProceso !== undefined) params.append('soloConProceso', String(soloConProceso));
 
     const url = `${API_URL}/solicitudes/ingeniero/${engineerId}${params.toString() ? '?' + params.toString() : ''}`;
-    
+
     console.log(`[SolicitudService] Llamando a: ${url}`);
-    
+
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -115,6 +115,24 @@ export const solicitudService = {
       if (response.status === 401) authService.handleUnauthorized();
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.message || 'Error al actualizar el estado de la solicitud');
+    }
+    return response.json();
+  },
+
+  async syncSolicitudEngineer(solicitudId: string): Promise<any> {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}/invima-companies-engineer/sync-solicitud/${solicitudId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) authService.handleUnauthorized();
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al sincronizar el ingeniero a la solicitud');
     }
     return response.json();
   }

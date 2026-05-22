@@ -122,6 +122,7 @@ export default function Sidebar({ isOpen = true, onClose, transitionEnabled = tr
   const pathname = usePathname();
   const router = useRouter(); // Initialize router
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [userTipo, setUserTipo] = useState<string | null>(null);
 
   useEffect(() => {
     // Get user role from localStorage
@@ -132,6 +133,9 @@ export default function Sidebar({ isOpen = true, onClose, transitionEnabled = tr
         // Supports both scalar role string or object role { name: 'admin' }
         const roleName = user.role?.name || user.role || '';
         setUserRole(roleName.toLowerCase());
+        
+        const tipo = user.tipo || user.invimaProfile?.tipo || '';
+        setUserTipo(String(tipo).toUpperCase());
       } catch (e) {
         console.error('Error parsing user data', e);
       }
@@ -155,7 +159,14 @@ export default function Sidebar({ isOpen = true, onClose, transitionEnabled = tr
   // Filter menu items based on role
   const allowedMenuItems = MENU_ITEMS.filter(item => {
     if (!userRole) return false;
-    return item.roles.includes(userRole);
+    if (!item.roles.includes(userRole)) return false;
+    
+    // Restringir crear solicitudes para usuarios INVIMA con tipo COMERCIAL
+    if (item.key === 'crear-solicitud' && userRole === 'invima' && userTipo === 'COMERCIAL') {
+      return false;
+    }
+    
+    return true;
   });
 
   return (
