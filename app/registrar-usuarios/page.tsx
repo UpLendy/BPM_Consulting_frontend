@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/app/components/layout';
 import { userService } from '@/app/services/users/userService';
+import { engineerService } from '@/app/services/engineers/engineerService';
 import RoleGuard from '@/app/components/auth/RoleGuard';
 
 
@@ -88,7 +89,23 @@ export default function RegistrarUsuariosPage() {
         last_name: formData.last_name.trim() || new Date().getFullYear().toString()
       };
       
-      await userService.createUser(dataToSend);
+      const createdUser = await userService.createUser(dataToSend);
+
+      // Check if the role is engineer, and create the profile if so
+      const selectedRole = roles.find(r => r.id === formData.roleId);
+      const isEngineer = selectedRole 
+        ? (selectedRole.name.toLowerCase() === 'engineer' || selectedRole.name.toLowerCase() === 'ingeniero')
+        : formData.roleId === 'engineer'; // Fallback if roles array was empty
+
+      if (isEngineer && createdUser?.id) {
+        try {
+          await engineerService.createEngineer({ userId: createdUser.id });
+        } catch (engErr) {
+          console.error("Error al crear el perfil de ingeniero:", engErr);
+          // Opcional: Podrías mostrar una advertencia o simplemente dejar que pase
+        }
+      }
+
       setSuccess(true);
       setFormData({
         email: '',

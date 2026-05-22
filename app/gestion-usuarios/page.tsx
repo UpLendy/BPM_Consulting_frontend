@@ -342,11 +342,14 @@ export default function GestionUsuariosPage() {
         );
         setSuccess(`Representante ${selectedUser.first_name} asignado correctamente.`);
       } else {
-        // Create engineer and assign to company
-        await engineerService.createAndAssign(selectedUser.id, assignForm.companyId);
-        setSuccess(`Ingeniero ${selectedUser.first_name} asignado correctamente.`);
+        // Get engineer and assign to company
+        const existingEngineer = await engineerService.getEngineerByUserId(selectedUser.id);
+        if (!existingEngineer) {
+          throw new Error('No se encontró el perfil de ingeniero para este usuario. Es posible que el usuario haya sido creado antes de habilitar la creación automática.');
+        }
+        await engineerService.assignCompany(existingEngineer.id, { companyId: assignForm.companyId });
+        setSuccess(`Ingeniero ${selectedUser.first_name} asignado correctamente a la empresa.`);
       }
-      
       setTimeout(() => {
         closeAssignModal();
       }, 2000);

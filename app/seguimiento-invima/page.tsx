@@ -161,6 +161,7 @@ export default function InvimaDashboard() {
   const [activeTab, setActiveTab] = useState<'RESUMEN' | 'ETAPAS' | 'DOCUMENTOS' | 'HISTORIAL'>('RESUMEN');
   const [user, setUser] = useState<any>(null);
   const [role, setRole] = useState<string>('');
+  const [editingDocsMap, setEditingDocsMap] = useState<Record<string, string[]>>({});
 
   // --- MODAL STATES ---
   const [showNewTramiteModal, setShowNewTramiteModal] = useState(false);
@@ -217,7 +218,7 @@ export default function InvimaDashboard() {
     }
 
     const isAdmin = role === 'admin' || role === 'administrador';
-    const isEngineer = role === 'engineer' || role === 'ingeniero';
+    const isEngineer = role === 'engineer' || role === 'ingeniero' || (role === 'invima' && tipo === 'ADMINISTRATIVO');
     const isInvimaAdmin = role === 'invima' && tipo === 'ADMINISTRATIVO';
 
     return {
@@ -236,8 +237,8 @@ export default function InvimaDashboard() {
       const r = ((parsed.role as any)?.name || parsed.role || '').toLowerCase();
       setRole(r);
 
-      // Fetch additional profile data if INVIMA or ADMIN to get 'tipo' (COMERCIAL/ADMINISTRATIVO)
-      if (r === 'invima' || r === 'admin' || r === 'administrador') {
+      // Fetch additional profile data only if the user is INVIMA to get 'tipo' (COMERCIAL/ADMINISTRATIVO)
+      if (r === 'invima') {
         const userId = parsed.id;
         if (userId) {
           invimaService.getProfileByUserId(userId).then(profile => {
@@ -285,20 +286,33 @@ export default function InvimaDashboard() {
               const proc = item.proceso || (item.solicitud ? item : null); // Handle if item is process
               const solId = sol.id;
               
+              let finalTitular = sol.titularNombre || 'Sin titular';
+              let finalObs = sol.observacion || '';
+              if (finalObs.includes('Titular del producto:')) {
+                const match = finalObs.match(/Titular del producto:\s*(.*?)(?:\n|$)/);
+                if (match) {
+                  finalTitular = match[1].trim();
+                  finalObs = finalObs.replace(/Titular del producto:\s*(.*?)(?:\n|$)/, '').trim();
+                }
+              }
+
               return {
                 id: solId,
                 fechaEntrada: formatCO(sol.fechaEntrada),
                 fechaInicioBPM: formatCO(sol.fechaEntrada),
-                fechaTerminacion: (proc?.fechaFin || proc?.fechaTerminacion || sol.fechaTerminacion) 
-                  ? formatCO(proc?.fechaFin || proc?.fechaTerminacion || sol.fechaTerminacion) 
-                  : null,
+                fechaTerminacion: (() => {
+                  const estadoTemp = proc?.status || sol.estado || '';
+                  const isCompleted = ['TERMINADO', 'APROBADO', 'COMPLETADA'].includes(estadoTemp.toUpperCase());
+                  const fDate = proc?.fechaFin || proc?.fechaTerminacion || sol.fechaTerminacion || (isCompleted ? (proc?.updatedAt || sol.updatedAt) : null);
+                  return fDate ? formatCO(fDate) : null;
+                })(),
                 nombreTramite: sol.titulo || 'Sin título',
-                observacion: sol.observacion || '',
+                observacion: finalObs,
                 radicadoSeguimiento: proc?.radicadoInicio || sol.radicadoInicio || '',
                 ingeniero: sol.ingenieroNombre || (sol.ingeniero ? `${sol.ingeniero.first_name} ${sol.ingeniero.last_name}` : ''),
                 estado: (proc?.status || sol.estado || 'EN_REVISION') as InvimaStatus,
                 etapa: proc?.etapaActual || 'Solicitud',
-                titular: sol.titularNombre || 'Sin titular',
+                titular: finalTitular,
                 idioma: sol.idioma || 'Español',
                 tipoTramite: sol.asignacion || 'Trámite',
                 asignacion: sol.asignacion || 'Normal',
@@ -429,17 +443,41 @@ export default function InvimaDashboard() {
       nextEstado = 'EN_PROGRESO'; // Opción para reabrir
     }
 
+    // Guardar selección de documentos si se está iniciando la etapa de Verificación
+    if (currentEstado === 'PENDIENTE' && etapaNombre.toUpperCase().includes('VERIFICACI') && selectedProduct && selectedProceso) {
+      const DOC_TYPES_VER = ['CVL', 'FICHAS_TECNICAS', 'PROCESO_ELABORACION', 'AUTORIZACION_AL_PORTADOR', 'AUTORIZACION_AL_TRAMITADOR', 'ETIQUETAS', 'ANALISIS_DE_LABORATORIO', 'REGISTRO_DE_MARCA', 'CERTIFICADO_DE_BPM', 'OTRO'];
+      const reqDocs = editingDocsMap[selectedProduct.id] || DOC_TYPES_VER;
+      try {
+        await observacionService.createObservacion({
+          procesoId: selectedProceso.id,
+          contenido: `|REQ_DOCS:${reqDocs.join(',')}|`
+        });
+        selectedProduct.history.push({
+          date: new Date().toLocaleString(),
+          action: 'Configuración',
+          detail: `|REQ_DOCS:${reqDocs.join(',')}|`,
+          user: user?.nombre || 'Sistema'
+        });
+      } catch (e) {
+        console.error('Error guardando configuración de documentos', e);
+      }
+    }
+
     try {
       await procesoService.updateEtapaStatus(etapaId, nextEstado);
       
       // Log action in observations
       if (selectedProceso?.id) {
-        const toTitleCase = (str: string) => str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+        const toTitleCase = (str: string) => str.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
         const estadoLabel = (e: string) => ({ PENDIENTE: 'Pendiente', EN_PROGRESO: 'En progreso', COMPLETADA: 'Completada', CANCELADA: 'Cancelada' }[e] || e);
-        await observacionService.createObservacion({
-          procesoId: selectedProceso.id,
-          contenido: `Estado de etapa "${toTitleCase(etapaNombre)}" cambiado de ${estadoLabel(currentEstado)} a ${estadoLabel(nextEstado)}`
-        });
+        try {
+          await observacionService.createObservacion({
+            procesoId: selectedProceso.id,
+            contenido: `Estado de etapa "${toTitleCase(etapaNombre)}" cambiado de ${estadoLabel(currentEstado)} a ${estadoLabel(nextEstado)}`
+          });
+        } catch (obsErr) {
+          console.warn('No se pudo guardar la observación de cambio de estado', obsErr);
+        }
       }
 
       // Refresh process details to show updated status and history
@@ -447,19 +485,41 @@ export default function InvimaDashboard() {
         const proc = await procesoService.getProcesoBySolicitudId(selectedProduct.id);
         setSelectedProceso(proc);
         
+        if (proc?.id) {
+          const refreshedStages = await procesoService.getEtapasByProcesoId(proc.id);
+          setProcesoEtapas(refreshedStages);
+          const obsRes2 = await observacionService.getObservacionesByProcesoId(proc.id);
+          const rawObs2 = Array.isArray(obsRes2) ? obsRes2 : (obsRes2?.data || []);
+          
+          const newProgress = proc.porcentajeCompletado ?? proc.progresoPorcentaje ?? selectedProduct.progress;
+          
+          setSelectedProduct(prev => prev ? { 
+            ...prev, 
+            progress: newProgress,
+            history: rawObs2.map((h: any) => ({ date: formatCO(h.fecha || h.createdAt, true), user: h.createdByUserName || 'Sistema', action: 'HISTORIAL', detail: h.contenido || '' })) 
+          } : null);
+          
+          setDashboardSolicitudes(prev => prev.map(p => p.id === selectedProduct.id ? { ...p, progress: newProgress } : p));
+        }
+
         // Check if all stages are completed to finalize the process
         if (nextEstado === 'COMPLETADA' && proc?.id) {
           const stages = await procesoService.getEtapasByProcesoId(proc.id);
           const allCompleted = stages.length > 0 && stages.every((s: any) => s.estado === 'COMPLETADA');
           
           if (allCompleted) {
+            // 1. Log finalization in observations FIRST while process is still active
+            try {
+              await observacionService.createObservacion({
+                procesoId: proc.id,
+                contenido: `Proceso finalizado exitosamente. Todas las etapas han sido completadas.`
+              });
+            } catch (obsErr) {
+              console.warn('No se pudo guardar la observación de finalización de proceso', obsErr);
+            }
+
+            // 2. Lock the process to TERMINADO
             await procesoService.updateProcesoEstado(proc.id, "TERMINADO");
-            
-            // Log finalization in observations
-            await observacionService.createObservacion({
-              procesoId: proc.id,
-              contenido: `Proceso finalizado exitosamente. Todas las etapas han sido completadas.`
-            });
 
             // Update UI state
             setSelectedProduct(prev => prev ? { ...prev, estado: 'APROBADO' as any } : null);
@@ -491,12 +551,14 @@ export default function InvimaDashboard() {
       });
 
       // Log action in observations
-      if (selectedProceso?.id) {
-        await observacionService.createObservacion({
-          procesoId: selectedProceso.id,
-          contenido: `Se subió el documento: ${displayName || uploadFile.name} (${documentType})`
-        });
-      }
+        try {
+          await observacionService.createObservacion({
+            procesoId: selectedProceso.id,
+            contenido: `Se subió el documento: ${displayName || uploadFile.name} (${documentType})`
+          });
+        } catch (obsErr) {
+          console.warn('No se pudo guardar la observación de subida de documento', obsErr);
+        }
       
       setShowUploadModal(false);
       setUploadFile(null);
@@ -530,12 +592,14 @@ export default function InvimaDashboard() {
       await invimaService.updateDocumentStatus(selectedReviewDoc.id, status);
       
       // Log action in observations
-      if (selectedProceso?.id) {
-        await observacionService.createObservacion({
-          procesoId: selectedProceso.id,
-          contenido: `Se actualizó el estado del documento ${selectedReviewDoc.displayName || selectedReviewDoc.fileName} a ${status}`
-        });
-      }
+        try {
+          await observacionService.createObservacion({
+            procesoId: selectedProceso.id,
+            contenido: `Se actualizó el estado del documento ${selectedReviewDoc.displayName || selectedReviewDoc.fileName} a ${status}`
+          });
+        } catch (obsErr) {
+          console.warn('No se pudo guardar la observación de cambio de estado de documento', obsErr);
+        }
 
       // Refresh process details to show new document status and history
       if (selectedProduct?.id) {
@@ -587,12 +651,14 @@ export default function InvimaDashboard() {
       });
       
       // Log action
-      if (selectedProceso?.id) {
-        await observacionService.createObservacion({
-          procesoId: selectedProceso.id,
-          contenido: `Se reemplazó el archivo del documento ${selectedReviewDoc.displayName || selectedReviewDoc.fileName}`
-        });
-      }
+        try {
+          await observacionService.createObservacion({
+            procesoId: selectedProceso.id,
+            contenido: `Se reemplazó el archivo del documento ${selectedReviewDoc.displayName || selectedReviewDoc.fileName}`
+          });
+        } catch (obsErr) {
+          console.warn('No se pudo guardar la observación de reemplazo de documento', obsErr);
+        }
 
       // Refresh
       if (selectedProduct?.id) {
@@ -623,23 +689,26 @@ export default function InvimaDashboard() {
           const storedUser = localStorage.getItem('user');
           const userData = storedUser ? JSON.parse(storedUser) : null;
           
-          // STRICT: Only use engineerId. Do not fallback to .id
+          const roleName = ((userData?.role as any)?.name || userData?.role || '').toLowerCase();
+          const isAdminOrInvima = roleName === 'admin' || roleName === 'administrador' || roleName === 'invima';
+          
+          // STRICT: Only use engineerId for engineers. Do not fallback to .id
           const engineerId = userData?.engineerId; 
           
-          if (!engineerId) {
+          if (!engineerId && !isAdminOrInvima) {
             console.error('[SeguimientoInvima] ERROR: engineerId no encontrado en el objeto user:', userData);
             setProcesoError('Su perfil no tiene un ID de ingeniero asociado. Por favor, cierre sesión y vuelva a entrar.');
             return;
           }
 
-          console.log('[SeguimientoInvima] Cargando solicitudes para el ingeniero:', engineerId);
+          console.log('[SeguimientoInvima] Cargando solicitudes...');
 
           let solsPromise: Promise<any> = Promise.resolve([]);
           
-          if (engineerId) {
+          if (isAdminOrInvima) {
+            solsPromise = solicitudService.getAllSolicitudes('PENDIENTE');
+          } else if (engineerId) {
             solsPromise = solicitudService.getSolicitudesByIngeniero(engineerId, 'PENDIENTE');
-          } else {
-            setProcesoError('No se encontró un ID de ingeniero en su sesión. Por favor, cierre sesión y vuelva a entrar.');
           }
 
           const [solsRes, tramitesRes]: [any, any] = await Promise.all([
@@ -693,10 +762,14 @@ export default function InvimaDashboard() {
 
       // Log action in observations
       if (newProc?.id) {
-        await observacionService.createObservacion({
-          procesoId: newProc.id,
-          contenido: `Trámite inicializado con código ${procesoForm.codigo} y radicado ${procesoForm.radicadoInicio}`
-        });
+        try {
+          await observacionService.createObservacion({
+            procesoId: newProc.id,
+            contenido: `Trámite inicializado con código ${procesoForm.codigo} y radicado ${procesoForm.radicadoInicio}`
+          });
+        } catch (obsErr) {
+          console.warn('No se pudo guardar la observación de inicialización de trámite', obsErr);
+        }
       }
       
       // Update solicitud status to EN_PROCESO
@@ -716,6 +789,20 @@ export default function InvimaDashboard() {
         const res = await solicitudService.getSolicitudesByIngeniero(userData.engineerId, 'PENDIENTE');
         setSolicitudes(Array.isArray(res) ? res : (res?.data || []));
       }
+
+      // 💥 Update Dashboard Local State to reflect immediately without refreshing!
+      setDashboardSolicitudes(prev => prev.map(p => {
+        if (p.id === procesoForm.solicitudId) {
+          return {
+            ...p,
+            estado: 'EN_PROCESO' as any,
+            radicadoSeguimiento: procesoForm.radicadoInicio,
+            etapa: 'SOLICITUD INICIO DE TRÁMITE', // First stage
+            progress: 0
+          };
+        }
+        return p;
+      }));
 
       setTimeout(() => {
         setShowNewTramiteModal(false);
@@ -754,7 +841,8 @@ export default function InvimaDashboard() {
       const matchesSearch = item.nombreTramite.toLowerCase().includes(searchTerm.toLowerCase()) || 
                             item.titular.toLowerCase().includes(searchTerm.toLowerCase()) ||
                             (item.radicadoSeguimiento && item.radicadoSeguimiento.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchesStatus = filterStatus === 'TODOS' || item.estado === filterStatus;
+      const matchesStatus = filterStatus === 'TODOS' || filterStatus === 'ALL' || item.estado === filterStatus ||
+                            (filterStatus === 'APROBADO' && ['TERMINADO', 'COMPLETADA'].includes(String(item.estado).toUpperCase()));
       return matchesSearch && matchesStatus;
     });
   }, [searchTerm, filterStatus, dashboardSolicitudes]);
@@ -762,7 +850,7 @@ export default function InvimaDashboard() {
   // --- STATS ---
   const stats = useMemo(() => ({
     total: dashboardSolicitudes.length,
-    aprobados: dashboardSolicitudes.filter(d => d.estado === 'APROBADO').length,
+    aprobados: dashboardSolicitudes.filter(d => ['APROBADO', 'TERMINADO', 'COMPLETADA'].includes(String(d.estado).toUpperCase())).length,
     revision: dashboardSolicitudes.filter(d => d.estado === 'EN_REVISION' || d.estado === 'RADICADO' || d.estado === 'EN_PROCESO').length,
     observaciones: dashboardSolicitudes.filter(d => d.estado === 'OBSERVACIONES').length,
   }), [dashboardSolicitudes]);
@@ -798,7 +886,127 @@ export default function InvimaDashboard() {
 
   const handleExport = async () => {
     try {
+      // 1. Fetch detailed documents for each process
+      const detailedData = await Promise.all(dashboardSolicitudes.map(async (item) => {
+        let docsText = '';
+        let obsText = '';
+        let processId = item.rawProceso?.id || item.rawProceso?._id;
+        let fetchedProc: any = null;
+        try {
+          // Always fetch full process to get accurate fechaFin/fechaTerminacion that might be missing from list view
+          fetchedProc = await procesoService.getProcesoBySolicitudId(item.id);
+          if (fetchedProc) {
+            processId = fetchedProc.id || fetchedProc._id;
+          }
+        } catch (e) {
+          // No process found for this solicitud
+        }
+
+        if (processId) {
+          // Fetch stages for documents
+          try {
+            const stages = await procesoService.getEtapasByProcesoId(processId);
+            const docs: string[] = [];
+            stages.forEach((stage: any) => {
+              if (stage.documentosSubidos && stage.documentosSubidos.length > 0) {
+                stage.documentosSubidos.forEach((doc: any) => {
+                   const statusName = doc.status ? doc.status.replace(/_/g, ' ') : 'PENDIENTE';
+                   docs.push(`${doc.displayName || doc.fileName}: ${statusName.toLowerCase()}`);
+                });
+              }
+            });
+            if (docs.length > 0) {
+              docsText = docs.join('\n');
+            }
+          } catch (e) {
+            console.error('Error fetching stages for export', e);
+          }
+        }
+        
+        let finalExportObs = item.observacion ? item.observacion + '\n\n' : '';
+        if (docsText) finalExportObs += docsText;
+        
+        return { 
+          ...item, 
+          exportObservacion: finalExportObs.trim(),
+          fullProc: fetchedProc || item.rawProceso
+        };
+      }));
+
       const workbook = new ExcelJS.Workbook();
+
+      // --- HOJA DE RESUMEN ---
+      const summarySheet = workbook.addWorksheet('Resumen');
+      summarySheet.columns = [
+        { header: 'ESTADO', key: 'estado', width: 25 },
+        { header: 'CANTIDAD', key: 'cantidad', width: 15 }
+      ];
+      
+      const summaryHeader = summarySheet.getRow(1);
+      summaryHeader.font = { bold: true, color: { argb: 'FFFFFF' } };
+      summaryHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '006064' } };
+      summaryHeader.alignment = { vertical: 'middle', horizontal: 'center' };
+      
+      let enCurso = 0;
+      let terminados = 0;
+      detailedData.forEach(item => {
+        const state = item.estado.toUpperCase();
+        if (state === 'TERMINADO' || state === 'COMPLETADA') {
+          terminados++;
+        } else if (state !== 'CANCELADA' && state !== 'CANCELADO') {
+          enCurso++;
+        }
+      });
+      
+      summarySheet.addRow({ estado: 'En Curso', cantidad: enCurso });
+      summarySheet.addRow({ estado: 'Terminados', cantidad: terminados });
+      const totalRow = summarySheet.addRow({ estado: 'TOTAL', cantidad: enCurso + terminados });
+      totalRow.font = { bold: true };
+      
+      summarySheet.eachRow(row => {
+        row.eachCell(cell => {
+          cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+        });
+      });
+
+      // Generar Gráfica con QuickChart
+      if (enCurso > 0 || terminados > 0) {
+        try {
+          const chartConfig = {
+            type: 'pie',
+            data: {
+              labels: ['En Curso', 'Terminados'],
+              datasets: [{
+                data: [enCurso, terminados],
+                backgroundColor: ['#FBC02D', '#2E7D32']
+              }]
+            },
+            options: {
+              plugins: {
+                title: { display: true, text: 'Distribución de Estados' }
+              }
+            }
+          };
+          const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&w=600&h=300&bkg=white`;
+          const response = await fetch(chartUrl);
+          const imageBuffer = await response.arrayBuffer();
+          
+          const chartImageId = workbook.addImage({
+            buffer: imageBuffer,
+            extension: 'png',
+          });
+          
+          summarySheet.addImage(chartImageId, {
+            tl: { col: 3, row: 1 }, // Columna D (índice 3), Fila 2 (índice 1)
+            ext: { width: 600, height: 300 }
+          });
+        } catch (e) {
+          console.error('Error al generar la gráfica para el Excel', e);
+        }
+      }
+
+      // --- HOJA PRINCIPAL ---
       const worksheet = workbook.addWorksheet('Dashboard INVIMA');
 
       // Define columns to match Cencosud template
@@ -808,7 +1016,7 @@ export default function InvimaDashboard() {
         { header: 'PRODUCTO', key: 'producto', width: 30 },
         { header: 'TITULAR', key: 'titular', width: 25 },
         { header: 'TRÁMITE', key: 'tramite', width: 25 },
-        { header: 'OBSERVACIONES', key: 'observaciones', width: 40 },
+        { header: 'OBSERVACIONES', key: 'observaciones', width: 60 },
         { header: 'TAREA REALIZADA', key: 'tarea', width: 30 },
         { header: 'ESTADO DEL TRÁMITE', key: 'estado', width: 20 },
         { header: 'PRIORIDAD', key: 'prioridad', width: 15 },
@@ -827,8 +1035,8 @@ export default function InvimaDashboard() {
       
       headerRow.eachCell((cell, colNumber) => {
         let bgColor = '006064'; // Dark Teal
-        if (colNumber === 13) bgColor = '1A237E'; // Dark Blue for DÍAS TRASCURRIDOS (formerly 14)
-        if (colNumber === 14) bgColor = 'B71C1C'; // Red for ALERTA SEMAF (formerly 15)
+        if (colNumber === 13) bgColor = '1A237E'; // Dark Blue for DÍAS TRASCURRIDOS
+        if (colNumber === 14) bgColor = 'B71C1C'; // Red for ALERTA SEMAF
 
         cell.fill = {
           type: 'pattern',
@@ -850,7 +1058,7 @@ export default function InvimaDashboard() {
       });
 
       // Add data
-      dashboardSolicitudes.forEach(item => {
+      detailedData.forEach(item => {
         const fechaInicio = new Date(item.fechaInicioBPM);
         const hoy = new Date();
         const diasTrascurridos = Math.floor((hoy.getTime() - fechaInicio.getTime()) / (1000 * 60 * 60 * 24));
@@ -863,16 +1071,16 @@ export default function InvimaDashboard() {
         const rowData = {
           fecha: item.fechaEntrada,
           fecha_radicacion: (() => {
-            const rawDate = item.fechaTerminacion || 
-                           item.rawProceso?.fechaFin || 
-                           item.rawProceso?.fechaTerminacion || 
-                           (item.estado === ('TERMINADO' as any) ? item.rawProceso?.updatedAt : null);
-            return formatCO(rawDate);
+            const rawDate = item.fullProc?.fechaFin || 
+                           item.fullProc?.fechaTerminacion || 
+                           (item.estado === ('TERMINADO' as any) ? item.fullProc?.updatedAt : null);
+            if (rawDate) return formatCO(rawDate);
+            return item.fechaTerminacion || '';
           })(),
           producto: item.nombreTramite,
           titular: item.titular,
           tramite: item.etapa,
-          observaciones: item.observacion,
+          observaciones: item.exportObservacion,
           tarea: item.tipoTramite,
           estado: item.estado.replace(/_/g, ' '),
           prioridad: item.rawProceso?.prioridad || item.grupo || '',
@@ -886,8 +1094,8 @@ export default function InvimaDashboard() {
         const row = worksheet.addRow(rowData);
         
         // Basic row styling
-        row.eachCell(cell => {
-          cell.alignment = { vertical: 'middle', horizontal: 'left' };
+        row.eachCell((cell, colNumber) => {
+          cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: colNumber === 6 }; // wrapText for observaciones
           cell.border = {
             top: { style: 'thin' },
             left: { style: 'thin' },
@@ -1251,7 +1459,13 @@ export default function InvimaDashboard() {
                                 </div>
                                  <div className="space-y-1.5">
                                     <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Terminación</p>
-                                    <p className="text-sm font-bold text-gray-900 flex items-center gap-1"><svg className="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2z" /></svg>{selectedProduct.fechaTerminacion || 'En proceso'}</p>
+                                    <p className="text-sm font-bold text-gray-900 flex items-center gap-1"><svg className="w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v11a2 2 0 002 2z" /></svg>
+                                      {(() => {
+                                        const finalDate = selectedProceso?.fechaFin || selectedProceso?.fechaTerminacion;
+                                        if (finalDate) return formatCO(finalDate);
+                                        return selectedProduct.fechaTerminacion || 'En proceso';
+                                      })()}
+                                    </p>
                                 </div>
                             </div>
                          </div>
@@ -1259,19 +1473,53 @@ export default function InvimaDashboard() {
                      </div>
                    )}
 
-                   {/* TAB: ETAPAS */}
-                   {activeTab === 'ETAPAS' && (
-                     <div className="max-w-3xl">
-                       <div className="relative border-l-2 border-gray-100 ml-3 space-y-8 pb-4">
-                          {(selectedProceso?.etapas || []).length > 0 ? (
-                            [...selectedProceso.etapas].sort((a: any, b: any) => a.id.localeCompare(b.id)).map((etapa: any, idx: number) => {
-                              const isCompleted = etapa.estado === 'COMPLETADA';
-                              const isInProgress = etapa.estado === 'EN_PROGRESO';
-                              
-                              // La etapa "siguiente" es la primera que no esté completada
-                              const isNext = !isCompleted && (idx === 0 || selectedProceso.etapas[idx-1].estado === 'COMPLETADA');
-                              
-                              return (
+                    {/* TAB: ETAPAS */}
+                    {activeTab === 'ETAPAS' && (() => {
+                      const ETAPAS_ORDER = [
+                        'SOLICITUD INICIO DE TRÁMITE',
+                        'INICIO DE TRÁMITE PROVEEDOR',
+                        'VERIFICACIÓN DOCUMENTAL',
+                        'ELABORACIÓN DE FORMULARIOS',
+                        'ELABORACIÓN ANTICIPO',
+                        'REVISIÓN / APROBACIÓN FORMULARIOS',
+                        'PAGO ANTICIPO',
+                        'RADICADO INVIMA',
+                        'TIEMPO DE RESPUESTA RESOLUCIÓN INVMAGIL',
+                        'ENVÍO INFORME RESOLUCIÓN'
+                      ];
+
+                      const getEtapaIndex = (etapa: any) => {
+                        const name = (etapa.etapaNombre || etapa.etapa?.nombre || etapa.nombre || '').toUpperCase().trim();
+                        const foundIndex = ETAPAS_ORDER.findIndex(o => name.includes(o) || o.includes(name));
+                        if (foundIndex !== -1) return foundIndex;
+                        // Fallbacks
+                        if (name.includes('SOLICITUD INICIO')) return 0;
+                        if (name.includes('INICIO DE TRÁMITE PROVEEDOR')) return 1;
+                        if (name.includes('VERIFICACI')) return 2;
+                        if (name.includes('ELABORACIÓN DE FORM')) return 3;
+                        if (name.includes('ELABORACIÓN ANTICIPO')) return 4;
+                        if (name.includes('REVISIÓN')) return 5;
+                        if (name.includes('PAGO')) return 6;
+                        if (name.includes('RADICADO')) return 7;
+                        if (name.includes('TIEMPO DE RESPUESTA')) return 8;
+                        if (name.includes('ENVÍO INFORME')) return 9;
+                        return 999;
+                      };
+
+                      const sortedEtapas = [...(selectedProceso?.etapas || [])].sort((a: any, b: any) => getEtapaIndex(a) - getEtapaIndex(b));
+
+                      return (
+                        <div className="max-w-3xl">
+                          <div className="relative border-l-2 border-gray-100 ml-3 space-y-8 pb-4">
+                            {sortedEtapas.length > 0 ? (
+                              sortedEtapas.map((etapa: any, idx: number) => {
+                                const isCompleted = etapa.estado === 'COMPLETADA';
+                                const isInProgress = etapa.estado === 'EN_PROGRESO';
+                                
+                                // La etapa "siguiente" es la primera que no esté completada
+                                const isNext = !isCompleted && (idx === 0 || sortedEtapas[idx-1].estado === 'COMPLETADA');
+                                
+                                return (
                                 <div key={idx} className={`relative pl-8 transition-all duration-500 ${isInProgress || isNext ? 'scale-[1.02]' : ''}`}>
                                   {/* Dot indicator */}
                                   <div className={`absolute -left-[11px] top-1.5 h-5 w-5 rounded-full border-4 shadow-sm z-10 flex items-center justify-center transition-all duration-500
@@ -1343,23 +1591,46 @@ export default function InvimaDashboard() {
                                         { key: 'CERTIFICADO_DE_BPM', label: 'Certificado de BPM' },
                                         { key: 'OTRO', label: 'Otro' },
                                       ];
+                                      const reqDocsEvent = [...(selectedProduct?.history || [])].reverse().find((e: any) => e.detail.includes('|REQ_DOCS:'));
+                                      const savedReqDocs = reqDocsEvent ? (reqDocsEvent.detail.match(/\|REQ_DOCS:(.*?)\|/)?.[1].split(',') || []) : DOC_TYPES_VER.map(d=>d.key);
+                                      const isPendingVerif = etapa.estado === 'PENDIENTE';
+                                      const currentReqDocs = isPendingVerif ? (editingDocsMap[selectedProduct!.id] || savedReqDocs) : savedReqDocs;
+
+                                      const toggleDoc = (key: string) => {
+                                        if (!isPendingVerif || !canManageProcess) return;
+                                        const current = editingDocsMap[selectedProduct!.id] || savedReqDocs;
+                                        if (current.includes(key)) {
+                                          setEditingDocsMap(prev => ({ ...prev, [selectedProduct!.id]: current.filter(k => k !== key) }));
+                                        } else {
+                                          setEditingDocsMap(prev => ({ ...prev, [selectedProduct!.id]: [...current, key] }));
+                                        }
+                                      };
+
                                       return (
                                         <div className="mt-4 pt-4 border-t border-gray-100/60">
-                                          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">Documentos Requeridos</p>
+                                          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">Documentos Requeridos {isPendingVerif && <span className="text-amber-500">(Selecciona los que aplican)</span>}</p>
                                           <div className="space-y-1.5">
                                             {DOC_TYPES_VER.map(({ key, label }) => {
                                               const matching = docsVer.filter((d: any) => d.documentType === key);
                                               const hasDoc = matching.length > 0;
+                                              const isRequired = currentReqDocs.includes(key);
+
+                                              if (!isRequired && !isPendingVerif && !hasDoc) return null;
+
                                               return (
-                                                <div key={key} className="flex items-center justify-between gap-3 py-1">
+                                                <div key={key} className={`flex items-center justify-between gap-3 py-1 ${isPendingVerif && canManageProcess ? 'cursor-pointer hover:bg-gray-50 rounded px-1' : ''}`} onClick={() => toggleDoc(key)}>
                                                   <div className="flex items-center gap-2">
-                                                    <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${hasDoc ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-300'}`}>
-                                                      {hasDoc
-                                                        ? <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                                                        : <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
-                                                      }
-                                                    </div>
-                                                    <span className={`text-xs font-semibold ${hasDoc ? 'text-gray-700' : 'text-gray-400'}`}>{label}</span>
+                                                    {isPendingVerif && canManageProcess ? (
+                                                      <input type="checkbox" checked={isRequired} readOnly className="w-4 h-4 text-amber-600 rounded border-gray-300 focus:ring-amber-500 cursor-pointer" />
+                                                    ) : (
+                                                      <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${hasDoc ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-300'}`}>
+                                                        {hasDoc
+                                                          ? <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                                                          : <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
+                                                        }
+                                                      </div>
+                                                    )}
+                                                    <span className={`text-xs font-semibold ${hasDoc || isRequired ? 'text-gray-700' : 'text-gray-400'}`}>{label}</span>
                                                   </div>
                                                   <div className="flex flex-col items-end gap-1">
                                                     {hasDoc ? matching.map((doc: any) => {
@@ -1372,7 +1643,7 @@ export default function InvimaDashboard() {
                                                       const lbl = statusLabel(s);
                                                       return <span key={doc.id} className={`text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wide ${cls}`}>{lbl}</span>;
                                                     }) : (
-                                                      <span className="text-[9px] font-black px-2 py-0.5 rounded bg-gray-100 text-gray-400 uppercase tracking-wide">Pendiente</span>
+                                                      !isPendingVerif && isRequired ? <span className="text-[9px] font-black px-2 py-0.5 rounded bg-gray-100 text-gray-400 uppercase tracking-wide">Pendiente</span> : null
                                                     )}
                                                   </div>
                                                 </div>
@@ -1390,8 +1661,10 @@ export default function InvimaDashboard() {
                                       const docsVerif: any[] = verifEtapaData?.documentosSubidos || [];
                                       
                                       // Mandatory document types for verification
-                                      const mandatoryTypes = ['CVL', 'FICHAS_TECNICAS', 'PROCESO_ELABORACION', 'ETIQUETAS', 'ANALISIS_DE_LABORATORIO', 'CERTIFICADO_DE_BPM'];
-                                      const allMandatoryPresent = mandatoryTypes.every(type => 
+                                      const reqDocsEvent = [...(selectedProduct?.history || [])].reverse().find((e: any) => e.detail.includes('|REQ_DOCS:'));
+                                      const mandatoryTypes = reqDocsEvent ? (reqDocsEvent.detail.match(/\|REQ_DOCS:(.*?)\|/)?.[1].split(',') || []) : ['CVL', 'FICHAS_TECNICAS', 'PROCESO_ELABORACION', 'AUTORIZACION_AL_PORTADOR', 'AUTORIZACION_AL_TRAMITADOR', 'ETIQUETAS', 'ANALISIS_DE_LABORATORIO', 'REGISTRO_DE_MARCA', 'CERTIFICADO_DE_BPM', 'OTRO'];
+                                      
+                                      const allMandatoryPresent = mandatoryTypes.every((type: string) => 
                                         docsVerif.some((d: any) => d.documentType === type)
                                       );
                                       const allApproved = docsVerif.length > 0 && docsVerif.every((d: any) => d.status === 'APROBADO');
@@ -1453,8 +1726,9 @@ export default function InvimaDashboard() {
                             </div>
                           )}
                         </div>
-                     </div>
-                   )}
+                      </div>
+                    );
+                  })()}
 
                    {/* TAB: DOCUMENTOS */}
                    {activeTab === 'DOCUMENTOS' && (() => {
@@ -1468,7 +1742,13 @@ export default function InvimaDashboard() {
                               <p className="text-gray-500 text-sm mt-0.5">{docsSubidos.length} archivo{docsSubidos.length !== 1 ? 's' : ''} en la etapa de Verificación Documental.</p>
                             </div>
                             {selectedProduct.estado !== 'APROBADO' && canUploadDocuments && (
-                              <button onClick={() => setShowUploadModal(true)} className="text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-xl transition-colors flex items-center gap-2 shadow-sm shadow-blue-200">
+                              <button onClick={() => {
+                                const reqDocsEvt = [...(selectedProduct.history || [])].reverse().find((e: any) => e.detail.includes('|REQ_DOCS:'));
+                                const allowedKeys = reqDocsEvt ? (reqDocsEvt.detail.match(/\|REQ_DOCS:(.*?)\|/)?.[1].split(',') || []) : ['CVL', 'FICHAS_TECNICAS', 'PROCESO_ELABORACION', 'AUTORIZACION_AL_PORTADOR', 'AUTORIZACION_AL_TRAMITADOR', 'ETIQUETAS', 'ANALISIS_DE_LABORATORIO', 'REGISTRO_DE_MARCA', 'CERTIFICADO_DE_BPM', 'OTRO'];
+                                const firstMissing = allowedKeys.find(key => !docsSubidos.some((d: any) => d.documentType === key));
+                                setDocumentType(firstMissing || 'OTRO');
+                                setShowUploadModal(true);
+                              }} className="text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-xl transition-colors flex items-center gap-2 shadow-sm shadow-blue-200">
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                                 Subir Documento
                               </button>
@@ -1518,7 +1798,7 @@ export default function InvimaDashboard() {
                        <p className="text-gray-500 text-sm mb-6">Registro detallado de todas las acciones, notificaciones y cambios de estado en este trámite.</p>
                        
                        <div className="space-y-4">
-                         {selectedProduct.history.map((event, i) => (
+                         {selectedProduct.history.filter(e => !e.detail.includes('|REQ_DOCS:')).map((event, i, arr) => (
                            <div key={i} className="flex gap-4 p-4 rounded-xl hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
                              <div className="w-32 shrink-0 text-sm">
                                <p className="font-bold text-gray-900">{event.date.split(' ')[0]}</p>
@@ -1526,7 +1806,7 @@ export default function InvimaDashboard() {
                              </div>
                              <div className="w-10 flex flex-col items-center">
                                <div className="w-2.5 h-2.5 rounded-full bg-gray-300 mt-1.5"></div>
-                               {i !== selectedProduct.history.length - 1 && <div className="w-px h-full bg-gray-200 mt-2"></div>}
+                               {i !== arr.length - 1 && <div className="w-px h-full bg-gray-200 mt-2"></div>}
                              </div>
                              <div className="pb-4">
                                <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">{event.action}</p>
@@ -1721,16 +2001,28 @@ export default function InvimaDashboard() {
                       onChange={(e) => setDocumentType(e.target.value)}
                       className="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 font-semibold focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all"
                     >
-                      <option value="CVL">CVL (Certificado Venta Libre)</option>
-                      <option value="FICHAS_TECNICAS">Fichas Técnicas</option>
-                      <option value="PROCESO_ELABORACION">Proceso de Elaboración</option>
-                      <option value="AUTORIZACION_AL_PORTADOR">Autorización al Portador</option>
-                      <option value="AUTORIZACION_AL_TRAMITADOR">Autorización al Tramitador</option>
-                      <option value="ETIQUETAS">Etiquetas / Artes</option>
-                      <option value="ANALISIS_DE_LABORATORIO">Análisis de Laboratorio</option>
-                      <option value="REGISTRO_DE_MARCA">Registro de Marca</option>
-                      <option value="CERTIFICADO_DE_BPM">Certificado de BPM</option>
-                      <option value="OTRO">Otro</option>
+                      {(() => {
+                        const reqDocsEvt = [...(selectedProduct?.history || [])].reverse().find((e: any) => e.detail.includes('|REQ_DOCS:'));
+                        const allowedKeys = reqDocsEvt ? (reqDocsEvt.detail.match(/\|REQ_DOCS:(.*?)\|/)?.[1].split(',') || []) : ['CVL', 'FICHAS_TECNICAS', 'PROCESO_ELABORACION', 'AUTORIZACION_AL_PORTADOR', 'AUTORIZACION_AL_TRAMITADOR', 'ETIQUETAS', 'ANALISIS_DE_LABORATORIO', 'REGISTRO_DE_MARCA', 'CERTIFICADO_DE_BPM', 'OTRO'];
+                        if (!allowedKeys.includes('OTRO')) allowedKeys.push('OTRO');
+                        
+                        const DOC_OPTIONS = [
+                          { key: 'CVL', label: 'CVL (Certificado Venta Libre)' },
+                          { key: 'FICHAS_TECNICAS', label: 'Fichas Técnicas' },
+                          { key: 'PROCESO_ELABORACION', label: 'Proceso de Elaboración' },
+                          { key: 'AUTORIZACION_AL_PORTADOR', label: 'Autorización al Portador' },
+                          { key: 'AUTORIZACION_AL_TRAMITADOR', label: 'Autorización al Tramitador' },
+                          { key: 'ETIQUETAS', label: 'Etiquetas / Artes' },
+                          { key: 'ANALISIS_DE_LABORATORIO', label: 'Análisis de Laboratorio' },
+                          { key: 'REGISTRO_DE_MARCA', label: 'Registro de Marca' },
+                          { key: 'CERTIFICADO_DE_BPM', label: 'Certificado de BPM' },
+                          { key: 'OTRO', label: 'Otro' },
+                        ];
+
+                        return DOC_OPTIONS.filter(opt => allowedKeys.includes(opt.key)).map(opt => (
+                          <option key={opt.key} value={opt.key}>{opt.label}</option>
+                        ));
+                      })()}
                     </select>
                   </div>
 

@@ -40,7 +40,8 @@ export default function CrearSolicitudPage() {
     observacion: '',
     fechaEntrada: '',
     empresaInvimaId: '',
-    ingenieroId: ''
+    ingenieroId: '',
+    titular: ''
   });
 
   const SECCIONES = [
@@ -65,14 +66,24 @@ export default function CrearSolicitudPage() {
     const userData = localStorage.getItem('user');
     if (userData) {
       const parsed = JSON.parse(userData);
-      setUser(parsed);
+      
+      const tipoRaw = parsed.tipo || parsed.invimaProfile?.tipo || '';
+      const tipo = String(tipoRaw).toUpperCase();
+      
+      // Si el rol es invima y su tipo es COMERCIAL, no permitir crear solicitudes
       const r = ((parsed.role as any)?.name || parsed.role || '').toLowerCase();
+      if (r === 'invima' && tipo === 'COMERCIAL') {
+        router.push('/seguimiento-invima');
+        return;
+      }
+
+      setUser(parsed);
       setRole(r);
       fetchData(parsed, r);
     } else {
       setIsLoadingData(false);
     }
-  }, []);
+  }, [router]);
 
   const refreshSolicitudes = async (currentUser: any, userRole: string) => {
     try {
@@ -292,7 +303,12 @@ export default function CrearSolicitudPage() {
         finalFechaEntrada = new Date(formData.fechaEntrada).toISOString();
       }
 
-      await solicitudService.createSolicitud({
+      let finalObservacion = formData.observacion;
+      if (formData.titular.trim()) {
+        finalObservacion = `Titular del producto: ${formData.titular.trim()}\n${formData.observacion}`;
+      }
+
+      const createdResponse = await solicitudService.createSolicitud({
         titulo: formData.titulo,
         descripcion: formData.descripcion,
         fechaEntrada: finalFechaEntrada,
@@ -300,11 +316,23 @@ export default function CrearSolicitudPage() {
         idioma: formData.idioma,
         asignacion: formData.asignacion,
         grupo: formData.grupo,
-        observacion: formData.observacion,
+        observacion: finalObservacion,
         ingenieroId: finalIngenieroId,
         invimaComercialId: finalComercialId,
         invimaAdministrativoId: finalAdministrativoId
       });
+
+      if (isInvima) {
+        try {
+          const createdId = createdResponse.id || createdResponse._id || createdResponse.data?.id || createdResponse.data?._id;
+          if (createdId) {
+            await solicitudService.syncSolicitudEngineer(createdId);
+            console.log('✅ [DEBUG SUBMIT] Ingeniero sincronizado post-creación vía endpoint especial.');
+          }
+        } catch (syncErr) {
+          console.error('⚠️ [DEBUG SUBMIT] La solicitud se creó, pero falló la sincronización del ingeniero:', syncErr);
+        }
+      }
 
       setSuccess(true);
       setFormData({
@@ -316,7 +344,8 @@ export default function CrearSolicitudPage() {
         observacion: '',
         fechaEntrada: '',
         empresaInvimaId: '',
-        ingenieroId: ''
+        ingenieroId: '',
+        titular: ''
       });
       
       // Refresh solicitudes if admin/engineer
@@ -450,6 +479,11 @@ export default function CrearSolicitudPage() {
                           </select>
                         </div>
                       )}
+                      
+                      <div className="md:col-span-2">
+                        <label htmlFor="titular" className="block text-sm font-bold text-gray-700 mb-2">Titular (Opcional)</label>
+                        <input type="text" id="titular" name="titular" value={formData.titular} onChange={handleInputChange} className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-black font-semibold placeholder-gray-500" placeholder="Ej. Nutresa (Si es distinto a la empresa asociada)" />
+                      </div>
 
                     </div>
 
@@ -503,13 +537,15 @@ export default function CrearSolicitudPage() {
                     <tr>
                       <th className="px-6 py-4 font-bold text-gray-700 border-b border-gray-200">Título / Estado</th>
                       <th className="px-6 py-4 font-bold text-gray-700 border-b border-gray-200">Ingeniero</th>
-                      <th className="px-6 py-4 font-bold text-gray-700 border-b border-gray-200 text-right">Acciones</th>
+                      {isAdmin && (
+                        <th className="px-6 py-4 font-bold text-gray-700 border-b border-gray-200 text-right">Acciones</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {solicitudes.length === 0 ? (
                       <tr>
-                        <td colSpan={3} className="px-6 py-8 text-center text-gray-500">
+                        <td colSpan={isAdmin ? 3 : 2} className="px-6 py-8 text-center text-gray-500">
                           No hay solicitudes registradas
                         </td>
                       </tr>
@@ -533,15 +569,17 @@ export default function CrearSolicitudPage() {
                               <span className="text-gray-400 italic">Sin asignar</span>
                             )}
                           </td>
-                          <td className="px-6 py-4 text-right">
-                            <button
-                              type="button"
-                              onClick={() => openAssignModal(sol)}
-                              className="text-blue-600 hover:text-blue-800 font-bold text-sm bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
-                            >
-                              {sol.ingenieroNombre ? 'Cambiar Ingeniero' : 'Asignar Ingeniero'}
-                            </button>
-                          </td>
+                          {isAdmin && (
+                            <td className="px-6 py-4 text-right">
+                              <button
+                                type="button"
+                                onClick={() => openAssignModal(sol)}
+                                className="text-blue-600 hover:text-blue-800 font-bold text-sm bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors"
+                              >
+                                {sol.ingenieroNombre ? 'Cambiar Ingeniero' : 'Asignar Ingeniero'}
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       ))
                     )}
