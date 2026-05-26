@@ -43,7 +43,7 @@ const formatCO = (dateInput: any, includeTime = false) => {
 };
 
 // --- DATA TYPES ---
-type InvimaStatus = 'PREPARACION' | 'RADICADO' | 'EN_REVISION' | 'OBSERVACIONES' | 'APROBADO' | 'RECHAZADO' | 'EN_PROCESO' | 'TERMINADO';
+type InvimaStatus = 'PREPARACION' | 'RADICADO' | 'EN_REVISION' | 'OBSERVACIONES' | 'APROBADO' | 'RECHAZADO' | 'EN_PROCESO' | 'TERMINADO' | 'PENDIENTE' | 'COMPLETADA';
 
 interface TimelineEvent {
   status: InvimaStatus;
@@ -193,6 +193,11 @@ export default function InvimaDashboard() {
   const [procesoError, setProcesoError] = useState<string | null>(null);
   const [procesoSuccess, setProcesoSuccess] = useState<string | null>(null);
   
+  // Modals and Forms states for editing details
+  const [isEditingDetalles, setIsEditingDetalles] = useState(false);
+  const [detallesForm, setDetallesForm] = useState({ codigo: '', llave: '', radicadoInicio: '' });
+  const [isUpdatingDetalles, setIsUpdatingDetalles] = useState(false);
+  
   const [procesoForm, setProcesoForm] = useState<CreateProcesoDTO>({
     solicitudId: '',
     tramiteBaseId: '',
@@ -241,24 +246,21 @@ export default function InvimaDashboard() {
       if (r === 'invima') {
         const userId = parsed.id;
         if (userId) {
-          invimaService.getProfileByUserId(userId).then(profile => {
-            console.log('[InvimaDashboard] Profile fetched:', profile);
+          invimaService.getProfiles().then((profiles: any[]) => {
+            const rawProfiles = Array.isArray(profiles) ? profiles : (profiles as any).data || [];
+            const userProfile = rawProfiles.find((p: any) => p.userId === userId || p.user?.id === userId);
             
-            // Handle paginated responses where the profile is inside a 'data' array
-            let actualProfile = profile;
-            if (profile && profile.data && Array.isArray(profile.data) && profile.data.length > 0) {
-                actualProfile = profile.data[0];
-            } else if (profile && profile.data && typeof profile.data === 'object' && !Array.isArray(profile.data)) {
-                actualProfile = profile.data;
+            console.log('[InvimaDashboard] Profile fetched via list:', userProfile);
+            
+            if (userProfile) {
+              const updatedUser = { ...parsed, ...userProfile };
+              setUser(updatedUser);
+              localStorage.setItem('user', JSON.stringify(updatedUser));
+            } else {
+              if (parsed.tipo) setUser(parsed);
             }
-
-            const updatedUser = { ...parsed, ...actualProfile };
-            setUser(updatedUser);
-            // Sync with localStorage so other components (like Header) can see the update
-            localStorage.setItem('user', JSON.stringify(updatedUser));
           }).catch(err => {
-            console.error('[InvimaDashboard] Error fetching profile:', err);
-            // Fallback: if we can't fetch, we might already have it in parsed
+            console.error('[InvimaDashboard] Error fetching profiles:', err);
             if (parsed.tipo) setUser(parsed);
           });
         }
@@ -286,14 +288,15 @@ export default function InvimaDashboard() {
               const proc = item.proceso || (item.solicitud ? item : null); // Handle if item is process
               const solId = sol.id;
               
-              let finalTitular = sol.titularNombre || 'Sin titular';
+              let finalTitular = sol.titular || sol.titularNombre || sol.cliente?.nombre || sol.empresa?.nombre || 'Sin titular';
               let finalObs = sol.observacion || '';
-              if (finalObs.includes('Titular del producto:')) {
-                const match = finalObs.match(/Titular del producto:\s*(.*?)(?:\n|$)/);
-                if (match) {
-                  finalTitular = match[1].trim();
-                  finalObs = finalObs.replace(/Titular del producto:\s*(.*?)(?:\n|$)/, '').trim();
-                }
+              // Soporte para extracción manual por si la BD aún tiene el titular dentro de la observación
+              const match = finalObs.match(/Titular del producto:\s*(.*?)(?=\r|\n|$)/i);
+              if (match && match[1].trim()) {
+                finalTitular = match[1].trim();
+                finalObs = finalObs.replace(match[0], '').trim();
+                // Limpiar posibles saltos de línea huérfanos al inicio
+                finalObs = finalObs.replace(/^[\r\n]+/, '').trim();
               }
 
               return {
@@ -349,30 +352,52 @@ export default function InvimaDashboard() {
         try {
           let proc = selectedProduct.rawProceso;
           
-          if (!proc) {
-            proc = await procesoService.getProcesoBySolicitudId(selectedProduct.id);
+          // No buscar proceso si sabemos que la solicitud está PENDIENTE (no tiene proceso asignado)
+          const shouldFetchProc = !proc && selectedProduct.estado !== 'PENDIENTE';
+          
+          // Promise.all para obtener el proceso y el detalle de la solicitud en paralelo
+          const [fetchedProc, solicitudDetalle] = await Promise.all([
+            shouldFetchProc ? procesoService.getProcesoBySolicitudId(selectedProduct.id).catch(() => null) : Promise.resolve(null),
+            solicitudService.getSolicitudById(selectedProduct.id).catch(() => null)
+          ]);
+          
+          if (!proc && fetchedProc) {
+            proc = fetchedProc;
           }
           
           setSelectedProceso(proc);
           
-          // If we have a process, we can update the selectedProduct with its data
-          if (proc) {
+          // Extraer el titular si la solicitud detallada lo trae en observación
+          let extractedTitular = undefined;
+          if (solicitudDetalle) {
+            const finalObs = solicitudDetalle.observacion || '';
+            const match = finalObs.match(/Titular del producto:\s*(.*?)(?=\r|\n|$)/i);
+            if (match && match[1].trim()) {
+              extractedTitular = match[1].trim();
+            } else if (solicitudDetalle.titular) {
+              extractedTitular = solicitudDetalle.titular;
+            }
+          }
+          
+          // If we have a process or a detail, we update the selectedProduct
+          if (proc || solicitudDetalle) {
             setSelectedProduct(prev => {
               if (!prev) return null;
               return {
                 ...prev,
-                radicadoSeguimiento: proc.radicadoInicio || prev.radicadoSeguimiento,
-                llave: proc.llave || prev.llave,
-                idioma: proc.solicitud?.idioma || proc.idioma || prev.idioma,
-                progress: proc.porcentajeCompletado !== undefined ? proc.porcentajeCompletado : (proc.progresoPorcentaje !== undefined ? proc.progresoPorcentaje : prev.progress),
-                documents: (proc.documents || []).map((doc: any) => ({
+                titular: extractedTitular || prev.titular,
+                radicadoSeguimiento: proc?.radicadoInicio || prev.radicadoSeguimiento,
+                llave: proc?.llave || prev.llave,
+                idioma: proc?.solicitud?.idioma || proc?.idioma || prev.idioma,
+                progress: proc?.porcentajeCompletado !== undefined ? proc.porcentajeCompletado : (proc?.progresoPorcentaje !== undefined ? proc.progresoPorcentaje : prev.progress),
+                documents: (proc?.documents || []).map((doc: any) => ({
                   id: doc.id,
                   name: doc.displayName || doc.fileName || 'Documento',
                   type: doc.documentType || 'General',
                   uploadDate: formatCO(doc.createdAt),
                   status: doc.status || 'EN_REVISION'
                 })),
-                history: (proc.historial || []).map((h: any) => ({
+                history: (proc?.historial || []).map((h: any) => ({
                   date: formatCO(h.createdAt, true),
                   user: h.usuarioNombre || 'Sistema',
                   action: h.accion || 'Cambio',
@@ -419,7 +444,9 @@ export default function InvimaDashboard() {
                 console.error("Error fetching stages or history", err);
               }
             };
-            fetchStagesAndHistory();
+            if (proc) {
+              fetchStagesAndHistory();
+            }
           }
         } catch (err) {
           console.error("Error fetching process details", err);
@@ -758,7 +785,13 @@ export default function InvimaDashboard() {
     setIsCreatingProceso(true);
 
     try {
-      const newProc = await procesoService.createProceso(procesoForm);
+      const payload = {
+        ...procesoForm,
+        codigo: procesoForm.codigo.trim() || 'Pendiente por asignar',
+        llave: procesoForm.llave.trim() || 'Pendiente por asignar',
+        radicadoInicio: procesoForm.radicadoInicio.trim() || 'Pendiente por asignar',
+      };
+      const newProc = await procesoService.createProceso(payload);
 
       // Log action in observations
       if (newProc?.id) {
@@ -820,6 +853,63 @@ export default function InvimaDashboard() {
       setProcesoError(err.message || 'Error al crear el trámite.');
     } finally {
       setIsCreatingProceso(false);
+    }
+  };
+
+  const handleUpdateDetalles = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProceso) return;
+    
+    setIsUpdatingDetalles(true);
+    try {
+      await procesoService.updateProceso(selectedProceso.id, detallesForm);
+      
+      // Update local state to reflect changes
+      setSelectedProceso((prev: any) => prev ? {
+        ...prev,
+        ...detallesForm
+      } : prev);
+      
+      // Also update in solProduct mapping if applicable
+      setDashboardSolicitudes(prev => prev.map(p => {
+        if (p.rawProceso?.id === selectedProceso.id) {
+          return {
+            ...p,
+            radicadoSeguimiento: detallesForm.radicadoInicio,
+            llave: detallesForm.llave,
+            rawProceso: {
+              ...p.rawProceso,
+              ...detallesForm
+            }
+          };
+        }
+        return p;
+      }));
+
+      setIsEditingDetalles(false);
+      
+      // Add observation
+      try {
+        await observacionService.createObservacion({
+          procesoId: selectedProceso.id,
+          contenido: `Detalles del trámite actualizados. Nuevo Radicado: ${detallesForm.radicadoInicio || 'N/A'}, Llave: ${detallesForm.llave || 'N/A'}, Código: ${detallesForm.codigo || 'N/A'}`
+        });
+        const obsRes = await observacionService.getObservacionesByProcesoId(selectedProceso.id);
+        const rawObs = Array.isArray(obsRes) ? obsRes : (obsRes?.data || []);
+        setSelectedProduct(prev => prev ? {
+          ...prev,
+          history: rawObs.map((h: any) => ({
+            date: h.fecha ? new Date(h.fecha).toLocaleDateString() : new Date().toLocaleDateString(),
+            user: h.createdByUserName || 'Sistema',
+            action: 'HISTORIAL',
+            detail: h.contenido || ''
+          }))
+        } : null);
+      } catch(e) { console.error("Error updating history", e); }
+    } catch (err: any) {
+      alert(err.message || 'Error al actualizar detalles');
+    } finally {
+      setIsUpdatingDetalles(false);
     }
   };
 
@@ -1397,9 +1487,27 @@ export default function InvimaDashboard() {
                             </div>
                          )}
 
-                         <h3 className="text-base font-black text-gray-900 mb-5 flex items-center gap-2">
-                           <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                           Información del Trámite
+                         <h3 className="text-base font-black text-gray-900 mb-5 flex items-center justify-between">
+                           <div className="flex items-center gap-2">
+                             <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                             Información del Trámite
+                           </div>
+                           {canManageProcess && !['TERMINADO', 'APROBADO', 'COMPLETADA'].includes(String(selectedProceso?.estado || selectedProduct?.estado).toUpperCase()) && (
+                             <button
+                               onClick={() => {
+                                 setDetallesForm({
+                                   codigo: selectedProceso?.codigo === 'Pendiente por asignar' ? '' : (selectedProceso?.codigo || ''),
+                                   llave: selectedProceso?.llave === 'Pendiente por asignar' ? '' : (selectedProceso?.llave || selectedProduct.llave || ''),
+                                   radicadoInicio: selectedProceso?.radicadoInicio === 'Pendiente por asignar' ? '' : (selectedProceso?.radicadoInicio || selectedProduct.radicadoSeguimiento || '')
+                                 });
+                                 setIsEditingDetalles(true);
+                               }}
+                               className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5"
+                             >
+                               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                               Editar Detalles
+                             </button>
+                           )}
                          </h3>
                          <div className="grid grid-cols-2 gap-x-6 gap-y-5 bg-gray-50 p-5 rounded-2xl border border-gray-100">
                              <div className="col-span-2 flex flex-wrap gap-3 mb-2 border-b border-gray-200 pb-5 w-full">
@@ -1911,9 +2019,8 @@ export default function InvimaDashboard() {
                     )}
 
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Código <span className="text-red-500">*</span></label>
+                      <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Código <span className="text-gray-400 font-normal normal-case">(Opcional por ahora)</span></label>
                       <input 
-                        required
                         type="text" 
                         className="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 font-semibold placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all" 
                         placeholder="Ej. COD-001" 
@@ -1923,9 +2030,8 @@ export default function InvimaDashboard() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Llave de Acceso <span className="text-red-500">*</span></label>
+                      <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Llave de Acceso <span className="text-gray-400 font-normal normal-case">(Opcional por ahora)</span></label>
                       <input 
-                        required
                         type="text" 
                         className="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 font-semibold placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all" 
                         placeholder="Ej. A7B-9X2-LKJ" 
@@ -1935,9 +2041,8 @@ export default function InvimaDashboard() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Radicado de Inicio <span className="text-red-500">*</span></label>
+                      <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Radicado de Inicio <span className="text-gray-400 font-normal normal-case">(Opcional por ahora)</span></label>
                       <input 
-                        required
                         type="text" 
                         className="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 font-semibold placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all" 
                         placeholder="Ej. INV-2023-XXXXX" 
@@ -2314,6 +2419,89 @@ export default function InvimaDashboard() {
         )}
 
       </div>
+      
+      {/* Modal: Editar Detalles del Proceso */}
+      {isEditingDetalles && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-6 border-b border-gray-100 bg-white sticky top-0 z-10 flex justify-between items-center">
+              <h3 className="text-xl font-black text-gray-900 flex items-center gap-2">
+                <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                Actualizar Detalles
+              </h3>
+              <button onClick={() => setIsEditingDetalles(false)} className="text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200 p-2 rounded-full transition-colors">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            
+            <form onSubmit={handleUpdateDetalles} className="p-6 space-y-5 overflow-y-auto">
+              <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl text-blue-900 text-sm shadow-inner">
+                <p className="font-semibold">Actualiza el código, llave o radicado. Estos datos se reflejarán inmediatamente en la información del trámite.</p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Código</label>
+                  <input 
+                    type="text" 
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 font-semibold focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all" 
+                    placeholder="Ej. COD-001" 
+                    value={detallesForm.codigo}
+                    onChange={(e) => setDetallesForm({...detallesForm, codigo: e.target.value})}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Radicado de Inicio</label>
+                  <input 
+                    type="text" 
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 font-semibold focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all" 
+                    placeholder="Ej. INV-2023-XXXXX" 
+                    value={detallesForm.radicadoInicio}
+                    onChange={(e) => setDetallesForm({...detallesForm, radicadoInicio: e.target.value})}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Llave de Acceso</label>
+                  <input 
+                    type="text" 
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 font-semibold focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all" 
+                    placeholder="Ej. A7B-9X2-LKJ" 
+                    value={detallesForm.llave}
+                    onChange={(e) => setDetallesForm({...detallesForm, llave: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-gray-100 flex justify-end gap-3 mt-6">
+                <button 
+                  type="button" 
+                  onClick={() => setIsEditingDetalles(false)} 
+                  className="px-5 py-2.5 text-gray-600 font-bold hover:bg-gray-100 rounded-xl transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={isUpdatingDetalles}
+                  className="px-6 py-2.5 bg-blue-600 text-white font-black rounded-xl hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isUpdatingDetalles ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                      Guardando...
+                    </>
+                  ) : (
+                    'Guardar Cambios'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      
     </DashboardLayout>
   );
 }
