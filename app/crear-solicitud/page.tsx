@@ -125,14 +125,12 @@ export default function CrearSolicitudPage() {
         await refreshSolicitudes(currentUser, userRole);
       } 
       else if (userRole === 'engineer' || userRole === 'ingeniero') {
-        const [comps, engs] = await Promise.all([
-          invimaService.getCompanies(),
-          engineerService.getAllEngineers()
-        ]);
+        const comps = await invimaService.getCompanies();
         setCompanies(Array.isArray(comps) ? comps : (comps?.data || []));
-        setEngineers(engs || []);
+        // No llamar getAllEngineers() — es admin-only (403). El engineerId
+        // ya viene en user.engineerId desde /auth/me.
         await refreshSolicitudes(currentUser, userRole);
-      } 
+      }
       else if (userRole === 'invima') {
         // Fetch companies and profiles
         const [comps, profilesRes] = await Promise.all([
@@ -291,16 +289,20 @@ export default function CrearSolicitudPage() {
       if (isAdmin) {
         finalIngenieroId = formData.ingenieroId;
       } else if (isEngineer) {
-        const myEngProfile = engineers.find(eng => eng.userId === user.id);
-        if (myEngProfile) {
-          finalIngenieroId = myEngProfile.id;
+        // El objeto user ya trae engineerId desde /auth/me — usarlo directamente.
+        if (user.engineerId) {
+          finalIngenieroId = user.engineerId;
+        } else {
+          throw new Error('No se encontró tu perfil de ingeniero. Contacta al administrador.');
         }
       }
 
       // 4. Set Date
       let finalFechaEntrada = new Date().toISOString();
       if (!isInvima) {
-        finalFechaEntrada = new Date(formData.fechaEntrada).toISOString();
+        // Append T12:00:00 to avoid UTC midnight being interpreted as the
+        // previous day in Colombia (UTC-5).
+        finalFechaEntrada = new Date(`${formData.fechaEntrada}T12:00:00`).toISOString();
       }
 
       let finalObservacion = formData.observacion;
@@ -452,7 +454,7 @@ export default function CrearSolicitudPage() {
                       {(isAdmin || isEngineer) && (
                         <div>
                           <label htmlFor="fechaEntrada" className="block text-sm font-bold text-gray-700 mb-2">Fecha de Entrada <span className="text-red-500">*</span></label>
-                          <input type="datetime-local" id="fechaEntrada" name="fechaEntrada" value={formData.fechaEntrada} onChange={handleInputChange} className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-black font-semibold bg-white" required />
+                          <input type="date" id="fechaEntrada" name="fechaEntrada" value={formData.fechaEntrada} onChange={handleInputChange} className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none text-black font-semibold bg-white" required />
                         </div>
                       )}
 
