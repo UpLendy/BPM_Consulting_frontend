@@ -100,6 +100,24 @@ export const solicitudService = {
     return response.json();
   },
 
+  async getSolicitudById(id: string): Promise<any> {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}/solicitudes/${id}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) authService.handleUnauthorized();
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al obtener la solicitud');
+    }
+    return response.json();
+  },
+
   async updateSolicitudEstado(id: string, estado: string): Promise<any> {
     const token = localStorage.getItem('token');
     const response = await fetch(`${API_URL}/solicitudes/${id}/estado`, {
