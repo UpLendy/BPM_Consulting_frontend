@@ -787,9 +787,9 @@ export default function InvimaDashboard() {
     try {
       const payload = {
         ...procesoForm,
-        codigo: procesoForm.codigo.trim() || 'Pendiente por asignar',
-        llave: procesoForm.llave.trim() || 'Pendiente por asignar',
-        radicadoInicio: procesoForm.radicadoInicio.trim() || 'Pendiente por asignar',
+        codigo: procesoForm.codigo.trim() || `Pendiente por asignar-${Date.now()}-C`,
+        llave: procesoForm.llave.trim() || `Pendiente por asignar-${Date.now()}-L`,
+        radicadoInicio: procesoForm.radicadoInicio.trim() || `Pendiente por asignar-${Date.now()}-R`,
       };
       const newProc = await procesoService.createProceso(payload);
 
@@ -1496,9 +1496,9 @@ export default function InvimaDashboard() {
                              <button
                                onClick={() => {
                                  setDetallesForm({
-                                   codigo: selectedProceso?.codigo === 'Pendiente por asignar' ? '' : (selectedProceso?.codigo || ''),
-                                   llave: selectedProceso?.llave === 'Pendiente por asignar' ? '' : (selectedProceso?.llave || selectedProduct.llave || ''),
-                                   radicadoInicio: selectedProceso?.radicadoInicio === 'Pendiente por asignar' ? '' : (selectedProceso?.radicadoInicio || selectedProduct.radicadoSeguimiento || '')
+                                   codigo: selectedProceso?.codigo?.startsWith('Pendiente por asignar') ? '' : (selectedProceso?.codigo || ''),
+                                   llave: selectedProceso?.llave?.startsWith('Pendiente por asignar') ? '' : (selectedProceso?.llave || selectedProduct.llave || ''),
+                                   radicadoInicio: selectedProceso?.radicadoInicio?.startsWith('Pendiente por asignar') ? '' : (selectedProceso?.radicadoInicio || selectedProduct.radicadoSeguimiento || '')
                                  });
                                  setIsEditingDetalles(true);
                                }}
@@ -1514,19 +1514,19 @@ export default function InvimaDashboard() {
                                  <div className="flex items-center rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden flex-1 md:flex-none">
                                      <div className="bg-gray-100 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-600 border-r border-gray-200 flex items-center gap-1"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" /></svg> ID</div>
                                      <div className="px-4 py-2 text-sm font-black font-mono tracking-widest text-gray-900 bg-gray-50/50">
-                                       {selectedProceso?.codigo || 'N/A'}
+                                       {selectedProceso?.codigo?.startsWith('Pendiente por asignar') ? 'Pendiente por asignar' : (selectedProceso?.codigo || 'N/A')}
                                      </div>
                                  </div>
                                  <div className="flex items-center rounded-lg border border-blue-200 bg-white shadow-sm overflow-hidden flex-1 md:flex-none">
                                      <div className="bg-blue-50 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-blue-700 border-r border-blue-200 flex items-center gap-1"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> RADICADO</div>
                                      <div className="px-4 py-2 text-sm font-black font-mono tracking-widest text-blue-900 bg-blue-50/30">
-                                       {selectedProceso?.radicadoInicio || selectedProduct.radicadoSeguimiento || 'PENDIENTE'}
+                                       {(selectedProceso?.radicadoInicio?.startsWith('Pendiente por asignar') || selectedProduct.radicadoSeguimiento?.startsWith('Pendiente por asignar')) ? 'Pendiente por asignar' : (selectedProceso?.radicadoInicio || selectedProduct.radicadoSeguimiento || 'PENDIENTE')}
                                      </div>
                                  </div>
                                  <div className="flex items-center rounded-lg border border-emerald-200 bg-white shadow-sm overflow-hidden flex-1 md:flex-none">
                                      <div className="bg-emerald-50 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-emerald-700 border-r border-emerald-200 flex items-center gap-1"><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg> LLAVE</div>
                                      <div className="px-4 py-2 text-sm font-black font-mono tracking-widest text-emerald-900 bg-emerald-50/30">
-                                       {selectedProceso?.llave || selectedProduct.llave || 'PENDIENTE'}
+                                       {(selectedProceso?.llave?.startsWith('Pendiente por asignar') || selectedProduct.llave?.startsWith('Pendiente por asignar')) ? 'Pendiente por asignar' : (selectedProceso?.llave || selectedProduct.llave || 'PENDIENTE')}
                                      </div>
                                  </div>
                              </div>
