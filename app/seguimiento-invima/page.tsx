@@ -175,6 +175,8 @@ export default function InvimaDashboard() {
   const [documentType, setDocumentType] = useState('OTRO');
   const [isUploading, setIsUploading] = useState(false);
   const [verificacionEtapaId, setVerificacionEtapaId] = useState<string | null>(null);
+  const [targetUploadEtapaId, setTargetUploadEtapaId] = useState<string | null>(null);
+  const [targetUploadEtapaNombre, setTargetUploadEtapaNombre] = useState<string>('');
   const [procesoEtapas, setProcesoEtapas] = useState<any[]>([]);
 
   // --- REVIEW MODAL STATES ---
@@ -564,14 +566,18 @@ export default function InvimaDashboard() {
       return;
     }
 
-    if (!verificacionEtapaId) {
-      console.error("No se encontró el ID de la etapa de Verificación Documental para este proceso.");
+    if (!targetUploadEtapaId && !verificacionEtapaId) {
+      console.error("No se encontró el ID de la etapa para subir el documento.");
       return;
     }
 
+    const uploadEtapaId = targetUploadEtapaId || verificacionEtapaId;
+
+    if (!uploadEtapaId) return;
+
     setIsUploading(true);
     try {
-      await invimaService.uploadDocument(verificacionEtapaId, {
+      await invimaService.uploadDocument(uploadEtapaId, {
         file: uploadFile,
         displayName: displayName || uploadFile.name,
         documentType: documentType
@@ -581,7 +587,7 @@ export default function InvimaDashboard() {
         try {
           await observacionService.createObservacion({
             procesoId: selectedProceso.id,
-            contenido: `Se subió el documento: ${displayName || uploadFile.name} (${documentType})`
+            contenido: `Se subió el documento (${targetUploadEtapaNombre || 'Verificación'}): ${displayName || uploadFile.name} (${documentType})`
           });
         } catch (obsErr) {
           console.warn('No se pudo guardar la observación de subida de documento', obsErr);
@@ -1452,7 +1458,7 @@ export default function InvimaDashboard() {
                    {[
                      { id: 'RESUMEN', label: 'Resumen General', icon: 'M4 6h16M4 10h16M4 14h16M4 18h16' },
                      { id: 'ETAPAS', label: 'Etapas del Trámite', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
-                     { id: 'DOCUMENTOS', label: `Documentos (${(procesoEtapas.find((pe) => pe.etapa?.nombre === 'VERIFICACIÓN DOCUMENTAL')?.documentosSubidos ?? []).length})`, icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+                     { id: 'DOCUMENTOS', label: `Documentos (${procesoEtapas.reduce((acc, pe) => acc + (pe.documentosSubidos?.length || 0), 0)})`, icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
                      { id: 'HISTORIAL', label: 'Historial', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' }
                    ].map(tab => (
                      <button
@@ -1575,6 +1581,15 @@ export default function InvimaDashboard() {
                                       })()}
                                     </p>
                                 </div>
+                             
+                             {selectedProduct.observacion && (
+                               <div className="col-span-3 mt-4 pt-4 border-t border-gray-200">
+                                 <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2">Observaciones Iniciales de la Solicitud</p>
+                                 <div className="p-3 bg-white rounded-xl border border-gray-100 text-sm text-gray-700 italic">
+                                   "{selectedProduct.observacion}"
+                                 </div>
+                               </div>
+                             )}
                             </div>
                          </div>
                        </div>
@@ -1765,6 +1780,10 @@ export default function InvimaDashboard() {
                                     {!isCompleted && (() => {
                                       const etapaNombreStr = (etapa.etapaNombre || etapa.etapa?.nombre || etapa.nombre || '').toUpperCase();
                                       const isVerificacion = etapaNombreStr.includes('VERIFICACI');
+                                      const isFormularios = etapaNombreStr.includes('FORMULARIO');
+                                      const isResolucion = etapaNombreStr.includes('RESOLUCIÓN') || etapaNombreStr.includes('RESOLUCION');
+                                      const isRadicado = etapaNombreStr.includes('RADICADO INVIMA');
+
                                       const verifEtapaData = isVerificacion ? procesoEtapas.find((pe: any) => pe.etapa?.nombre === 'VERIFICACIÓN DOCUMENTAL') : null;
                                       const docsVerif: any[] = verifEtapaData?.documentosSubidos || [];
                                       
@@ -1789,8 +1808,43 @@ export default function InvimaDashboard() {
                                                 : 'Todos los documentos deben estar verificados para completar esta etapa.'}
                                             </p>
                                           )}
+                                          
                                           {canManageProcess && (
-                                            <div className="flex justify-end">
+                                            <div className="flex flex-wrap items-center justify-end gap-3 mt-3">
+                                              {isRadicado && isInProgress && (
+                                                <button
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setDetallesForm({
+                                                      codigo: selectedProceso?.codigo?.startsWith('Pendiente por asignar') ? '' : (selectedProceso?.codigo || 'N/A'),
+                                                      llave: selectedProceso?.llave?.startsWith('Pendiente por asignar') ? '' : (selectedProceso?.llave || selectedProduct.llave || ''),
+                                                      radicadoInicio: selectedProceso?.radicadoInicio?.startsWith('Pendiente por asignar') ? '' : (selectedProceso?.radicadoInicio || selectedProduct.radicadoSeguimiento || '')
+                                                    });
+                                                    setIsEditingDetalles(true);
+                                                  }}
+                                                  className="text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl transition-all flex items-center gap-2 bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                                                >
+                                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                                  Ingresar Radicado y Llave
+                                                </button>
+                                              )}
+
+                                              {(isFormularios || isResolucion) && isInProgress && canUploadDocuments && (
+                                                <button
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setTargetUploadEtapaId(etapa.id);
+                                                    setTargetUploadEtapaNombre(etapaNombreStr);
+                                                    setDocumentType(isFormularios ? 'FORMULARIO' : 'RESOLUCION_INVIMA');
+                                                    setShowUploadModal(true);
+                                                  }}
+                                                  className="text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl transition-all flex items-center gap-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
+                                                >
+                                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                                                  Subir Documento
+                                                </button>
+                                              )}
+
                                               <button
                                                 disabled={!canComplete}
                                                 onClick={(e) => {
@@ -1840,61 +1894,59 @@ export default function InvimaDashboard() {
 
                    {/* TAB: DOCUMENTOS */}
                    {activeTab === 'DOCUMENTOS' && (() => {
-                      const verifEtapa = procesoEtapas.find((pe: any) => pe.etapa?.nombre === 'VERIFICACIÓN DOCUMENTAL');
-                      const docsSubidos: any[] = verifEtapa?.documentosSubidos || [];
+                      const todasLasEtapasConDocumentos = procesoEtapas.filter((pe: any) => pe.documentosSubidos && pe.documentosSubidos.length > 0);
+                      const hayDocumentos = todasLasEtapasConDocumentos.length > 0;
                       return (
-                        <div>
-                          <div className="flex items-center justify-between mb-6">
-                            <div>
-                              <h3 className="font-black text-gray-900 text-base">Documentos Subidos</h3>
-                              <p className="text-gray-500 text-sm mt-0.5">{docsSubidos.length} archivo{docsSubidos.length !== 1 ? 's' : ''} en la etapa de Verificación Documental.</p>
-                            </div>
-                            {selectedProduct.estado !== 'APROBADO' && canUploadDocuments && (
-                              <button onClick={() => {
-                                const reqDocsEvt = [...(selectedProduct.history || [])].reverse().find((e: any) => e.detail.includes('|REQ_DOCS:'));
-                                const allowedKeys = reqDocsEvt ? (reqDocsEvt.detail.match(/\|REQ_DOCS:(.*?)\|/)?.[1].split(',') || []) : ['CVL', 'FICHAS_TECNICAS', 'PROCESO_ELABORACION', 'AUTORIZACION_AL_PORTADOR', 'AUTORIZACION_AL_TRAMITADOR', 'ETIQUETAS', 'ANALISIS_DE_LABORATORIO', 'REGISTRO_DE_MARCA', 'CERTIFICADO_DE_BPM', 'OTRO'];
-                                const firstMissing = allowedKeys.find(key => !docsSubidos.some((d: any) => d.documentType === key));
-                                setDocumentType(firstMissing || 'OTRO');
-                                setShowUploadModal(true);
-                              }} className="text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-xl transition-colors flex items-center gap-2 shadow-sm shadow-blue-200">
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                                Subir Documento
-                              </button>
-                            )}
-                          </div>
-                          {docsSubidos.length > 0 ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                              {docsSubidos.map((doc: any) => (
-                                <div key={doc.id} onClick={() => handleOpenReviewModal(doc)} className="flex flex-col p-4 border border-gray-200 rounded-2xl bg-white hover:border-blue-300 hover:shadow-md transition-all cursor-pointer">
-                                  <div className="flex items-start justify-between mb-3">
-                                    <div className="p-2 rounded-xl bg-blue-50 text-blue-600 shrink-0">
-                                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                    </div>
-                                    <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider
-                                      ${doc.status === 'APROBADO' ? 'text-emerald-700 bg-emerald-100' :
-                                        doc.status === 'EN_REVISION' ? 'text-blue-700 bg-blue-100' :
-                                        (doc.status === 'RECHAZADO' || doc.status === 'REQUIERE_CORRECCION') ? 'text-red-700 bg-red-100' :
-                                        'text-amber-700 bg-amber-100'}
-                                    `}>
-                                      {({ PENDIENTE: 'Solicitud', EN_REVISION: 'En Revisión', APROBADO: 'Aprobado', RECHAZADO: 'Rechazado', REQUIERE_CORRECCION: 'Requiere Corrección' } as Record<string,string>)[doc.status] ?? doc.status.replace(/_/g, ' ')}
-                                    </span>
-                                  </div>
-                                  <h4 className="font-bold text-gray-900 text-sm mb-1 line-clamp-2" title={doc.displayName || doc.fileName}>{doc.displayName || doc.fileName}</h4>
-                                  <div className="mt-auto pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-semibold border-t border-gray-100">
-                                    <span className="text-gray-500 capitalize bg-gray-100 px-2 py-0.5 rounded">{doc.documentType?.replace(/_/g, ' ').toLowerCase()}</span>
-                                    <span className="text-gray-400">{doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : ''}</span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
+                        <div className="space-y-6">
+                          {!hayDocumentos ? (
                             <div className="p-16 flex flex-col items-center justify-center text-center bg-gray-50/50 rounded-3xl border-2 border-dashed border-gray-200">
                               <div className="bg-white p-4 rounded-full shadow-sm mb-4">
                                 <svg className="w-8 h-8 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                               </div>
                               <p className="text-gray-500 font-bold text-sm">No hay documentos subidos aún.</p>
-                              <p className="text-gray-400 text-xs mt-1">Usa el botón "Subir Documento" para agregar archivos.</p>
+                              <p className="text-gray-400 text-xs mt-1">Sube archivos directamente desde la pestaña de Etapas.</p>
                             </div>
+                          ) : (
+                            todasLasEtapasConDocumentos.map((pe: any) => {
+                              const docsSubidos = pe.documentosSubidos || [];
+                              const etapaNombre = pe.etapaNombre || pe.etapa?.nombre || pe.nombre || 'Etapa';
+                              return (
+                                <div key={pe.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+                                  <div className="bg-gray-50 px-5 py-4 border-b border-gray-200 flex justify-between items-center">
+                                    <div>
+                                      <h3 className="font-black text-gray-900 text-sm uppercase tracking-wider">{etapaNombre}</h3>
+                                      <p className="text-gray-500 text-xs mt-0.5">{docsSubidos.length} archivo{docsSubidos.length !== 1 ? 's' : ''}</p>
+                                    </div>
+                                  </div>
+                                  <div className="p-5">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                                      {docsSubidos.map((doc: any) => (
+                                        <div key={doc.id} onClick={() => handleOpenReviewModal(doc)} className="flex flex-col p-4 border border-gray-200 rounded-2xl bg-white hover:border-blue-300 hover:shadow-md transition-all cursor-pointer">
+                                          <div className="flex items-start justify-between mb-3">
+                                            <div className="p-2 rounded-xl bg-blue-50 text-blue-600 shrink-0">
+                                              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                            </div>
+                                            <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider
+                                              ${doc.status === 'APROBADO' ? 'text-emerald-700 bg-emerald-100' :
+                                                doc.status === 'EN_REVISION' ? 'text-blue-700 bg-blue-100' :
+                                                (doc.status === 'RECHAZADO' || doc.status === 'REQUIERE_CORRECCION') ? 'text-red-700 bg-red-100' :
+                                                'text-amber-700 bg-amber-100'}
+                                            `}>
+                                              {({ PENDIENTE: 'Solicitud', EN_REVISION: 'En Revisión', APROBADO: 'Aprobado', RECHAZADO: 'Rechazado', REQUIERE_CORRECCION: 'Requiere Corrección' } as Record<string,string>)[doc.status] ?? doc.status.replace(/_/g, ' ')}
+                                            </span>
+                                          </div>
+                                          <h4 className="font-bold text-gray-900 text-sm mb-1 line-clamp-2" title={doc.displayName || doc.fileName}>{doc.displayName || doc.fileName}</h4>
+                                          <div className="mt-auto pt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-semibold border-t border-gray-100">
+                                            <span className="text-gray-500 capitalize bg-gray-100 px-2 py-0.5 rounded">{doc.documentType?.replace(/_/g, ' ').toLowerCase()}</span>
+                                            <span className="text-gray-400">{doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : ''}</span>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })
                           )}
                         </div>
                       );
@@ -1906,26 +1958,40 @@ export default function InvimaDashboard() {
                        <p className="text-gray-500 text-sm mb-6">Registro detallado de todas las acciones, notificaciones y cambios de estado en este trámite.</p>
                        
                        <div className="space-y-4">
-                         {selectedProduct.history.filter(e => !e.detail.includes('|REQ_DOCS:')).map((event, i, arr) => (
-                           <div key={i} className="flex gap-4 p-4 rounded-xl hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
-                             <div className="w-32 shrink-0 text-sm">
-                               <p className="font-bold text-gray-900">{event.date.split(' ')[0]}</p>
-                               <p className="text-xs text-gray-500 font-medium">{event.date.split(' ')[1]}</p>
+                         {(() => {
+                           let historyList = selectedProduct.history.filter((e: any) => !e.detail.includes('|REQ_DOCS:'));
+                           if (selectedProduct.observacion) {
+                             const firstDate = historyList.length > 0 ? historyList[0].date : (selectedProduct.fechaEntrada || 'N/A 00:00');
+                             const initialEvent = {
+                               date: firstDate,
+                               action: 'OBSERVACIÓN INICIAL (SOLICITUD)',
+                               detail: selectedProduct.observacion,
+                               user: selectedProduct.ingeniero || 'Sistema'
+                             };
+                             historyList = [initialEvent, ...historyList];
+                           }
+                           
+                           return historyList.map((event: any, i: number, arr: any[]) => (
+                             <div key={i} className="flex gap-4 p-4 rounded-xl hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
+                               <div className="w-32 shrink-0 text-sm">
+                                 <p className="font-bold text-gray-900">{event.date.split(' ')[0]}</p>
+                                 <p className="text-xs text-gray-500 font-medium">{event.date.split(' ')[1]}</p>
+                               </div>
+                               <div className="w-10 flex flex-col items-center">
+                                 <div className="w-2.5 h-2.5 rounded-full bg-gray-300 mt-1.5"></div>
+                                 {i !== arr.length - 1 && <div className="w-px h-full bg-gray-200 mt-2"></div>}
+                               </div>
+                               <div className="pb-4">
+                                 <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">{event.action}</p>
+                                 <p className="text-sm font-semibold text-gray-900 mb-1">{event.detail}</p>
+                                 <p className="text-xs text-gray-500 flex items-center gap-1">
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                    Por: {event.user}
+                                 </p>
+                               </div>
                              </div>
-                             <div className="w-10 flex flex-col items-center">
-                               <div className="w-2.5 h-2.5 rounded-full bg-gray-300 mt-1.5"></div>
-                               {i !== arr.length - 1 && <div className="w-px h-full bg-gray-200 mt-2"></div>}
-                             </div>
-                             <div className="pb-4">
-                               <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">{event.action}</p>
-                               <p className="text-sm font-semibold text-gray-900 mb-1">{event.detail}</p>
-                               <p className="text-xs text-gray-500 flex items-center gap-1">
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                                  Por: {event.user}
-                               </p>
-                             </div>
-                           </div>
-                         ))}
+                           ));
+                         })()}
                        </div>
                      </div>
                    )}
@@ -2092,10 +2158,10 @@ export default function InvimaDashboard() {
                 </div>
                 
                 <div className="p-6 space-y-6">
-                  {!verificacionEtapaId && (
+                  {!verificacionEtapaId && !targetUploadEtapaId && (
                     <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl flex gap-3 text-amber-800 text-xs font-semibold">
                       <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                      No se detectó la etapa de Verificación Documental. Asegúrate de que el trámite esté correctamente inicializado.
+                      No se detectó la etapa correcta para subir el documento. Asegúrate de que el trámite esté correctamente inicializado.
                     </div>
                   )}
 
@@ -2107,22 +2173,39 @@ export default function InvimaDashboard() {
                       className="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 font-semibold focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all"
                     >
                       {(() => {
-                        const reqDocsEvt = [...(selectedProduct?.history || [])].reverse().find((e: any) => e.detail.includes('|REQ_DOCS:'));
-                        const allowedKeys = reqDocsEvt ? (reqDocsEvt.detail.match(/\|REQ_DOCS:(.*?)\|/)?.[1].split(',') || []) : ['CVL', 'FICHAS_TECNICAS', 'PROCESO_ELABORACION', 'AUTORIZACION_AL_PORTADOR', 'AUTORIZACION_AL_TRAMITADOR', 'ETIQUETAS', 'ANALISIS_DE_LABORATORIO', 'REGISTRO_DE_MARCA', 'CERTIFICADO_DE_BPM', 'OTRO'];
-                        if (!allowedKeys.includes('OTRO')) allowedKeys.push('OTRO');
-                        
-                        const DOC_OPTIONS = [
-                          { key: 'CVL', label: 'CVL (Certificado Venta Libre)' },
-                          { key: 'FICHAS_TECNICAS', label: 'Fichas Técnicas' },
-                          { key: 'PROCESO_ELABORACION', label: 'Proceso de Elaboración' },
-                          { key: 'AUTORIZACION_AL_PORTADOR', label: 'Autorización al Portador' },
-                          { key: 'AUTORIZACION_AL_TRAMITADOR', label: 'Autorización al Tramitador' },
-                          { key: 'ETIQUETAS', label: 'Etiquetas / Artes' },
-                          { key: 'ANALISIS_DE_LABORATORIO', label: 'Análisis de Laboratorio' },
-                          { key: 'REGISTRO_DE_MARCA', label: 'Registro de Marca' },
-                          { key: 'CERTIFICADO_DE_BPM', label: 'Certificado de BPM' },
-                          { key: 'OTRO', label: 'Otro' },
-                        ];
+                        let allowedKeys: string[] = [];
+                        let DOC_OPTIONS: {key: string, label: string}[] = [];
+
+                        if (targetUploadEtapaNombre.includes('FORMULARIO')) {
+                          allowedKeys = ['FORMULARIO', 'OTRO'];
+                          DOC_OPTIONS = [
+                            { key: 'FORMULARIO', label: 'Formulario' },
+                            { key: 'OTRO', label: 'Otro' }
+                          ];
+                        } else if (targetUploadEtapaNombre.includes('RESOLUCIÓN') || targetUploadEtapaNombre.includes('RESOLUCION')) {
+                          allowedKeys = ['RESOLUCION_INVIMA', 'OTRO'];
+                          DOC_OPTIONS = [
+                            { key: 'RESOLUCION_INVIMA', label: 'Resolución INVIMA' },
+                            { key: 'OTRO', label: 'Otro' }
+                          ];
+                        } else {
+                          const reqDocsEvt = [...(selectedProduct?.history || [])].reverse().find((e: any) => e.detail.includes('|REQ_DOCS:'));
+                          allowedKeys = reqDocsEvt ? (reqDocsEvt.detail.match(/\|REQ_DOCS:(.*?)\|/)?.[1].split(',') || []) : ['CVL', 'FICHAS_TECNICAS', 'PROCESO_ELABORACION', 'AUTORIZACION_AL_PORTADOR', 'AUTORIZACION_AL_TRAMITADOR', 'ETIQUETAS', 'ANALISIS_DE_LABORATORIO', 'REGISTRO_DE_MARCA', 'CERTIFICADO_DE_BPM', 'OTRO'];
+                          if (!allowedKeys.includes('OTRO')) allowedKeys.push('OTRO');
+                          
+                          DOC_OPTIONS = [
+                            { key: 'CVL', label: 'CVL (Certificado Venta Libre)' },
+                            { key: 'FICHAS_TECNICAS', label: 'Fichas Técnicas' },
+                            { key: 'PROCESO_ELABORACION', label: 'Proceso de Elaboración' },
+                            { key: 'AUTORIZACION_AL_PORTADOR', label: 'Autorización al Portador' },
+                            { key: 'AUTORIZACION_AL_TRAMITADOR', label: 'Autorización al Tramitador' },
+                            { key: 'ETIQUETAS', label: 'Etiquetas / Artes' },
+                            { key: 'ANALISIS_DE_LABORATORIO', label: 'Análisis de Laboratorio' },
+                            { key: 'REGISTRO_DE_MARCA', label: 'Registro de Marca' },
+                            { key: 'CERTIFICADO_DE_BPM', label: 'Certificado de BPM' },
+                            { key: 'OTRO', label: 'Otro' },
+                          ];
+                        }
 
                         return DOC_OPTIONS.filter(opt => allowedKeys.includes(opt.key)).map(opt => (
                           <option key={opt.key} value={opt.key}>{opt.label}</option>
@@ -2187,6 +2270,8 @@ export default function InvimaDashboard() {
                       setShowUploadModal(false);
                       setUploadFile(null);
                       setDisplayName('');
+                      setTargetUploadEtapaId(null);
+                      setTargetUploadEtapaNombre('');
                     }} 
                     className="px-5 py-2.5 text-sm font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
                   >
@@ -2194,7 +2279,7 @@ export default function InvimaDashboard() {
                   </button>
                   <button 
                     type="submit" 
-                    disabled={isUploading || !uploadFile || !verificacionEtapaId}
+                    disabled={isUploading || !uploadFile || (!verificacionEtapaId && !targetUploadEtapaId)}
                     className="px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
                     {isUploading ? (
