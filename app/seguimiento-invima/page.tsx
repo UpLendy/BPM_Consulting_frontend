@@ -77,6 +77,7 @@ interface ProductProcess {
   fechaInicioBPM: string;
   fechaTerminacion: string | null;
   nombreTramite: string;
+  descripcion?: string;
   observacion: string;
   diasVencimiento?: number;
   radicadoSeguimiento: string;
@@ -178,6 +179,8 @@ export default function InvimaDashboard() {
   const [targetUploadEtapaId, setTargetUploadEtapaId] = useState<string | null>(null);
   const [targetUploadEtapaNombre, setTargetUploadEtapaNombre] = useState<string>('');
   const [procesoEtapas, setProcesoEtapas] = useState<any[]>([]);
+  const [notasEdicion, setNotasEdicion] = useState<Record<string, string>>({});
+  const [guardandoNotas, setGuardandoNotas] = useState<Record<string, boolean>>({});
 
   // --- REVIEW MODAL STATES ---
   const [selectedReviewDoc, setSelectedReviewDoc] = useState<any>(null);
@@ -318,6 +321,7 @@ export default function InvimaDashboard() {
                 estado: (proc?.status || sol.estado || 'EN_REVISION') as InvimaStatus,
                 etapa: proc?.etapaActual || 'Solicitud',
                 titular: finalTitular,
+                descripcion: sol.descripcion || '',
                 idioma: sol.idioma || 'Español',
                 tipoTramite: sol.asignacion || 'Trámite',
                 asignacion: sol.asignacion || 'Normal',
@@ -371,14 +375,18 @@ export default function InvimaDashboard() {
           
           // Extraer el titular si la solicitud detallada lo trae en observación
           let extractedTitular = undefined;
+          let finalObsToSave = undefined;
           if (solicitudDetalle) {
-            const finalObs = solicitudDetalle.observacion || '';
+            let finalObs = solicitudDetalle.observacion || '';
             const match = finalObs.match(/Titular del producto:\s*(.*?)(?=\r|\n|$)/i);
             if (match && match[1].trim()) {
               extractedTitular = match[1].trim();
+              finalObs = finalObs.replace(match[0], '').trim();
+              finalObs = finalObs.replace(/^[\r\n]+/, '').trim();
             } else if (solicitudDetalle.titular) {
               extractedTitular = solicitudDetalle.titular;
             }
+            finalObsToSave = finalObs;
           }
           
           // If we have a process or a detail, we update the selectedProduct
@@ -388,6 +396,8 @@ export default function InvimaDashboard() {
               return {
                 ...prev,
                 titular: extractedTitular || prev.titular,
+                descripcion: solicitudDetalle?.descripcion || prev.descripcion,
+                observacion: finalObsToSave !== undefined ? finalObsToSave : prev.observacion,
                 radicadoSeguimiento: proc?.radicadoInicio || prev.radicadoSeguimiento,
                 llave: proc?.llave || prev.llave,
                 idioma: proc?.solicitud?.idioma || proc?.idioma || prev.idioma,
@@ -557,6 +567,20 @@ export default function InvimaDashboard() {
       }
     } catch (err: any) {
       console.error("Error updating stage status:", err);
+    }
+  };
+
+  const handleSaveNotas = async (etapaId: string, notas: string) => {
+    setGuardandoNotas(prev => ({ ...prev, [etapaId]: true }));
+    try {
+      await procesoService.updateEtapaNotas(etapaId, notas);
+      setProcesoEtapas(prev => prev.map(e => e.id === etapaId ? { ...e, notas } : e));
+    } catch (err: any) {
+      console.error("Error updating stage notes:", err);
+    } finally {
+      setTimeout(() => {
+        setGuardandoNotas(prev => ({ ...prev, [etapaId]: false }));
+      }, 1000);
     }
   };
 
@@ -1434,18 +1458,28 @@ export default function InvimaDashboard() {
                         </div>
                     </div>
 
-                    {/* Alerta de Observación General */}
-                    {selectedProduct.observacion && (
+                    {/* Alerta de Descripción y Observación General */}
+                    {(selectedProduct.descripcion || selectedProduct.observacion) && (
                         <div className={`p-4 rounded-xl border ${selectedProduct.estado === 'OBSERVACIONES' ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-gray-50 border-gray-200 text-gray-700'} flex gap-3 items-start`}>
                             <svg className={`w-5 h-5 mt-0.5 shrink-0 ${selectedProduct.estado === 'OBSERVACIONES' ? 'text-amber-500' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
-                            <div>
-                                <h4 className="text-xs font-bold uppercase tracking-wider mb-1 opacity-80">Estado / Observación Actual</h4>
-                                <p className="text-sm font-medium">{selectedProduct.observacion}</p>
+                            <div className="flex-1">
+                                {selectedProduct.descripcion && (
+                                  <div className="mb-3">
+                                    <h4 className="text-xs font-bold uppercase tracking-wider mb-1 opacity-80">Descripción de la Solicitud</h4>
+                                    <p className="text-sm font-medium leading-relaxed">{selectedProduct.descripcion}</p>
+                                  </div>
+                                )}
+                                {selectedProduct.observacion && (
+                                  <div>
+                                    <h4 className="text-xs font-bold uppercase tracking-wider mb-1 opacity-80">Estado / Observación</h4>
+                                    <p className="text-sm font-medium leading-relaxed">{selectedProduct.observacion}</p>
+                                  </div>
+                                )}
                             </div>
                             {selectedProduct.estado === 'OBSERVACIONES' && canManageProcess && (
-                              <button onClick={() => setShowResponderAutoModal(true)} className="ml-auto bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors whitespace-nowrap shadow-sm">
+                              <button onClick={() => setShowResponderAutoModal(true)} className="ml-auto shrink-0 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors whitespace-nowrap shadow-sm">
                                 Responder Auto
                               </button>
                             )}
@@ -1698,6 +1732,37 @@ export default function InvimaDashboard() {
                                       {etapa.comentario || (isCompleted ? 'Esta etapa ha sido verificada y aprobada satisfactoriamente.' : isInProgress ? 'Se encuentra actualmente en gestión por el equipo encargado.' : 'Etapa pendiente por iniciar.')}
                                     </p>
 
+                                    {/* Notas de la Etapa */}
+                                    <div className="mt-4 pt-4 border-t border-gray-100/60">
+                                      <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Notas de la Etapa</p>
+                                      <textarea
+                                        value={notasEdicion[etapa.id] !== undefined ? notasEdicion[etapa.id] : (etapa.notas || '')}
+                                        onChange={(e) => setNotasEdicion({ ...notasEdicion, [etapa.id]: e.target.value })}
+                                        placeholder="Escribe alguna observación específica para esta etapa..."
+                                        className="w-full text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded-xl p-3 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 min-h-[60px] resize-y transition-all"
+                                      />
+                                      <div className="flex justify-end mt-2">
+                                        <button
+                                          onClick={() => handleSaveNotas(etapa.id, notasEdicion[etapa.id] !== undefined ? notasEdicion[etapa.id] : (etapa.notas || ''))}
+                                          disabled={guardandoNotas[etapa.id] || (notasEdicion[etapa.id] === undefined && !etapa.notas) || (notasEdicion[etapa.id] === etapa.notas) || (notasEdicion[etapa.id] === '' && !etapa.notas)}
+                                          className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5
+                                            ${guardandoNotas[etapa.id] ? 'bg-gray-100 text-gray-400' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
+                                        >
+                                          {guardandoNotas[etapa.id] ? (
+                                            <>
+                                              <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                              Guardando...
+                                            </>
+                                          ) : (
+                                            <>
+                                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+                                              Guardar Nota
+                                            </>
+                                          )}
+                                        </button>
+                                      </div>
+                                    </div>
+
                                     {/* Checklist de documentos para VERIFICACIÓN DOCUMENTAL */}
                                     {(etapa.etapaNombre || etapa.etapa?.nombre || etapa.nombre || '').toUpperCase().includes('VERIFICACI') && (() => {
                                       const verifEtapa = procesoEtapas.find((pe: any) => pe.etapa?.nombre === 'VERIFICACIÓN DOCUMENTAL');
@@ -1783,6 +1848,7 @@ export default function InvimaDashboard() {
                                       const isFormularios = etapaNombreStr.includes('FORMULARIO');
                                       const isResolucion = etapaNombreStr.includes('RESOLUCIÓN') || etapaNombreStr.includes('RESOLUCION');
                                       const isRadicado = etapaNombreStr.includes('RADICADO INVIMA');
+                                      const isAnticipo = etapaNombreStr.includes('ANTICIPO');
 
                                       const verifEtapaData = isVerificacion ? procesoEtapas.find((pe: any) => pe.etapa?.nombre === 'VERIFICACIÓN DOCUMENTAL') : null;
                                       const docsVerif: any[] = verifEtapaData?.documentosSubidos || [];
@@ -1829,13 +1895,13 @@ export default function InvimaDashboard() {
                                                 </button>
                                               )}
 
-                                              {(isFormularios || isResolucion) && isInProgress && canUploadDocuments && (
+                                              {(isFormularios || isResolucion || isAnticipo) && isInProgress && canUploadDocuments && (
                                                 <button
                                                   onClick={(e) => {
                                                     e.stopPropagation();
                                                     setTargetUploadEtapaId(etapa.id);
                                                     setTargetUploadEtapaNombre(etapaNombreStr);
-                                                    setDocumentType(isFormularios ? 'FORMULARIO' : 'RESOLUCION_INVIMA');
+                                                    setDocumentType(isFormularios ? 'FORMULARIO' : isAnticipo ? 'DOCUMENTO_ANTICIPO' : 'RESOLUCION_INVIMA');
                                                     setShowUploadModal(true);
                                                   }}
                                                   className="text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl transition-all flex items-center gap-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
@@ -2180,6 +2246,13 @@ export default function InvimaDashboard() {
                           allowedKeys = ['FORMULARIO', 'OTRO'];
                           DOC_OPTIONS = [
                             { key: 'FORMULARIO', label: 'Formulario' },
+                            { key: 'OTRO', label: 'Otro' }
+                          ];
+                        } else if (targetUploadEtapaNombre.includes('ANTICIPO')) {
+                          allowedKeys = ['DOCUMENTO_ANTICIPO', 'COMPROBANTE_PAGO', 'OTRO'];
+                          DOC_OPTIONS = [
+                            { key: 'DOCUMENTO_ANTICIPO', label: 'Documento de Anticipo' },
+                            { key: 'COMPROBANTE_PAGO', label: 'Comprobante de Pago' },
                             { key: 'OTRO', label: 'Otro' }
                           ];
                         } else if (targetUploadEtapaNombre.includes('RESOLUCIÓN') || targetUploadEtapaNombre.includes('RESOLUCION')) {

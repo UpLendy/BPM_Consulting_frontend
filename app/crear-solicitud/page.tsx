@@ -95,17 +95,18 @@ export default function CrearSolicitudPage() {
         const storedUser = localStorage.getItem('user');
         const userData = storedUser ? JSON.parse(storedUser) : currentUser;
         
-        // STRICT: Use only engineerId
-        const targetId = userData?.engineerId;
-        
-        console.log('[CrearSolicitud] RefreshSolicitudes -> engineerId:', targetId);
-
-        if (targetId) {
-          const solsRes = await solicitudService.getSolicitudesByIngeniero(targetId, 'PENDIENTE');
+        if (isAdmin) {
+          const solsRes = await solicitudService.getAllSolicitudes('PENDIENTE');
           setSolicitudes(Array.isArray(solsRes) ? solsRes : (solsRes?.data || []));
-        } else {
-          console.error('[CrearSolicitud] No se encontró engineerId en el usuario:', userData);
-          setSolicitudes([]);
+        } else if (isEngineer) {
+          const targetId = userData?.engineerId;
+          if (targetId) {
+            const solsRes = await solicitudService.getSolicitudesByIngeniero(targetId, 'PENDIENTE');
+            setSolicitudes(Array.isArray(solsRes) ? solsRes : (solsRes?.data || []));
+          } else {
+            console.error('[CrearSolicitud] No se encontró engineerId en el usuario ingeniero:', userData);
+            setSolicitudes([]);
+          }
         }
       }
     } catch (err) {
