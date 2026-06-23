@@ -1895,13 +1895,13 @@ export default function InvimaDashboard() {
                                                 </button>
                                               )}
 
-                                              {(isFormularios || isResolucion || isAnticipo) && isInProgress && canUploadDocuments && (
+                                              {(isFormularios || isResolucion || isAnticipo || isVerificacion) && isInProgress && canUploadDocuments && (
                                                 <button
                                                   onClick={(e) => {
                                                     e.stopPropagation();
                                                     setTargetUploadEtapaId(etapa.id);
                                                     setTargetUploadEtapaNombre(etapaNombreStr);
-                                                    setDocumentType(isFormularios ? 'FORMULARIO' : isAnticipo ? 'DOCUMENTO_ANTICIPO' : 'RESOLUCION_INVIMA');
+                                                    setDocumentType(isFormularios ? 'FORMULARIO' : isAnticipo ? 'DOCUMENTO_ANTICIPO' : isResolucion ? 'RESOLUCION_INVIMA' : '');
                                                     setShowUploadModal(true);
                                                   }}
                                                   className="text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl transition-all flex items-center gap-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
@@ -2234,10 +2234,12 @@ export default function InvimaDashboard() {
                   <div>
                     <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Categoría del Documento</label>
                     <select 
+                      required
                       value={documentType}
                       onChange={(e) => setDocumentType(e.target.value)}
                       className="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 font-semibold focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all"
                     >
+                      <option value="" disabled>Seleccione una categoría...</option>
                       {(() => {
                         let allowedKeys: string[] = [];
                         let DOC_OPTIONS: {key: string, label: string}[] = [];
