@@ -163,6 +163,8 @@ export default function InvimaDashboard() {
   const [user, setUser] = useState<any>(null);
   const [role, setRole] = useState<string>('');
   const [editingDocsMap, setEditingDocsMap] = useState<Record<string, string[]>>({});
+  const [currentPage, setCurrentPage] = useState(1);
+  const [paginationMeta, setPaginationMeta] = useState<{ total: number, page: number, limit: number, totalPages: number, hasNextPage: boolean, hasPreviousPage: boolean } | null>(null);
 
   // --- MODAL STATES ---
   const [showNewTramiteModal, setShowNewTramiteModal] = useState(false);
@@ -270,25 +272,31 @@ export default function InvimaDashboard() {
           });
         }
       }
+    }
+  }, []);
 
-      // Fetch dashboard solicitudes (only those with processes)
-      const fetchDashboardData = async () => {
-        setIsLoadingDashboard(true);
-        try {
-          const engineerId = parsed.engineerId;
-          let res: any;
+  useEffect(() => {
+    if (!user || !role) return;
 
-          if (r === 'admin' || r === 'invima') {
-            res = await solicitudService.getAllSolicitudes();
-          } else if (engineerId) {
-            res = await solicitudService.getSolicitudesByIngeniero(engineerId, undefined, true);
-          }
+    // Fetch dashboard solicitudes (only those with processes)
+    const fetchDashboardData = async () => {
+      setIsLoadingDashboard(true);
+      try {
+        const engineerId = user.engineerId;
+        let res: any;
 
-          if (res) {
-            let rawData = Array.isArray(res) ? res : (res?.data || []);
-            
-            const mappedData: ProductProcess[] = rawData.map((item: any) => {
-              // The item could be a Solicitud with a nested 'proceso' or just a Solicitud.
+        if (role === 'admin' || role === 'invima') {
+          res = await solicitudService.getAllSolicitudes(undefined, currentPage, 10);
+        } else if (engineerId) {
+          res = await solicitudService.getSolicitudesByIngeniero(engineerId, undefined, true, currentPage, 10);
+        }
+
+        if (res) {
+          let rawData = Array.isArray(res) ? res : (res?.data || []);
+          if (res.meta) setPaginationMeta(res.meta);
+          
+          const mappedData: ProductProcess[] = rawData.map((item: any) => {
+            // The item could be a Solicitud with a nested 'proceso' or just a Solicitud.
               const sol = item;
               const proc = item.proceso || (item.solicitud ? item : null); // Handle if item is process
               const solId = sol.id;
@@ -347,8 +355,7 @@ export default function InvimaDashboard() {
       };
 
       fetchDashboardData();
-    }
-  }, []);
+  }, [user, role, currentPage]);
 
   // Fetch process details when selectedProduct changes
   useEffect(() => {
@@ -969,11 +976,11 @@ export default function InvimaDashboard() {
 
   // --- STATS ---
   const stats = useMemo(() => ({
-    total: dashboardSolicitudes.length,
+    total: paginationMeta?.total || dashboardSolicitudes.length,
     aprobados: dashboardSolicitudes.filter(d => ['APROBADO', 'TERMINADO', 'COMPLETADA'].includes(String(d.estado).toUpperCase())).length,
     revision: dashboardSolicitudes.filter(d => d.estado === 'EN_REVISION' || d.estado === 'RADICADO' || d.estado === 'EN_PROCESO').length,
     observaciones: dashboardSolicitudes.filter(d => d.estado === 'OBSERVACIONES').length,
-  }), [dashboardSolicitudes]);
+  }), [dashboardSolicitudes, paginationMeta]);
 
   // --- UTILS ---
   const getStatusColor = (status: InvimaStatus) => {
@@ -1006,8 +1013,92 @@ export default function InvimaDashboard() {
 
   const handleExport = async () => {
     try {
-      // 1. Fetch detailed documents for each process
-      const detailedData = await Promise.all(dashboardSolicitudes.map(async (item) => {
+      // 0. Fetch all data for export regardless of pagination
+      setShowExportToast(true); // Maybe use a separate state like isExporting, but we can reuse the toast to show "Exportando..."
+      
+      let allSolicitudes: any[] = [];
+      let currentPageExport = 1;
+      const maxLimit = 100;
+      let hasMore = true;
+
+      while (hasMore) {
+        let res: any;
+        const engineerId = user?.engineerId;
+        if (role === 'admin' || role === 'invima') {
+          res = await solicitudService.getAllSolicitudes(undefined, currentPageExport, maxLimit);
+        } else if (engineerId) {
+          res = await solicitudService.getSolicitudesByIngeniero(engineerId, undefined, true, currentPageExport, maxLimit);
+        }
+
+        const dataArr = Array.isArray(res) ? res : (res?.data || []);
+        allSolicitudes = [...allSolicitudes, ...dataArr];
+
+        if (res?.meta) {
+          hasMore = res.meta.hasNextPage;
+        } else {
+          // Fallback just in case meta is not correctly provided
+          hasMore = dataArr.length === maxLimit;
+        }
+        currentPageExport++;
+      }
+
+      // Map the full raw data
+      const mappedAllData: ProductProcess[] = allSolicitudes.map((item: any) => {
+        const sol = item;
+        const proc = item.proceso || (item.solicitud ? item : null);
+        const solId = sol.id;
+        
+        let finalTitular = sol.titular || sol.titularNombre || sol.cliente?.nombre || sol.empresa?.nombre || 'Sin titular';
+        let finalObs = sol.observacion || '';
+        const match = finalObs.match(/Titular del producto:\s*(.*?)(?=\r|\n|$)/i);
+        if (match && match[1].trim()) {
+          finalTitular = match[1].trim();
+          finalObs = finalObs.replace(match[0], '').trim();
+          finalObs = finalObs.replace(/^[\r\n]+/, '').trim();
+        }
+
+        return {
+          id: solId,
+          fechaEntrada: formatCO(sol.fechaEntrada),
+          fechaInicioBPM: formatCO(sol.fechaEntrada),
+          fechaTerminacion: (() => {
+            const estadoTemp = proc?.status || sol.estado || '';
+            const isCompleted = ['TERMINADO', 'APROBADO', 'COMPLETADA'].includes(estadoTemp.toUpperCase());
+            const fDate = proc?.fechaFin || proc?.fechaTerminacion || sol.fechaTerminacion || (isCompleted ? (proc?.updatedAt || sol.updatedAt) : null);
+            return fDate ? formatCO(fDate) : null;
+          })(),
+          nombreTramite: sol.titulo || 'Sin título',
+          observacion: finalObs,
+          radicadoSeguimiento: proc?.radicadoInicio || sol.radicadoInicio || '',
+          ingeniero: sol.ingenieroNombre || (sol.ingeniero ? `${sol.ingeniero.first_name} ${sol.ingeniero.last_name}` : ''),
+          estado: (proc?.status || sol.estado || 'EN_REVISION') as InvimaStatus,
+          etapa: proc?.etapaActual || 'Solicitud',
+          titular: finalTitular,
+          descripcion: sol.descripcion || '',
+          idioma: sol.idioma || 'Español',
+          tipoTramite: sol.asignacion || 'Trámite',
+          asignacion: sol.asignacion || 'Normal',
+          grupo: sol.grupo || 'General',
+          progress: proc?.porcentajeCompletado || proc?.progresoPorcentaje || sol.progresoPorcentaje || 0,
+          timeline: buildTimeline(1, -1, sol.fechaEntrada), 
+          documents: [],
+          history: [],
+          rawProceso: proc
+        };
+      });
+
+      // Filter exactly like the list UI
+      const filteredAllData = mappedAllData.filter(item => {
+        const matchesSearch = item.nombreTramite.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                              item.titular.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                              (item.radicadoSeguimiento && item.radicadoSeguimiento.toLowerCase().includes(searchTerm.toLowerCase()));
+        const matchesStatus = filterStatus === 'TODOS' || filterStatus === 'ALL' || item.estado === filterStatus ||
+                              (filterStatus === 'APROBADO' && ['TERMINADO', 'COMPLETADA'].includes(String(item.estado).toUpperCase()));
+        return matchesSearch && matchesStatus;
+      });
+
+      // 1. Fetch detailed documents for each process (using the all filtered data)
+      const detailedData = await Promise.all(filteredAllData.map(async (item) => {
         let docsText = '';
         let obsText = '';
         let processId = item.rawProceso?.id || item.rawProceso?._id;
@@ -1108,8 +1199,20 @@ export default function InvimaDashboard() {
               }
             }
           };
-          const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&w=600&h=300&bkg=white`;
-          const response = await fetch(chartUrl);
+          const response = await fetch('https://quickchart.io/chart', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chart: chartConfig,
+              width: 600,
+              height: 300,
+              backgroundColor: 'white'
+            })
+          });
+          
+          if (!response.ok) {
+            throw new Error(`QuickChart devolvió estado ${response.status}`);
+          }
           const imageBuffer = await response.arrayBuffer();
           
           const chartImageId = workbook.addImage({
@@ -1397,6 +1500,29 @@ export default function InvimaDashboard() {
                      </div>
                    </div>
                  ))
+               )}
+
+               {/* Pagination Controls */}
+               {paginationMeta && paginationMeta.totalPages > 1 && (
+                 <div className="flex items-center justify-between mt-4 px-2 py-2 bg-white rounded-xl shadow-sm border border-gray-100 shrink-0">
+                   <button
+                     disabled={!paginationMeta.hasPreviousPage}
+                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                     className={`p-2 rounded-lg transition-all ${!paginationMeta.hasPreviousPage ? 'text-gray-300 cursor-not-allowed' : 'text-blue-600 hover:bg-blue-50'}`}
+                   >
+                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" /></svg>
+                   </button>
+                   <span className="text-xs font-bold text-gray-500">
+                     Pág <span className="text-gray-900">{paginationMeta.page}</span> de <span className="text-gray-900">{paginationMeta.totalPages}</span>
+                   </span>
+                   <button
+                     disabled={!paginationMeta.hasNextPage}
+                     onClick={() => setCurrentPage(prev => Math.min(paginationMeta.totalPages, prev + 1))}
+                     className={`p-2 rounded-lg transition-all ${!paginationMeta.hasNextPage ? 'text-gray-300 cursor-not-allowed' : 'text-blue-600 hover:bg-blue-50'}`}
+                   >
+                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                   </button>
+                 </div>
                )}
              </div>
           </div>
