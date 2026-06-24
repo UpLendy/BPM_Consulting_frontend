@@ -36,9 +36,14 @@ export const solicitudService = {
     return response.json();
   },
 
-  async getAllSolicitudes(estado?: string): Promise<any> {
+  async getAllSolicitudes(estado?: string, page: number = 1, limit: number = 10): Promise<any> {
     const token = localStorage.getItem('token');
-    const url = estado ? `${API_URL}/solicitudes/?estado=${estado}` : `${API_URL}/solicitudes/`;
+    const params = new URLSearchParams();
+    if (estado) params.append('estado', estado);
+    if (page) params.append('page', String(page));
+    if (limit) params.append('limit', String(limit));
+
+    const url = `${API_URL}/solicitudes/${params.toString() ? '?' + params.toString() : ''}`;
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -55,11 +60,13 @@ export const solicitudService = {
     return response.json();
   },
 
-  async getSolicitudesByIngeniero(engineerId: string, estado?: string, soloConProceso?: boolean): Promise<any> {
+  async getSolicitudesByIngeniero(engineerId: string, estado?: string, soloConProceso?: boolean, page: number = 1, limit: number = 10): Promise<any> {
     const token = localStorage.getItem('token');
     const params = new URLSearchParams();
     if (estado) params.append('estado', estado);
     if (soloConProceso !== undefined) params.append('soloConProceso', String(soloConProceso));
+    if (page) params.append('page', String(page));
+    if (limit) params.append('limit', String(limit));
 
     const url = `${API_URL}/solicitudes/ingeniero/${engineerId}${params.toString() ? '?' + params.toString() : ''}`;
 
