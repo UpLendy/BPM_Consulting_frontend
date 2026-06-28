@@ -158,6 +158,7 @@ export default function InvimaDashboard() {
   const [isLoadingProceso, setIsLoadingProceso] = useState(false);
   const [isMobileListVisible, setIsMobileListVisible] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('TODOS');
   const [activeTab, setActiveTab] = useState<'RESUMEN' | 'ETAPAS' | 'DOCUMENTOS' | 'HISTORIAL'>('RESUMEN');
   const [user, setUser] = useState<any>(null);
@@ -173,7 +174,7 @@ export default function InvimaDashboard() {
   const [showExportToast, setShowExportToast] = useState(false);
 
   // --- UPLOAD MODAL STATES ---
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadFiles, setUploadFiles] = useState<{ id: string; file: File; documentType: string; displayName: string }[]>([]);
   const [displayName, setDisplayName] = useState('');
   const [documentType, setDocumentType] = useState('OTRO');
   const [isUploading, setIsUploading] = useState(false);
@@ -276,6 +277,14 @@ export default function InvimaDashboard() {
   }, []);
 
   useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+      if (searchTerm) setCurrentPage(1); // Reset to first page when searching
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
+  useEffect(() => {
     if (!user || !role) return;
 
     // Fetch dashboard solicitudes (only those with processes)
@@ -285,10 +294,42 @@ export default function InvimaDashboard() {
         const engineerId = user.engineerId;
         let res: any;
 
-        if (role === 'admin' || role === 'invima') {
-          res = await solicitudService.getAllSolicitudes(undefined, currentPage, 10);
-        } else if (engineerId) {
-          res = await solicitudService.getSolicitudesByIngeniero(engineerId, undefined, true, currentPage, 10);
+        if (debouncedSearchTerm) {
+          // Búsqueda en frontend: Iteramos por las páginas para no tocar el backend
+          let allData: any[] = [];
+          let currentFetchPage = 1;
+          let totalPages = 1;
+          let lastMeta = null;
+
+          while (currentFetchPage <= totalPages) {
+            let pageRes: any;
+            if (role === 'admin' || role === 'invima') {
+              pageRes = await solicitudService.getAllSolicitudes(undefined, currentFetchPage, 100);
+            } else if (engineerId) {
+              pageRes = await solicitudService.getSolicitudesByIngeniero(engineerId, undefined, true, currentFetchPage, 100);
+            }
+
+            if (pageRes) {
+              const items = Array.isArray(pageRes) ? pageRes : (pageRes.data || []);
+              allData = [...allData, ...items];
+              if (pageRes.meta) {
+                lastMeta = pageRes.meta;
+                totalPages = pageRes.meta.totalPages || 1;
+              }
+            } else {
+              break;
+            }
+            currentFetchPage++;
+          }
+          
+          res = { data: allData, meta: lastMeta };
+        } else {
+          // Normal paginated fetch
+          if (role === 'admin' || role === 'invima') {
+            res = await solicitudService.getAllSolicitudes(undefined, currentPage, 10);
+          } else if (engineerId) {
+            res = await solicitudService.getSolicitudesByIngeniero(engineerId, undefined, true, currentPage, 10);
+          }
         }
 
         if (res) {
@@ -355,7 +396,7 @@ export default function InvimaDashboard() {
       };
 
       fetchDashboardData();
-  }, [user, role, currentPage]);
+  }, [user, role, currentPage, debouncedSearchTerm]);
 
   // Fetch process details when selectedProduct changes
   useEffect(() => {
@@ -593,7 +634,7 @@ export default function InvimaDashboard() {
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!uploadFile) {
+    if (uploadFiles.length === 0) {
       return;
     }
 
@@ -608,24 +649,28 @@ export default function InvimaDashboard() {
 
     setIsUploading(true);
     try {
-      await invimaService.uploadDocument(uploadEtapaId, {
-        file: uploadFile,
-        displayName: displayName || uploadFile.name,
-        documentType: documentType
-      });
+      for (const item of uploadFiles) {
+        const nameToUse = item.displayName || item.file.name;
+        
+        await invimaService.uploadDocument(uploadEtapaId, {
+          file: item.file,
+          displayName: nameToUse,
+          documentType: item.documentType
+        });
 
-      // Log action in observations
+        // Log action in observations
         try {
           await observacionService.createObservacion({
             procesoId: selectedProceso.id,
-            contenido: `Se subió el documento (${targetUploadEtapaNombre || 'Verificación'}): ${displayName || uploadFile.name} (${documentType})`
+            contenido: `Se subió el documento (${targetUploadEtapaNombre || 'Verificación'}): ${nameToUse} (${item.documentType})`
           });
         } catch (obsErr) {
           console.warn('No se pudo guardar la observación de subida de documento', obsErr);
         }
+      }
       
       setShowUploadModal(false);
-      setUploadFile(null);
+      setUploadFiles([]);
       setDisplayName('');
       
       // Refresh process details to show new document and history
@@ -965,14 +1010,23 @@ export default function InvimaDashboard() {
   // --- FILTERING ---
   const filteredData = useMemo(() => {
     return dashboardSolicitudes.filter(item => {
-      const matchesSearch = item.nombreTramite.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            item.titular.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            (item.radicadoSeguimiento && item.radicadoSeguimiento.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchesSearch = item.nombreTramite.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) || 
+                            item.titular.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+                            (item.radicadoSeguimiento && item.radicadoSeguimiento.toLowerCase().includes(debouncedSearchTerm.toLowerCase()));
       const matchesStatus = filterStatus === 'TODOS' || filterStatus === 'ALL' || item.estado === filterStatus ||
                             (filterStatus === 'APROBADO' && ['TERMINADO', 'COMPLETADA'].includes(String(item.estado).toUpperCase()));
       return matchesSearch && matchesStatus;
     });
-  }, [searchTerm, filterStatus, dashboardSolicitudes]);
+  }, [debouncedSearchTerm, filterStatus, dashboardSolicitudes]);
+
+  // --- AUTO-SELECT ON SEARCH ---
+  useEffect(() => {
+    if (debouncedSearchTerm && filteredData.length > 0) {
+      // Auto select the first matched item
+      setSelectedProduct(filteredData[0]);
+      setIsMobileListVisible(false); // Open right pane
+    }
+  }, [debouncedSearchTerm, filteredData]);
 
   // --- STATS ---
   const stats = useMemo(() => ({
@@ -2335,9 +2389,9 @@ export default function InvimaDashboard() {
         {/* Modal: Subir Documento */}
         {showUploadModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
-              <form onSubmit={handleUpload}>
-                <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+            <div className="bg-white rounded-2xl w-full max-w-xl shadow-2xl flex flex-col max-h-[90vh]">
+              <form onSubmit={handleUpload} className="flex flex-col h-full overflow-hidden">
+                <div className="p-6 border-b border-gray-100 flex justify-between items-center shrink-0">
                   <div className="flex items-center gap-3">
                     <div className="bg-blue-100 p-2 rounded-lg">
                       <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
@@ -2349,7 +2403,7 @@ export default function InvimaDashboard() {
                   </button>
                 </div>
                 
-                <div className="p-6 space-y-6">
+                <div className="p-6 space-y-6 flex-1 overflow-y-auto min-h-0">
                   {!verificacionEtapaId && !targetUploadEtapaId && (
                     <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl flex gap-3 text-amber-800 text-xs font-semibold">
                       <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
@@ -2357,119 +2411,229 @@ export default function InvimaDashboard() {
                     </div>
                   )}
 
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Categoría del Documento</label>
-                    <select 
-                      required
-                      value={documentType}
-                      onChange={(e) => setDocumentType(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 font-semibold focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all"
-                    >
-                      <option value="" disabled>Seleccione una categoría...</option>
-                      {(() => {
-                        let allowedKeys: string[] = [];
-                        let DOC_OPTIONS: {key: string, label: string}[] = [];
+                  {uploadFiles.length === 0 ? (
+                    <>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Categoría del Documento (Por defecto)</label>
+                        <select 
+                          required
+                          value={documentType}
+                          onChange={(e) => setDocumentType(e.target.value)}
+                          className="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 font-semibold focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all"
+                        >
+                          <option value="" disabled>Seleccione una categoría...</option>
+                          {(() => {
+                            let allowedKeys: string[] = [];
+                            let DOC_OPTIONS: {key: string, label: string}[] = [];
 
-                        if (targetUploadEtapaNombre.includes('FORMULARIO')) {
-                          allowedKeys = ['FORMULARIO', 'OTRO'];
-                          DOC_OPTIONS = [
-                            { key: 'FORMULARIO', label: 'Formulario' },
-                            { key: 'OTRO', label: 'Otro' }
-                          ];
-                        } else if (targetUploadEtapaNombre.includes('ANTICIPO')) {
-                          allowedKeys = ['DOCUMENTO_ANTICIPO', 'COMPROBANTE_PAGO', 'OTRO'];
-                          DOC_OPTIONS = [
-                            { key: 'DOCUMENTO_ANTICIPO', label: 'Documento de Anticipo' },
-                            { key: 'COMPROBANTE_PAGO', label: 'Comprobante de Pago' },
-                            { key: 'OTRO', label: 'Otro' }
-                          ];
-                        } else if (targetUploadEtapaNombre.includes('RESOLUCIÓN') || targetUploadEtapaNombre.includes('RESOLUCION')) {
-                          allowedKeys = ['RESOLUCION_INVIMA', 'OTRO'];
-                          DOC_OPTIONS = [
-                            { key: 'RESOLUCION_INVIMA', label: 'Resolución INVIMA' },
-                            { key: 'OTRO', label: 'Otro' }
-                          ];
-                        } else {
-                          const reqDocsEvt = [...(selectedProduct?.history || [])].reverse().find((e: any) => e.detail.includes('|REQ_DOCS:'));
-                          allowedKeys = reqDocsEvt ? (reqDocsEvt.detail.match(/\|REQ_DOCS:(.*?)\|/)?.[1].split(',') || []) : ['CVL', 'FICHAS_TECNICAS', 'PROCESO_ELABORACION', 'AUTORIZACION_AL_PORTADOR', 'AUTORIZACION_AL_TRAMITADOR', 'ETIQUETAS', 'ANALISIS_DE_LABORATORIO', 'REGISTRO_DE_MARCA', 'CERTIFICADO_DE_BPM', 'OTRO'];
-                          if (!allowedKeys.includes('OTRO')) allowedKeys.push('OTRO');
+                            if (targetUploadEtapaNombre.includes('FORMULARIO')) {
+                              allowedKeys = ['FORMULARIO', 'OTRO'];
+                              DOC_OPTIONS = [
+                                { key: 'FORMULARIO', label: 'Formulario' },
+                                { key: 'OTRO', label: 'Otro' }
+                              ];
+                            } else if (targetUploadEtapaNombre.includes('ANTICIPO')) {
+                              allowedKeys = ['DOCUMENTO_ANTICIPO', 'COMPROBANTE_PAGO', 'OTRO'];
+                              DOC_OPTIONS = [
+                                { key: 'DOCUMENTO_ANTICIPO', label: 'Documento de Anticipo' },
+                                { key: 'COMPROBANTE_PAGO', label: 'Comprobante de Pago' },
+                                { key: 'OTRO', label: 'Otro' }
+                              ];
+                            } else if (targetUploadEtapaNombre.includes('RESOLUCIÓN') || targetUploadEtapaNombre.includes('RESOLUCION')) {
+                              allowedKeys = ['RESOLUCION_INVIMA', 'OTRO'];
+                              DOC_OPTIONS = [
+                                { key: 'RESOLUCION_INVIMA', label: 'Resolución INVIMA' },
+                                { key: 'OTRO', label: 'Otro' }
+                              ];
+                            } else {
+                              const reqDocsEvt = [...(selectedProduct?.history || [])].reverse().find((e: any) => e.detail.includes('|REQ_DOCS:'));
+                              allowedKeys = reqDocsEvt ? (reqDocsEvt.detail.match(/\|REQ_DOCS:(.*?)\|/)?.[1].split(',') || []) : ['CVL', 'FICHAS_TECNICAS', 'PROCESO_ELABORACION', 'AUTORIZACION_AL_PORTADOR', 'AUTORIZACION_AL_TRAMITADOR', 'ETIQUETAS', 'ANALISIS_DE_LABORATORIO', 'REGISTRO_DE_MARCA', 'CERTIFICADO_DE_BPM', 'OTRO'];
+                              if (!allowedKeys.includes('OTRO')) allowedKeys.push('OTRO');
+                              
+                              DOC_OPTIONS = [
+                                { key: 'CVL', label: 'CVL (Certificado Venta Libre)' },
+                                { key: 'FICHAS_TECNICAS', label: 'Fichas Técnicas' },
+                                { key: 'PROCESO_ELABORACION', label: 'Proceso de Elaboración' },
+                                { key: 'AUTORIZACION_AL_PORTADOR', label: 'Autorización al Portador' },
+                                { key: 'AUTORIZACION_AL_TRAMITADOR', label: 'Autorización al Tramitador' },
+                                { key: 'ETIQUETAS', label: 'Etiquetas / Artes' },
+                                { key: 'ANALISIS_DE_LABORATORIO', label: 'Análisis de Laboratorio' },
+                                { key: 'REGISTRO_DE_MARCA', label: 'Registro de Marca' },
+                                { key: 'CERTIFICADO_DE_BPM', label: 'Certificado de BPM' },
+                                { key: 'OTRO', label: 'Otro' },
+                              ];
+                            }
+
+                            return DOC_OPTIONS.filter(opt => allowedKeys.includes(opt.key)).map(opt => (
+                              <option key={opt.key} value={opt.key}>{opt.label}</option>
+                            ));
+                          })()}
+                        </select>
+                      </div>
+
+                      <div 
+                        onClick={() => document.getElementById('file-upload-input')?.click()}
+                        className="mt-2 border-2 border-dashed rounded-2xl p-8 text-center transition-all cursor-pointer group border-gray-300 hover:bg-blue-50 hover:border-blue-300"
+                      >
+                        <div className="bg-gray-100 group-hover:bg-blue-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 transition-colors">
+                          <svg className="w-6 h-6 text-gray-400 group-hover:text-blue-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                        </div>
+                        <p className="text-sm font-bold text-gray-700">Haz clic para seleccionar documentos</p>
+                        <p className="text-[10px] text-gray-400 font-semibold uppercase mt-1">Soporta PDF, Word, Excel, ZIP (Múltiples archivos)</p>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="space-y-4 max-h-[60vh] overflow-y-auto p-1 rounded-xl">
+                      <div className="flex justify-between items-center bg-gray-50 p-3 rounded-xl border border-gray-200">
+                        <div>
+                          <p className="text-sm font-black text-emerald-800">
+                            {uploadFiles.length} archivos seleccionados
+                          </p>
+                          <p className="text-[10px] text-emerald-600 font-bold uppercase mt-0.5">
+                            {(uploadFiles.reduce((acc, item) => acc + item.file.size, 0) / 1024 / 1024).toFixed(2)} MB total
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => document.getElementById('file-upload-input')?.click()}
+                          className="px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-lg transition-colors"
+                        >
+                          Añadir más
+                        </button>
+                      </div>
+
+                      {uploadFiles.map((item, index) => (
+                        <div key={item.id} className="p-4 bg-white border border-gray-200 shadow-sm rounded-xl space-y-3 relative group">
+                          <button
+                            type="button"
+                            onClick={() => setUploadFiles(prev => prev.filter(f => f.id !== item.id))}
+                            className="absolute -top-2 -right-2 bg-red-100 text-red-600 p-1.5 rounded-full hover:bg-red-200 transition-colors opacity-0 group-hover:opacity-100 shadow-sm"
+                            title="Remover archivo"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                          </button>
                           
-                          DOC_OPTIONS = [
-                            { key: 'CVL', label: 'CVL (Certificado Venta Libre)' },
-                            { key: 'FICHAS_TECNICAS', label: 'Fichas Técnicas' },
-                            { key: 'PROCESO_ELABORACION', label: 'Proceso de Elaboración' },
-                            { key: 'AUTORIZACION_AL_PORTADOR', label: 'Autorización al Portador' },
-                            { key: 'AUTORIZACION_AL_TRAMITADOR', label: 'Autorización al Tramitador' },
-                            { key: 'ETIQUETAS', label: 'Etiquetas / Artes' },
-                            { key: 'ANALISIS_DE_LABORATORIO', label: 'Análisis de Laboratorio' },
-                            { key: 'REGISTRO_DE_MARCA', label: 'Registro de Marca' },
-                            { key: 'CERTIFICADO_DE_BPM', label: 'Certificado de BPM' },
-                            { key: 'OTRO', label: 'Otro' },
-                          ];
-                        }
+                          <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-100">
+                            <div className="w-8 h-8 rounded bg-gray-100 flex items-center justify-center shrink-0">
+                              <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-bold text-gray-800 truncate" title={item.file.name}>{item.file.name}</p>
+                              <p className="text-[10px] text-gray-500 font-semibold">{(item.file.size / 1024 / 1024).toFixed(2)} MB</p>
+                            </div>
+                          </div>
 
-                        return DOC_OPTIONS.filter(opt => allowedKeys.includes(opt.key)).map(opt => (
-                          <option key={opt.key} value={opt.key}>{opt.label}</option>
-                        ));
-                      })()}
-                    </select>
-                  </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wide">Categoría</label>
+                              <select 
+                                required
+                                value={item.documentType}
+                                onChange={(e) => {
+                                  const newVal = e.target.value;
+                                  setUploadFiles(prev => prev.map(f => f.id === item.id ? { ...f, documentType: newVal } : f));
+                                }}
+                                className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-gray-900 text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all"
+                              >
+                                {(() => {
+                                  let allowedKeys: string[] = [];
+                                  let DOC_OPTIONS: {key: string, label: string}[] = [];
 
-                  <div>
-                    <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Nombre en Pantalla</label>
-                    <input 
-                      type="text" 
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 font-semibold placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all" 
-                      placeholder="Ej. Ficha Técnica de Producto Final" 
-                    />
-                  </div>
+                                  if (targetUploadEtapaNombre.includes('FORMULARIO')) {
+                                    allowedKeys = ['FORMULARIO', 'OTRO'];
+                                    DOC_OPTIONS = [
+                                      { key: 'FORMULARIO', label: 'Formulario' },
+                                      { key: 'OTRO', label: 'Otro' }
+                                    ];
+                                  } else if (targetUploadEtapaNombre.includes('ANTICIPO')) {
+                                    allowedKeys = ['DOCUMENTO_ANTICIPO', 'COMPROBANTE_PAGO', 'OTRO'];
+                                    DOC_OPTIONS = [
+                                      { key: 'DOCUMENTO_ANTICIPO', label: 'Documento de Anticipo' },
+                                      { key: 'COMPROBANTE_PAGO', label: 'Comprobante de Pago' },
+                                      { key: 'OTRO', label: 'Otro' }
+                                    ];
+                                  } else if (targetUploadEtapaNombre.includes('RESOLUCIÓN') || targetUploadEtapaNombre.includes('RESOLUCION')) {
+                                    allowedKeys = ['RESOLUCION_INVIMA', 'OTRO'];
+                                    DOC_OPTIONS = [
+                                      { key: 'RESOLUCION_INVIMA', label: 'Resolución INVIMA' },
+                                      { key: 'OTRO', label: 'Otro' }
+                                    ];
+                                  } else {
+                                    const reqDocsEvt = [...(selectedProduct?.history || [])].reverse().find((e: any) => e.detail.includes('|REQ_DOCS:'));
+                                    allowedKeys = reqDocsEvt ? (reqDocsEvt.detail.match(/\|REQ_DOCS:(.*?)\|/)?.[1].split(',') || []) : ['CVL', 'FICHAS_TECNICAS', 'PROCESO_ELABORACION', 'AUTORIZACION_AL_PORTADOR', 'AUTORIZACION_AL_TRAMITADOR', 'ETIQUETAS', 'ANALISIS_DE_LABORATORIO', 'REGISTRO_DE_MARCA', 'CERTIFICADO_DE_BPM', 'OTRO'];
+                                    if (!allowedKeys.includes('OTRO')) allowedKeys.push('OTRO');
+                                    
+                                    DOC_OPTIONS = [
+                                      { key: 'CVL', label: 'CVL (Certificado Venta Libre)' },
+                                      { key: 'FICHAS_TECNICAS', label: 'Fichas Técnicas' },
+                                      { key: 'PROCESO_ELABORACION', label: 'Proceso de Elaboración' },
+                                      { key: 'AUTORIZACION_AL_PORTADOR', label: 'Autorización al Portador' },
+                                      { key: 'AUTORIZACION_AL_TRAMITADOR', label: 'Autorización al Tramitador' },
+                                      { key: 'ETIQUETAS', label: 'Etiquetas / Artes' },
+                                      { key: 'ANALISIS_DE_LABORATORIO', label: 'Análisis de Laboratorio' },
+                                      { key: 'REGISTRO_DE_MARCA', label: 'Registro de Marca' },
+                                      { key: 'CERTIFICADO_DE_BPM', label: 'Certificado de BPM' },
+                                      { key: 'OTRO', label: 'Otro' },
+                                    ];
+                                  }
 
-                  <div 
-                    onClick={() => document.getElementById('file-upload-input')?.click()}
-                    className={`mt-2 border-2 border-dashed rounded-2xl p-8 text-center transition-all cursor-pointer group
-                      ${uploadFile ? 'border-emerald-300 bg-emerald-50' : 'border-gray-300 hover:bg-blue-50 hover:border-blue-300'}
-                    `}
-                  >
-                    <input 
-                      id="file-upload-input"
-                      type="file" 
-                      className="hidden" 
-                      onChange={(e) => {
-                        if (e.target.files?.[0]) {
-                          setUploadFile(e.target.files[0]);
-                          if (!displayName) setDisplayName(e.target.files[0].name);
-                        }
-                      }}
-                    />
-                    
-                    {uploadFile ? (
-                      <div className="animate-in zoom-in-95 duration-200">
-                        <div className="bg-emerald-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3">
-                          <svg className="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                  return DOC_OPTIONS.filter(opt => allowedKeys.includes(opt.key)).map(opt => (
+                                    <option key={opt.key} value={opt.key}>{opt.label}</option>
+                                  ));
+                                })()}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wide">Nombre en Pantalla</label>
+                              <input 
+                                type="text" 
+                                value={item.displayName}
+                                onChange={(e) => {
+                                  const newVal = e.target.value;
+                                  setUploadFiles(prev => prev.map(f => f.id === item.id ? { ...f, displayName: newVal } : f));
+                                }}
+                                className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-gray-900 text-xs font-semibold placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all" 
+                                placeholder="Ej. Ficha Técnica PDF" 
+                              />
+                            </div>
+                          </div>
                         </div>
-                        <p className="text-sm font-black text-emerald-800">{uploadFile.name}</p>
-                        <p className="text-[10px] text-emerald-600 font-bold uppercase mt-1">{(uploadFile.size / 1024 / 1024).toFixed(2)} MB - Listo para subir</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <div className="bg-blue-50 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 text-blue-600">
-                          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-                        </div>
-                        <p className="text-sm font-bold text-gray-700">Haz clic o arrastra un archivo aquí</p>
-                        <p className="text-xs text-gray-400 font-medium">PDF, Word, Excel, JPG, PNG (Max. 10MB)</p>
-                      </div>
-                    )}
-                  </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <input 
+                    id="file-upload-input"
+                    type="file" 
+                    multiple
+                    className="hidden" 
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files.length > 0) {
+                        const filesArray = Array.from(e.target.files);
+                        
+                        // Map each selected file into our new object format
+                        const newUploadItems = filesArray.map(file => ({
+                          id: Math.random().toString(36).substring(2, 9) + Date.now().toString(36),
+                          file,
+                          documentType: documentType || 'OTRO', // Use the selected default category
+                          displayName: filesArray.length === 1 ? (displayName || file.name) : file.name // Auto-fill display name
+                        }));
+
+                        setUploadFiles(prev => [...prev, ...newUploadItems]);
+                        
+                        // Reset the input value so the same file can be selected again if needed
+                        e.target.value = '';
+                      }
+                    }}
+                  />
                 </div>
 
-                <div className="flex justify-end gap-3 pt-6 border-t border-gray-100">
+                <div className="flex justify-end gap-3 p-6 border-t border-gray-100 shrink-0">
                   <button 
                     type="button" 
                     onClick={() => {
                       setShowUploadModal(false);
-                      setUploadFile(null);
+                      setUploadFiles([]);
                       setDisplayName('');
                       setTargetUploadEtapaId(null);
                       setTargetUploadEtapaNombre('');
@@ -2480,8 +2644,8 @@ export default function InvimaDashboard() {
                   </button>
                   <button 
                     type="submit" 
-                    disabled={isUploading || !uploadFile || (!verificacionEtapaId && !targetUploadEtapaId)}
-                    className="px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    disabled={isUploading || uploadFiles.length === 0 || (!verificacionEtapaId && !targetUploadEtapaId)}
+                    className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
                     {isUploading ? (
                       <>
