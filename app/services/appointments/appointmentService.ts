@@ -458,7 +458,13 @@ export const appointmentService = {
     async uploadAppointmentRecord(id: string, file: Blob | File, fileName: string): Promise<ServiceResponse> {
         const token = localStorage.getItem('token');
         const formData = new FormData();
-        formData.append('file', file, fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`);
+
+        const normalizeFileName = (name: string) => {
+            return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9.\-]/g, '_');
+        };
+
+        const finalFileName = fileName.endsWith('.pdf') ? fileName : `${fileName}.pdf`;
+        formData.append('file', file, normalizeFileName(finalFileName));
         formData.append('fileName', fileName);
 
         const response = await fetch(`${API_URL}/appointments/${id}/record/upload/`, {
@@ -642,7 +648,12 @@ export const appointmentService = {
     async uploadValidationDocument(validationId: string, file: File, documentType = 'OTRO'): Promise<ServiceResponse> {
         const token = localStorage.getItem('token');
         const formData = new FormData();
-        formData.append('file', file);
+
+        const normalizeFileName = (name: string) => {
+            return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9.\-]/g, '_');
+        };
+
+        formData.append('file', file, normalizeFileName(file.name));
         formData.append('documentType', documentType);
         // displayName is optional and empty per requirements
         formData.append('displayName', '');
@@ -826,8 +837,13 @@ export const appointmentService = {
     async replaceDocument(validationId: string, documentId: string, file: File): Promise<ServiceResponse> {
         const token = localStorage.getItem('token');
         const formData = new FormData();
-        formData.append('file', file);
-        formData.append('displayName', file.name);
+
+        const normalizeFileName = (name: string) => {
+            return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9.\-]/g, '_');
+        };
+
+        formData.append('file', file, normalizeFileName(file.name));
+        formData.append('displayName', normalizeFileName(file.name));
         formData.append('documentType', 'OTRO');
 
         const response = await fetch(`${API_URL}/validations/${validationId}/documents/${documentId}/replace`, {

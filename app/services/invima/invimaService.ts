@@ -115,8 +115,16 @@ export const invimaService = {
   async uploadDocument(procesoEtapaId: string, data: { file: File; displayName: string; documentType: string }): Promise<any> {
     const token = localStorage.getItem('token');
     const formData = new FormData();
-    formData.append('file', data.file);
-    formData.append('displayName', data.displayName);
+
+    const normalizeFileName = (fileName: string) => {
+      return fileName
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9.\-]/g, '_');
+    };
+
+    formData.append('file', data.file, normalizeFileName(data.file.name));
+    formData.append('displayName', normalizeFileName(data.displayName));
     formData.append('documentType', data.documentType);
 
     const response = await fetch(`${API_URL}/invima-documents/proceso-etapa/${procesoEtapaId}/upload`, {
@@ -140,8 +148,16 @@ export const invimaService = {
     if (!token) throw new Error('No authentication token found');
 
     const formData = new FormData();
-    formData.append('file', data.file);
-    if (data.displayName) formData.append('displayName', data.displayName);
+    
+    const normalizeFileName = (fileName: string) => {
+      return fileName
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9.\-]/g, '_');
+    };
+
+    formData.append('file', data.file, normalizeFileName(data.file.name));
+    if (data.displayName) formData.append('displayName', normalizeFileName(data.displayName));
     if (data.documentType) formData.append('documentType', data.documentType);
 
     const response = await fetch(`${API_URL}/invima-documents/${documentId}/replace`, {
