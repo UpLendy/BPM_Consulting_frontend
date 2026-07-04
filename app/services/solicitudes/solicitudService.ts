@@ -160,5 +160,22 @@ export const solicitudService = {
       throw new Error(errorData.message || 'Error al sincronizar el ingeniero a la solicitud');
     }
     return response.json();
+  },
+
+  async deleteSolicitud(id: string): Promise<any> {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}/solicitudes/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) authService.handleUnauthorized();
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al eliminar la solicitud');
+    }
+    return response.json();
   }
 };
