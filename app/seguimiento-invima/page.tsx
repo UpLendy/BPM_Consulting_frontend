@@ -167,6 +167,12 @@ export default function InvimaDashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const [paginationMeta, setPaginationMeta] = useState<{ total: number, page: number, limit: number, totalPages: number, hasNextPage: boolean, hasPreviousPage: boolean } | null>(null);
 
+  // --- ENGINEER CHANGE STATES ---
+  const [engineersList, setEngineersList] = useState<any[]>([]);
+  const [isChangingEngineer, setIsChangingEngineer] = useState(false);
+  const [newEngineerId, setNewEngineerId] = useState('');
+  const [isUpdatingEngineer, setIsUpdatingEngineer] = useState(false);
+
   // --- MODAL STATES ---
   const [showNewTramiteModal, setShowNewTramiteModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -200,6 +206,7 @@ export default function InvimaDashboard() {
   const [isCreatingProceso, setIsCreatingProceso] = useState(false);
   const [procesoError, setProcesoError] = useState<string | null>(null);
   const [procesoSuccess, setProcesoSuccess] = useState<string | null>(null);
+  const [isDeletingTramite, setIsDeletingTramite] = useState(false);
   
   // Modals and Forms states for editing details
   const [isEditingDetalles, setIsEditingDetalles] = useState(false);
@@ -283,6 +290,12 @@ export default function InvimaDashboard() {
     }, 500);
     return () => clearTimeout(handler);
   }, [searchTerm]);
+
+  useEffect(() => {
+    if (role === 'admin' || role === 'administrador') {
+      engineerService.getAllEngineers().then(setEngineersList).catch(console.error);
+    }
+  }, [role]);
 
   useEffect(() => {
     if (!user || !role) return;
@@ -995,6 +1008,37 @@ export default function InvimaDashboard() {
     }
   };
 
+  const handleDeleteTramite = async () => {
+    if (!selectedProduct) return;
+    const confirmDelete = window.confirm(
+      '¿Estás seguro de que deseas eliminar este trámite y su solicitud?\nEsta acción no se puede deshacer.'
+    );
+    if (!confirmDelete) return;
+
+    setIsDeletingTramite(true);
+    try {
+      // 1. Delete Proceso if it exists
+      if (selectedProduct.rawProceso?.id) {
+        await procesoService.deleteProceso(selectedProduct.rawProceso.id).catch(e => {
+          console.warn('Error deleting proceso, it might not exist:', e);
+        });
+      }
+      
+      // 2. Delete Solicitud
+      await solicitudService.deleteSolicitud(selectedProduct.id);
+      
+      // 3. Update UI
+      setDashboardSolicitudes(prev => prev.filter(p => p.id !== selectedProduct.id));
+      setSelectedProduct(null);
+      setSelectedProceso(null);
+      alert('El trámite ha sido eliminado exitosamente.');
+    } catch (error: any) {
+      alert('Error al eliminar el trámite: ' + error.message);
+    } finally {
+      setIsDeletingTramite(false);
+    }
+  };
+
   const handleEtapaToggle = (etapaId: string) => {
     setProcesoForm(prev => {
       const current = prev.etapasIds;
@@ -1608,16 +1652,33 @@ export default function InvimaDashboard() {
                  <div className="p-6 md:p-8 border-b border-gray-100 bg-gradient-to-br from-white to-gray-50/50">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-start mb-6 gap-4">
                         <div className="flex-1">
-                          <div className="flex flex-wrap items-center gap-2 mb-3">
-                            <StatusBadge status={selectedProduct.estado} className="text-sm px-3 py-1" />
-                            <span className="bg-gray-100 text-gray-700 px-2.5 py-1 rounded-md text-xs font-bold border border-gray-200 flex items-center gap-1">
-                              <svg className="w-3.5 h-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-                              {selectedProduct.grupo}
-                            </span>
-                            <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md text-xs font-bold border border-blue-100 flex items-center gap-1">
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                              {formatAsignacion(selectedProduct.asignacion)}
-                            </span>
+                          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <StatusBadge status={selectedProduct.estado} className="text-sm px-3 py-1" />
+                              <span className="bg-gray-100 text-gray-700 px-2.5 py-1 rounded-md text-xs font-bold border border-gray-200 flex items-center gap-1">
+                                <svg className="w-3.5 h-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                                {selectedProduct.grupo}
+                              </span>
+                              <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md text-xs font-bold border border-blue-100 flex items-center gap-1">
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                {formatAsignacion(selectedProduct.asignacion)}
+                              </span>
+                            </div>
+                            {(role === 'admin' || role === 'administrador') && (
+                              <button
+                                onClick={handleDeleteTramite}
+                                disabled={isDeletingTramite}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg text-xs font-bold border border-red-200 transition-colors disabled:opacity-50"
+                                title="Eliminar Trámite"
+                              >
+                                {isDeletingTramite ? (
+                                  <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10" strokeWidth="4" strokeDasharray="30" strokeLinecap="round" className="opacity-25" /><path d="M4 12a8 8 0 018-8v8H4z" className="opacity-75" /></svg>
+                                ) : (
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                )}
+                                {isDeletingTramite ? 'Eliminando...' : 'Eliminar'}
+                              </button>
+                            )}
                           </div>
                           <h2 className="text-2xl lg:text-3xl font-black text-gray-900 tracking-tight leading-tight mb-2">{selectedProduct.nombreTramite}</h2>
                           <p className="text-sm text-gray-500 font-medium flex items-center gap-2">
@@ -1750,12 +1811,88 @@ export default function InvimaDashboard() {
                                      </div>
                                  </div>
                              </div>
-                            <div className="space-y-1.5">
+                            <div className="space-y-1.5 group relative">
                                 <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Ingeniero Asignado</p>
-                                <p className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                                  <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold">{selectedProduct.ingeniero.charAt(0)}</span>
-                                  {selectedProduct.ingeniero}
-                                </p>
+                                
+                                {isChangingEngineer ? (
+                                  <div className="mt-2 flex flex-col gap-2">
+                                    <select
+                                      value={newEngineerId}
+                                      onChange={(e) => setNewEngineerId(e.target.value)}
+                                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    >
+                                      <option value="" disabled>Seleccione un ingeniero...</option>
+                                      {engineersList.map(eng => (
+                                        <option key={eng.id} value={eng.id}>
+                                          {eng.user?.first_name} {eng.user?.last_name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={async () => {
+                                          if (!newEngineerId || newEngineerId === selectedProduct.rawProceso?.ingenieroId) {
+                                            setIsChangingEngineer(false);
+                                            return;
+                                          }
+                                          setIsUpdatingEngineer(true);
+                                          try {
+                                            await solicitudService.updateSolicitud(selectedProduct.id, { ingenieroId: newEngineerId });
+                                            const eng = engineersList.find(e => e.id === newEngineerId);
+                                            const engName = eng ? `${eng.user?.first_name} ${eng.user?.last_name}` : newEngineerId;
+                                            
+                                            try {
+                                              await observacionService.createObservacion({
+                                                procesoId: selectedProduct.rawProceso?.id || selectedProduct.id,
+                                                contenido: `Se cambió el ingeniero asignado a: ${engName}`
+                                              });
+                                            } catch (e) {}
+                                            
+                                            // Optimistic update
+                                            setSelectedProduct((prev: any) => prev ? { ...prev, ingeniero: engName, rawProceso: { ...prev.rawProceso, ingenieroId: newEngineerId } } : prev);
+                                            setDashboardSolicitudes(prev => prev.map(p => p.id === selectedProduct.id ? { ...p, ingeniero: engName, rawProceso: { ...p.rawProceso, ingenieroId: newEngineerId } } : p));
+                                            
+                                            setIsChangingEngineer(false);
+                                          } catch (error: any) {
+                                            alert('Error al cambiar ingeniero: ' + error.message);
+                                          } finally {
+                                            setIsUpdatingEngineer(false);
+                                          }
+                                        }}
+                                        disabled={isUpdatingEngineer || !newEngineerId}
+                                        className="px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 disabled:opacity-50"
+                                      >
+                                        {isUpdatingEngineer ? 'Guardando...' : 'Guardar'}
+                                      </button>
+                                      <button
+                                        onClick={() => setIsChangingEngineer(false)}
+                                        disabled={isUpdatingEngineer}
+                                        className="px-3 py-1.5 bg-gray-200 text-gray-700 text-xs font-bold rounded hover:bg-gray-300"
+                                      >
+                                        Cancelar
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center justify-between mt-0.5">
+                                    <p className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                                      <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-bold">{selectedProduct.ingeniero.charAt(0)}</span>
+                                      {selectedProduct.ingeniero}
+                                    </p>
+                                    {(role === 'admin' || role === 'administrador') && (
+                                      <button
+                                        onClick={() => {
+                                          setNewEngineerId(selectedProduct.rawProceso?.ingenieroId || '');
+                                          setIsChangingEngineer(true);
+                                        }}
+                                        className="opacity-0 group-hover:opacity-100 p-1.5 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-all"
+                                        title="Cambiar ingeniero"
+                                      >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
                             </div>
                             <div className="space-y-1.5">
                                 <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Tipo de Trámite</p>
