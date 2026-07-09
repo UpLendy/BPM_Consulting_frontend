@@ -1573,7 +1573,9 @@ export default function InvimaDashboard() {
                    <div 
                      key={product.id}
                      onClick={() => {
-                         setSelectedProduct(product);
+                         if (selectedProduct?.id !== product.id) {
+                           setSelectedProduct(product);
+                         }
                          setIsMobileListVisible(false);
                          setActiveTab('RESUMEN');
                      }}
