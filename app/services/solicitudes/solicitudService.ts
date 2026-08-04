@@ -88,6 +88,31 @@ export const solicitudService = {
     return response.json();
   },
 
+  async getSolicitudesByTitular(titularId: string, page: number = 1, limit: number = 10, soloConProceso?: boolean): Promise<any> {
+    const token = localStorage.getItem('token');
+    const params = new URLSearchParams();
+    if (page) params.append('page', String(page));
+    if (limit) params.append('limit', String(limit));
+    if (soloConProceso !== undefined) params.append('soloConProceso', String(soloConProceso));
+
+    const url = `${API_URL}/solicitudes/titular/${titularId}${params.toString() ? '?' + params.toString() : ''}`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) authService.handleUnauthorized();
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al obtener solicitudes de la empresa');
+    }
+    return response.json();
+  },
+
   async updateSolicitud(id: string, data: Partial<CreateSolicitudDTO> & { estado?: string, is_active?: boolean }): Promise<any> {
     const token = localStorage.getItem('token');
     const response = await fetch(`${API_URL}/solicitudes/${id}`, {

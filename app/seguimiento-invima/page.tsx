@@ -198,6 +198,7 @@ export default function InvimaDashboard() {
   const [isUpdatingDocStatus, setIsUpdatingDocStatus] = useState(false);
   const replaceFileInputRef = useRef<HTMLInputElement>(null);
   const [isReplacingDoc, setIsReplacingDoc] = useState(false);
+  const [isDeletingDoc, setIsDeletingDoc] = useState(false);
 
   // --- NUEVO TRAMITE (PROCESO) STATES ---
   const [solicitudes, setSolicitudes] = useState<any[]>([]);
@@ -257,25 +258,28 @@ export default function InvimaDashboard() {
       const r = ((parsed.role as any)?.name || parsed.role || '').toLowerCase();
       setRole(r);
 
-      // Fetch additional profile data only if the user is INVIMA to get 'tipo' (COMERCIAL/ADMINISTRATIVO)
+      // Fetch additional profile data only if the user is INVIMA to get 'tipo' (COMERCIAL/ADMINISTRATIVO) and invimaCompanyId
       if (r === 'invima') {
         const userId = parsed.id;
         if (userId) {
-          invimaService.getProfiles().then((profiles: any[]) => {
-            const rawProfiles = Array.isArray(profiles) ? profiles : (profiles as any).data || [];
-            const userProfile = rawProfiles.find((p: any) => p.userId === userId || p.user?.id === userId);
-            
-            console.log('[InvimaDashboard] Profile fetched via list:', userProfile);
-            
+          invimaService.getProfileByUserId(userId).then((userProfile: any) => {
+            console.log('[InvimaDashboard] Profile fetched:', userProfile);
+
             if (userProfile) {
-              const updatedUser = { ...parsed, ...userProfile };
+              // No sobreescribir el id del usuario con el id del perfil INVIMA (son entidades distintas)
+              const updatedUser = {
+                ...parsed,
+                tipo: userProfile.tipo,
+                invimaCompanyId: userProfile.invimaCompanyId,
+                invimaCompanyName: userProfile.invimaCompany?.nombre,
+              };
               setUser(updatedUser);
               localStorage.setItem('user', JSON.stringify(updatedUser));
-            } else {
-              if (parsed.tipo) setUser(parsed);
+            } else if (parsed.tipo) {
+              setUser(parsed);
             }
           }).catch(err => {
-            console.error('[InvimaDashboard] Error fetching profiles:', err);
+            console.error('[InvimaDashboard] Error fetching profile:', err);
             if (parsed.tipo) setUser(parsed);
           });
         }
@@ -316,8 +320,14 @@ export default function InvimaDashboard() {
 
           while (currentFetchPage <= totalPages) {
             let pageRes: any;
-            if (role === 'admin' || role === 'invima') {
+            if (role === 'admin' || role === 'administrador') {
               pageRes = await solicitudService.getAllSolicitudes(undefined, currentFetchPage, 100);
+            } else if (role === 'invima') {
+              if (user?.invimaCompanyId) {
+                pageRes = await solicitudService.getSolicitudesByTitular(user.invimaCompanyId, currentFetchPage, 100);
+              } else {
+                break;
+              }
             } else if (engineerId) {
               pageRes = await solicitudService.getSolicitudesByIngeniero(engineerId, undefined, true, currentFetchPage, 100);
             }
@@ -338,8 +348,12 @@ export default function InvimaDashboard() {
           res = { data: allData, meta: lastMeta };
         } else {
           // Normal paginated fetch
-          if (role === 'admin' || role === 'invima') {
+          if (role === 'admin' || role === 'administrador') {
             res = await solicitudService.getAllSolicitudes(undefined, currentPage, 10);
+          } else if (role === 'invima') {
+            if (user?.invimaCompanyId) {
+              res = await solicitudService.getSolicitudesByTitular(user.invimaCompanyId, currentPage, 10);
+            }
           } else if (engineerId) {
             res = await solicitudService.getSolicitudesByIngeniero(engineerId, undefined, true, currentPage, 10);
           }
@@ -803,6 +817,46 @@ export default function InvimaDashboard() {
     }
   };
 
+  const handleDeleteDocument = async () => {
+    if (!selectedReviewDoc) return;
+    const confirmed = window.confirm(`¿Está seguro de eliminar el documento "${selectedReviewDoc.displayName || selectedReviewDoc.fileName}"? Esta acción no se puede deshacer.`);
+    if (!confirmed) return;
+
+    setIsDeletingDoc(true);
+    try {
+      await invimaService.deleteDocument(selectedReviewDoc.id);
+
+      try {
+        await observacionService.createObservacion({
+          procesoId: selectedProceso.id,
+          contenido: `Se eliminó el documento ${selectedReviewDoc.displayName || selectedReviewDoc.fileName}`
+        });
+      } catch (obsErr) {
+        console.warn('No se pudo guardar la observación de eliminación de documento', obsErr);
+      }
+
+      // Refresh process details to reflect removed document
+      if (selectedProduct?.id) {
+        const proc = await procesoService.getProcesoBySolicitudId(selectedProduct.id);
+        setSelectedProceso(proc);
+        if (proc?.id) {
+          const refreshedStages = await procesoService.getEtapasByProcesoId(proc.id);
+          setProcesoEtapas(refreshedStages);
+          const obsRes2 = await observacionService.getObservacionesByProcesoId(proc.id);
+          const rawObs2 = Array.isArray(obsRes2) ? obsRes2 : (obsRes2?.data || []);
+          setSelectedProduct(prev => prev ? { ...prev, history: rawObs2.map((h: any) => ({ date: formatCO(h.fecha || h.createdAt, true), user: h.createdByUserName || 'Sistema', action: 'HISTORIAL', detail: h.contenido || '' })) } : null);
+        }
+      }
+
+      setSelectedReviewDoc(null);
+    } catch (err: any) {
+      console.error("Error deleting document:", err);
+      window.alert(err?.message || 'Ocurrió un error al eliminar el documento');
+    } finally {
+      setIsDeletingDoc(false);
+    }
+  };
+
   // Fetch initial data for the form when modal opens
   useEffect(() => {
     if (showNewTramiteModal) {
@@ -812,11 +866,13 @@ export default function InvimaDashboard() {
           const userData = storedUser ? JSON.parse(storedUser) : null;
           
           const roleName = ((userData?.role as any)?.name || userData?.role || '').toLowerCase();
-          const isAdminOrInvima = roleName === 'admin' || roleName === 'administrador' || roleName === 'invima';
-          
+          const isAdmin = roleName === 'admin' || roleName === 'administrador';
+          const isInvima = roleName === 'invima';
+          const isAdminOrInvima = isAdmin || isInvima;
+
           // STRICT: Only use engineerId for engineers. Do not fallback to .id
-          const engineerId = userData?.engineerId; 
-          
+          const engineerId = userData?.engineerId;
+
           if (!engineerId && !isAdminOrInvima) {
             console.error('[SeguimientoInvima] ERROR: engineerId no encontrado en el objeto user:', userData);
             setProcesoError('Su perfil no tiene un ID de ingeniero asociado. Por favor, cierre sesión y vuelva a entrar.');
@@ -826,9 +882,22 @@ export default function InvimaDashboard() {
           console.log('[SeguimientoInvima] Cargando solicitudes...');
 
           let solsPromise: Promise<any> = Promise.resolve([]);
-          
-          if (isAdminOrInvima) {
+
+          if (isAdmin) {
             solsPromise = solicitudService.getAllSolicitudes('PENDIENTE');
+          } else if (isInvima) {
+            // La empresa INVIMA no admite filtro por estado en el backend:
+            // se trae la lista de la empresa y se filtra PENDIENTE en cliente.
+            if (userData?.invimaCompanyId) {
+              solsPromise = solicitudService.getSolicitudesByTitular(userData.invimaCompanyId, 1, 100)
+                .then((r: any) => {
+                  const items = Array.isArray(r) ? r : (r?.data || []);
+                  return { data: items.filter((s: any) => s.estado === 'PENDIENTE') };
+                });
+            } else {
+              console.error('[SeguimientoInvima] ERROR: invimaCompanyId no encontrado en el usuario INVIMA:', userData);
+              solsPromise = Promise.resolve({ data: [] });
+            }
           } else if (engineerId) {
             solsPromise = solicitudService.getSolicitudesByIngeniero(engineerId, 'PENDIENTE');
           }
@@ -1122,8 +1191,15 @@ export default function InvimaDashboard() {
       while (hasMore) {
         let res: any;
         const engineerId = user?.engineerId;
-        if (role === 'admin' || role === 'invima') {
+        if (role === 'admin' || role === 'administrador') {
           res = await solicitudService.getAllSolicitudes(undefined, currentPageExport, maxLimit);
+        } else if (role === 'invima') {
+          if (user?.invimaCompanyId) {
+            res = await solicitudService.getSolicitudesByTitular(user.invimaCompanyId, currentPageExport, maxLimit);
+          } else {
+            hasMore = false;
+            break;
+          }
         } else if (engineerId) {
           res = await solicitudService.getSolicitudesByIngeniero(engineerId, undefined, true, currentPageExport, maxLimit);
         }
@@ -2960,6 +3036,18 @@ export default function InvimaDashboard() {
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                               )}
                               Reemplazar Archivo
+                            </button>
+                            <button
+                              onClick={handleDeleteDocument}
+                              disabled={isDeletingDoc}
+                              className="w-full mt-2 flex items-center justify-center gap-2 p-3 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-[11px] font-bold text-red-700 shadow-sm"
+                            >
+                              {isDeletingDoc ? (
+                                <span className="w-4 h-4 border-2 border-red-700 border-t-transparent rounded-full animate-spin"></span>
+                              ) : (
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              )}
+                              Eliminar Documento
                             </button>
                           </div>
                         )}

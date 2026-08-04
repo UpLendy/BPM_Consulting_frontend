@@ -198,6 +198,25 @@ export const invimaService = {
     return response.json();
   },
 
+  async deleteDocument(documentId: string): Promise<any> {
+    const token = localStorage.getItem('token');
+    if (!token) throw new Error('No authentication token found');
+
+    const response = await fetch(`${API_URL}/invima-documents/${documentId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) authService.handleUnauthorized();
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al eliminar el documento');
+    }
+    return response.json();
+  },
+
   async getDocumentPreview(documentId: string): Promise<any> {
     const token = localStorage.getItem('token');
     if (!token) throw new Error('No authentication token found');
