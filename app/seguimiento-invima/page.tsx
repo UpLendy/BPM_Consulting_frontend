@@ -546,6 +546,25 @@ export default function InvimaDashboard() {
     }
   }, [selectedProduct?.id]);
 
+  const saveReqDocs = async (reqDocs: string[]) => {
+    if (!selectedProduct || !selectedProceso) return;
+    try {
+      await observacionService.createObservacion({
+        procesoId: selectedProceso.id,
+        contenido: `|REQ_DOCS:${reqDocs.join(',')}|`
+      });
+      selectedProduct.history.push({
+        date: new Date().toLocaleString(),
+        action: 'Configuración',
+        detail: `|REQ_DOCS:${reqDocs.join(',')}|`,
+        user: user?.nombre || 'Sistema'
+      });
+    } catch (e) {
+      console.error('Error guardando configuración de documentos', e);
+      alert('No se pudo guardar la configuración de documentos requeridos');
+    }
+  };
+
   const handleUpdateEtapaStatus = async (etapaId: string, currentEstado: string, etapaNombre: string) => {
     let nextEstado = 'PENDIENTE';
     
@@ -561,25 +580,16 @@ export default function InvimaDashboard() {
     if (currentEstado === 'PENDIENTE' && etapaNombre.toUpperCase().includes('VERIFICACI') && selectedProduct && selectedProceso) {
       const DOC_TYPES_VER = ['CVL', 'FICHAS_TECNICAS', 'PROCESO_ELABORACION', 'AUTORIZACION_AL_PORTADOR', 'AUTORIZACION_AL_TRAMITADOR', 'ETIQUETAS', 'ANALISIS_DE_LABORATORIO', 'REGISTRO_DE_MARCA', 'CERTIFICADO_DE_BPM', 'OTRO'];
       const reqDocs = editingDocsMap[selectedProduct.id] || DOC_TYPES_VER;
-      try {
-        await observacionService.createObservacion({
-          procesoId: selectedProceso.id,
-          contenido: `|REQ_DOCS:${reqDocs.join(',')}|`
-        });
-        selectedProduct.history.push({
-          date: new Date().toLocaleString(),
-          action: 'Configuración',
-          detail: `|REQ_DOCS:${reqDocs.join(',')}|`,
-          user: user?.nombre || 'Sistema'
-        });
-      } catch (e) {
-        console.error('Error guardando configuración de documentos', e);
-      }
+      await saveReqDocs(reqDocs);
     }
 
     try {
-      await procesoService.updateEtapaStatus(etapaId, nextEstado);
-      
+      if (currentEstado === 'COMPLETADA' && nextEstado === 'EN_PROGRESO') {
+        await procesoService.reopenEtapa(etapaId);
+      } else {
+        await procesoService.updateEtapaStatus(etapaId, nextEstado);
+      }
+
       // Log action in observations
       if (selectedProceso?.id) {
         const toTitleCase = (str: string) => str.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
@@ -642,6 +652,7 @@ export default function InvimaDashboard() {
       }
     } catch (err: any) {
       console.error("Error updating stage status:", err);
+      alert(err?.message || 'Error al actualizar el estado de la etapa');
     }
   };
 
@@ -2177,10 +2188,14 @@ export default function InvimaDashboard() {
                                       const reqDocsEvent = [...(selectedProduct?.history || [])].reverse().find((e: any) => e.detail.includes('|REQ_DOCS:'));
                                       const savedReqDocs = reqDocsEvent ? (reqDocsEvent.detail.match(/\|REQ_DOCS:(.*?)\|/)?.[1].split(',') || []) : DOC_TYPES_VER.map(d=>d.key);
                                       const isPendingVerif = etapa.estado === 'PENDIENTE';
-                                      const currentReqDocs = isPendingVerif ? (editingDocsMap[selectedProduct!.id] || savedReqDocs) : savedReqDocs;
+                                      const isEditableVerif = etapa.estado === 'PENDIENTE' || etapa.estado === 'EN_PROGRESO';
+                                      const currentReqDocs = isEditableVerif ? (editingDocsMap[selectedProduct!.id] || savedReqDocs) : savedReqDocs;
+                                      const hasPendingReqDocsChanges = etapa.estado === 'EN_PROGRESO' && editingDocsMap[selectedProduct!.id] !== undefined;
 
                                       const toggleDoc = (key: string) => {
-                                        if (!isPendingVerif || !canManageProcess) return;
+                                        if (!isEditableVerif || !canManageProcess) return;
+                                        const hasDoc = docsVer.some((d: any) => d.documentType === key);
+                                        if (hasDoc) return; // no se puede quitar un requisito que ya tiene documento vinculado
                                         const current = editingDocsMap[selectedProduct!.id] || savedReqDocs;
                                         if (current.includes(key)) {
                                           setEditingDocsMap(prev => ({ ...prev, [selectedProduct!.id]: current.filter(k => k !== key) }));
@@ -2191,20 +2206,27 @@ export default function InvimaDashboard() {
 
                                       return (
                                         <div className="mt-4 pt-4 border-t border-gray-100/60">
-                                          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">Documentos Requeridos {isPendingVerif && <span className="text-amber-500">(Selecciona los que aplican)</span>}</p>
+                                          <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">Documentos Requeridos {isEditableVerif && <span className="text-amber-500">(Selecciona los que aplican)</span>}</p>
                                           <div className="space-y-1.5">
                                             {DOC_TYPES_VER.map(({ key, label }) => {
                                               const matching = docsVer.filter((d: any) => d.documentType === key);
                                               const hasDoc = matching.length > 0;
                                               const isRequired = currentReqDocs.includes(key);
 
-                                              if (!isRequired && !isPendingVerif && !hasDoc) return null;
+                                              if (!isRequired && !isEditableVerif && !hasDoc) return null;
+
+                                              const isLocked = isEditableVerif && hasDoc;
 
                                               return (
-                                                <div key={key} className={`flex items-center justify-between gap-3 py-1 ${isPendingVerif && canManageProcess ? 'cursor-pointer hover:bg-gray-50 rounded px-1' : ''}`} onClick={() => toggleDoc(key)}>
+                                                <div
+                                                  key={key}
+                                                  className={`flex items-center justify-between gap-3 py-1 ${isEditableVerif && canManageProcess && !isLocked ? 'cursor-pointer hover:bg-gray-50 rounded px-1' : ''}`}
+                                                  onClick={() => toggleDoc(key)}
+                                                  title={isLocked ? 'Ya tiene un documento vinculado, no se puede quitar' : undefined}
+                                                >
                                                   <div className="flex items-center gap-2">
-                                                    {isPendingVerif && canManageProcess ? (
-                                                      <input type="checkbox" checked={isRequired} readOnly className="w-4 h-4 text-amber-600 rounded border-gray-300 focus:ring-amber-500 cursor-pointer" />
+                                                    {isEditableVerif && canManageProcess ? (
+                                                      <input type="checkbox" checked={isRequired} disabled={isLocked} readOnly className={`w-4 h-4 text-amber-600 rounded border-gray-300 focus:ring-amber-500 ${isLocked ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`} />
                                                     ) : (
                                                       <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 ${hasDoc ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-300'}`}>
                                                         {hasDoc
@@ -2233,6 +2255,19 @@ export default function InvimaDashboard() {
                                               );
                                             })}
                                           </div>
+                                          {hasPendingReqDocsChanges && canManageProcess && (
+                                            <div className="mt-3 flex justify-end">
+                                              <button
+                                                onClick={async (e) => {
+                                                  e.stopPropagation();
+                                                  await saveReqDocs(currentReqDocs);
+                                                }}
+                                                className="text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl transition-all bg-amber-100 text-amber-700 hover:bg-amber-200"
+                                              >
+                                                Guardar Documentos Requeridos
+                                              </button>
+                                            </div>
+                                          )}
                                         </div>
                                       );
                                     })()}
@@ -2296,7 +2331,7 @@ export default function InvimaDashboard() {
                                                     e.stopPropagation();
                                                     setTargetUploadEtapaId(etapa.id);
                                                     setTargetUploadEtapaNombre(etapaNombreStr);
-                                                    setDocumentType(isFormularios ? 'FORMULARIO' : isAnticipo ? 'DOCUMENTO_ANTICIPO' : isResolucion ? 'RESOLUCION_INVIMA' : '');
+                                                    setDocumentType(isVerificacion ? '' : 'OTRO');
                                                     setShowUploadModal(true);
                                                   }}
                                                   className="text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl transition-all flex items-center gap-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
@@ -2331,6 +2366,28 @@ export default function InvimaDashboard() {
                                               </button>
                                             </div>
                                           )}
+                                        </div>
+                                      );
+                                    })()}
+
+                                    {isCompleted && canManageProcess && (() => {
+                                      const procesoBloqueado = selectedProceso?.estado === 'TERMINADO' || selectedProceso?.estado === 'CANCELADO';
+                                      return (
+                                        <div className="mt-4 pt-4 border-t border-gray-100/60 flex justify-end">
+                                          <button
+                                            disabled={procesoBloqueado}
+                                            title={procesoBloqueado ? 'No se puede reabrir: el trámite ya está finalizado/cancelado' : undefined}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (!window.confirm('¿Reabrir esta etapa? Volverá a estado "En progreso" y se recalculará el avance del trámite.')) return;
+                                              handleUpdateEtapaStatus(etapa.id, etapa.estado, etapa.etapaNombre || etapa.etapa?.nombre || etapa.nombre || 'Etapa del Proceso');
+                                            }}
+                                            className={`text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl transition-all flex items-center gap-2
+                                              ${procesoBloqueado ? 'bg-gray-100 text-gray-300 cursor-not-allowed' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                                          >
+                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                                            Reabrir Etapa
+                                          </button>
                                         </div>
                                       );
                                     })()}
@@ -2628,44 +2685,22 @@ export default function InvimaDashboard() {
 
                   {uploadFiles.length === 0 ? (
                     <>
-                      <div>
-                        <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Categoría del Documento (Por defecto)</label>
-                        <select 
-                          required
-                          value={documentType}
-                          onChange={(e) => setDocumentType(e.target.value)}
-                          className="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 font-semibold focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all"
-                        >
-                          <option value="" disabled>Seleccione una categoría...</option>
-                          {(() => {
-                            let allowedKeys: string[] = [];
-                            let DOC_OPTIONS: {key: string, label: string}[] = [];
-
-                            if (targetUploadEtapaNombre.includes('FORMULARIO')) {
-                              allowedKeys = ['FORMULARIO', 'OTRO'];
-                              DOC_OPTIONS = [
-                                { key: 'FORMULARIO', label: 'Formulario' },
-                                { key: 'OTRO', label: 'Otro' }
-                              ];
-                            } else if (targetUploadEtapaNombre.includes('ANTICIPO')) {
-                              allowedKeys = ['DOCUMENTO_ANTICIPO', 'COMPROBANTE_PAGO', 'OTRO'];
-                              DOC_OPTIONS = [
-                                { key: 'DOCUMENTO_ANTICIPO', label: 'Documento de Anticipo' },
-                                { key: 'COMPROBANTE_PAGO', label: 'Comprobante de Pago' },
-                                { key: 'OTRO', label: 'Otro' }
-                              ];
-                            } else if (targetUploadEtapaNombre.includes('RESOLUCIÓN') || targetUploadEtapaNombre.includes('RESOLUCION')) {
-                              allowedKeys = ['RESOLUCION_INVIMA', 'OTRO'];
-                              DOC_OPTIONS = [
-                                { key: 'RESOLUCION_INVIMA', label: 'Resolución INVIMA' },
-                                { key: 'OTRO', label: 'Otro' }
-                              ];
-                            } else {
+                      {targetUploadEtapaNombre.includes('VERIFICACI') && (
+                        <div>
+                          <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Categoría del Documento (Por defecto)</label>
+                          <select
+                            required
+                            value={documentType}
+                            onChange={(e) => setDocumentType(e.target.value)}
+                            className="w-full px-4 py-2.5 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 font-semibold focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all"
+                          >
+                            <option value="" disabled>Seleccione una categoría...</option>
+                            {(() => {
                               const reqDocsEvt = [...(selectedProduct?.history || [])].reverse().find((e: any) => e.detail.includes('|REQ_DOCS:'));
-                              allowedKeys = reqDocsEvt ? (reqDocsEvt.detail.match(/\|REQ_DOCS:(.*?)\|/)?.[1].split(',') || []) : ['CVL', 'FICHAS_TECNICAS', 'PROCESO_ELABORACION', 'AUTORIZACION_AL_PORTADOR', 'AUTORIZACION_AL_TRAMITADOR', 'ETIQUETAS', 'ANALISIS_DE_LABORATORIO', 'REGISTRO_DE_MARCA', 'CERTIFICADO_DE_BPM', 'OTRO'];
+                              const allowedKeys = reqDocsEvt ? (reqDocsEvt.detail.match(/\|REQ_DOCS:(.*?)\|/)?.[1].split(',') || []) : ['CVL', 'FICHAS_TECNICAS', 'PROCESO_ELABORACION', 'AUTORIZACION_AL_PORTADOR', 'AUTORIZACION_AL_TRAMITADOR', 'ETIQUETAS', 'ANALISIS_DE_LABORATORIO', 'REGISTRO_DE_MARCA', 'CERTIFICADO_DE_BPM', 'OTRO'];
                               if (!allowedKeys.includes('OTRO')) allowedKeys.push('OTRO');
-                              
-                              DOC_OPTIONS = [
+
+                              const DOC_OPTIONS = [
                                 { key: 'CVL', label: 'CVL (Certificado Venta Libre)' },
                                 { key: 'FICHAS_TECNICAS', label: 'Fichas Técnicas' },
                                 { key: 'PROCESO_ELABORACION', label: 'Proceso de Elaboración' },
@@ -2677,16 +2712,16 @@ export default function InvimaDashboard() {
                                 { key: 'CERTIFICADO_DE_BPM', label: 'Certificado de BPM' },
                                 { key: 'OTRO', label: 'Otro' },
                               ];
-                            }
 
-                            return DOC_OPTIONS.filter(opt => allowedKeys.includes(opt.key)).map(opt => (
-                              <option key={opt.key} value={opt.key}>{opt.label}</option>
-                            ));
-                          })()}
-                        </select>
-                      </div>
+                              return DOC_OPTIONS.filter(opt => allowedKeys.includes(opt.key)).map(opt => (
+                                <option key={opt.key} value={opt.key}>{opt.label}</option>
+                              ));
+                            })()}
+                          </select>
+                        </div>
+                      )}
 
-                      <div 
+                      <div
                         onClick={() => document.getElementById('file-upload-input')?.click()}
                         className="mt-2 border-2 border-dashed rounded-2xl p-8 text-center transition-all cursor-pointer group border-gray-300 hover:bg-blue-50 hover:border-blue-300"
                       >
@@ -2738,47 +2773,25 @@ export default function InvimaDashboard() {
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div>
-                              <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wide">Categoría</label>
-                              <select 
-                                required
-                                value={item.documentType}
-                                onChange={(e) => {
-                                  const newVal = e.target.value;
-                                  setUploadFiles(prev => prev.map(f => f.id === item.id ? { ...f, documentType: newVal } : f));
-                                }}
-                                className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-gray-900 text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all"
-                              >
-                                {(() => {
-                                  let allowedKeys: string[] = [];
-                                  let DOC_OPTIONS: {key: string, label: string}[] = [];
-
-                                  if (targetUploadEtapaNombre.includes('FORMULARIO')) {
-                                    allowedKeys = ['FORMULARIO', 'OTRO'];
-                                    DOC_OPTIONS = [
-                                      { key: 'FORMULARIO', label: 'Formulario' },
-                                      { key: 'OTRO', label: 'Otro' }
-                                    ];
-                                  } else if (targetUploadEtapaNombre.includes('ANTICIPO')) {
-                                    allowedKeys = ['DOCUMENTO_ANTICIPO', 'COMPROBANTE_PAGO', 'OTRO'];
-                                    DOC_OPTIONS = [
-                                      { key: 'DOCUMENTO_ANTICIPO', label: 'Documento de Anticipo' },
-                                      { key: 'COMPROBANTE_PAGO', label: 'Comprobante de Pago' },
-                                      { key: 'OTRO', label: 'Otro' }
-                                    ];
-                                  } else if (targetUploadEtapaNombre.includes('RESOLUCIÓN') || targetUploadEtapaNombre.includes('RESOLUCION')) {
-                                    allowedKeys = ['RESOLUCION_INVIMA', 'OTRO'];
-                                    DOC_OPTIONS = [
-                                      { key: 'RESOLUCION_INVIMA', label: 'Resolución INVIMA' },
-                                      { key: 'OTRO', label: 'Otro' }
-                                    ];
-                                  } else {
+                          <div className={`grid grid-cols-1 gap-3 ${targetUploadEtapaNombre.includes('VERIFICACI') ? 'md:grid-cols-2' : ''}`}>
+                            {targetUploadEtapaNombre.includes('VERIFICACI') && (
+                              <div>
+                                <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wide">Categoría</label>
+                                <select
+                                  required
+                                  value={item.documentType}
+                                  onChange={(e) => {
+                                    const newVal = e.target.value;
+                                    setUploadFiles(prev => prev.map(f => f.id === item.id ? { ...f, documentType: newVal } : f));
+                                  }}
+                                  className="w-full px-3 py-2 bg-gray-50 border border-gray-300 rounded-lg text-gray-900 text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all"
+                                >
+                                  {(() => {
                                     const reqDocsEvt = [...(selectedProduct?.history || [])].reverse().find((e: any) => e.detail.includes('|REQ_DOCS:'));
-                                    allowedKeys = reqDocsEvt ? (reqDocsEvt.detail.match(/\|REQ_DOCS:(.*?)\|/)?.[1].split(',') || []) : ['CVL', 'FICHAS_TECNICAS', 'PROCESO_ELABORACION', 'AUTORIZACION_AL_PORTADOR', 'AUTORIZACION_AL_TRAMITADOR', 'ETIQUETAS', 'ANALISIS_DE_LABORATORIO', 'REGISTRO_DE_MARCA', 'CERTIFICADO_DE_BPM', 'OTRO'];
+                                    const allowedKeys = reqDocsEvt ? (reqDocsEvt.detail.match(/\|REQ_DOCS:(.*?)\|/)?.[1].split(',') || []) : ['CVL', 'FICHAS_TECNICAS', 'PROCESO_ELABORACION', 'AUTORIZACION_AL_PORTADOR', 'AUTORIZACION_AL_TRAMITADOR', 'ETIQUETAS', 'ANALISIS_DE_LABORATORIO', 'REGISTRO_DE_MARCA', 'CERTIFICADO_DE_BPM', 'OTRO'];
                                     if (!allowedKeys.includes('OTRO')) allowedKeys.push('OTRO');
-                                    
-                                    DOC_OPTIONS = [
+
+                                    const DOC_OPTIONS = [
                                       { key: 'CVL', label: 'CVL (Certificado Venta Libre)' },
                                       { key: 'FICHAS_TECNICAS', label: 'Fichas Técnicas' },
                                       { key: 'PROCESO_ELABORACION', label: 'Proceso de Elaboración' },
@@ -2790,14 +2803,14 @@ export default function InvimaDashboard() {
                                       { key: 'CERTIFICADO_DE_BPM', label: 'Certificado de BPM' },
                                       { key: 'OTRO', label: 'Otro' },
                                     ];
-                                  }
 
-                                  return DOC_OPTIONS.filter(opt => allowedKeys.includes(opt.key)).map(opt => (
-                                    <option key={opt.key} value={opt.key}>{opt.label}</option>
-                                  ));
-                                })()}
-                              </select>
-                            </div>
+                                    return DOC_OPTIONS.filter(opt => allowedKeys.includes(opt.key)).map(opt => (
+                                      <option key={opt.key} value={opt.key}>{opt.label}</option>
+                                    ));
+                                  })()}
+                                </select>
+                              </div>
+                            )}
                             <div>
                               <label className="block text-[10px] font-bold text-gray-500 mb-1 uppercase tracking-wide">Nombre en Pantalla</label>
                               <input 
