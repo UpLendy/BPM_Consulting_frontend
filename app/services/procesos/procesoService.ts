@@ -87,6 +87,25 @@ export const procesoService = {
     return response.json();
   },
 
+  async reopenEtapa(etapaId: string): Promise<any> {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}/proceso-etapas/${etapaId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ estado: 'EN_PROGRESO', fechaFin: null }),
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) authService.handleUnauthorized();
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Error al reabrir la etapa');
+    }
+    return response.json();
+  },
+
   async updateEtapaNotas(etapaId: string, notas: string): Promise<any> {
     const token = localStorage.getItem('token');
     const response = await fetch(`${API_URL}/proceso-etapas/${etapaId}`, {
