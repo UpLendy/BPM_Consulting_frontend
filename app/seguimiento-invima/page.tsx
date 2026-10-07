@@ -224,18 +224,18 @@ export default function InvimaDashboard() {
     etapasIds: []
   });
 
-  const { canManageProcess, canUploadDocuments, canReviewDocuments } = useMemo(() => {
-    if (!role || !user) return { canManageProcess: false, canUploadDocuments: false, canReviewDocuments: false };
-    
+  const { canManageProcess, canUploadDocuments, canReviewDocuments, isAdmin } = useMemo(() => {
+    if (!role || !user) return { canManageProcess: false, canUploadDocuments: false, canReviewDocuments: false, isAdmin: false };
+
     const tipoRaw = user.tipo || user.invimaProfile?.tipo || '';
     const tipo = String(tipoRaw).toUpperCase();
-    
+
     // DEBUG LOGS - View these in Browser Console (F12)
     console.log('[Permission Check]', { role, tipo, userEmail: user.email });
 
     // 1. If profile is explicitly COMERCIAL, NO write access EVER
     if (tipo === 'COMERCIAL') {
-      return { canManageProcess: false, canUploadDocuments: false, canReviewDocuments: false };
+      return { canManageProcess: false, canUploadDocuments: false, canReviewDocuments: false, isAdmin: false };
     }
 
     const isAdmin = role === 'admin' || role === 'administrador';
@@ -246,6 +246,7 @@ export default function InvimaDashboard() {
       canManageProcess: isAdmin || isEngineer,
       canReviewDocuments: isAdmin || isEngineer,
       canUploadDocuments: isAdmin || isEngineer || isInvimaAdmin,
+      isAdmin,
     };
   }, [role, user]);
 
@@ -1037,24 +1038,24 @@ export default function InvimaDashboard() {
     
     setIsUpdatingDetalles(true);
     try {
-      await procesoService.updateProceso(selectedProceso.id, detallesForm);
-      
+      const updatedProceso = await procesoService.updateProceso(selectedProceso.id, detallesForm);
+
       // Update local state to reflect changes
       setSelectedProceso((prev: any) => prev ? {
         ...prev,
-        ...detallesForm
+        ...updatedProceso
       } : prev);
-      
+
       // Also update in solProduct mapping if applicable
       setDashboardSolicitudes(prev => prev.map(p => {
         if (p.rawProceso?.id === selectedProceso.id) {
           return {
             ...p,
-            radicadoSeguimiento: detallesForm.radicadoInicio,
-            llave: detallesForm.llave,
+            radicadoSeguimiento: updatedProceso.radicadoInicio,
+            llave: updatedProceso.llave,
             rawProceso: {
               ...p.rawProceso,
-              ...detallesForm
+              ...updatedProceso
             }
           };
         }
@@ -3030,15 +3031,20 @@ export default function InvimaDashboard() {
                               </div>
                             </>
                           )}
-                          {(selectedReviewDoc.status === 'RECHAZADO' || selectedReviewDoc.status === 'REQUIERE_CORRECCION') && canUploadDocuments && (
-                            <div className={`relative mt-2 ${canUploadDocuments ? 'border-t border-gray-100 pt-3' : ''}`}>
-                            <input 
-                              type="file" 
+                          {(() => {
+                            const canReplace = (selectedReviewDoc.status === 'RECHAZADO' || selectedReviewDoc.status === 'REQUIERE_CORRECCION') && canUploadDocuments;
+                            const canDelete = canReplace || isAdmin;
+                            if (!canReplace && !canDelete) return null;
+                            return (
+                            <div className="relative mt-2 border-t border-gray-100 pt-3">
+                            <input
+                              type="file"
                               ref={replaceFileInputRef}
                               onChange={handleReplaceDocument}
                               className="hidden"
                             />
-                            <button 
+                            {canReplace && (
+                            <button
                               onClick={() => replaceFileInputRef.current?.click()}
                               disabled={isReplacingDoc}
                               className="w-full flex items-center justify-center gap-2 p-3 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-[11px] font-bold text-blue-700 shadow-sm"
@@ -3050,10 +3056,12 @@ export default function InvimaDashboard() {
                               )}
                               Reemplazar Archivo
                             </button>
+                            )}
+                            {canDelete && (
                             <button
                               onClick={handleDeleteDocument}
                               disabled={isDeletingDoc}
-                              className="w-full mt-2 flex items-center justify-center gap-2 p-3 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-[11px] font-bold text-red-700 shadow-sm"
+                              className={`w-full ${canReplace ? 'mt-2' : ''} flex items-center justify-center gap-2 p-3 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-[11px] font-bold text-red-700 shadow-sm`}
                             >
                               {isDeletingDoc ? (
                                 <span className="w-4 h-4 border-2 border-red-700 border-t-transparent rounded-full animate-spin"></span>
@@ -3062,8 +3070,10 @@ export default function InvimaDashboard() {
                               )}
                               Eliminar Documento
                             </button>
+                            )}
                           </div>
-                        )}
+                            );
+                          })()}
                       </div>
                     )}
                     </div>
