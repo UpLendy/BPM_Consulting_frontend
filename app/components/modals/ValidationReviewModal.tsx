@@ -57,6 +57,8 @@ export default function ValidationReviewModal({
   // Upload modal state
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
 
+  const isEngineerRole = userRole === 'engineer' || userRole === 'ingeniero';
+
   const toggleFolder = (folderName: string) => {
       setExpandedFolders(prev => ({
           ...prev,
@@ -113,6 +115,7 @@ export default function ValidationReviewModal({
          }
     }
     const isAdmin = currentRole?.toLowerCase() === 'admin';
+    const isEngineer = currentRole?.toLowerCase() === 'engineer' || currentRole?.toLowerCase() === 'ingeniero';
 
     try {
       // Parallel fetch for documents and potentially the Acta (Record)
@@ -156,11 +159,11 @@ export default function ValidationReviewModal({
         const normalizedStatus = (actaStatus || '').toUpperCase();
         const isApproved = ['ACEPTADA', 'APROBADO', 'COMPLETADA', 'COMPLETADO'].includes(normalizedStatus);
         
-        // Admin sees it even if it failed loading (to debug) or if pending.
+        // Admin and Engineer see it even if it failed loading (to debug) or if pending.
         // Companies see it only if Approved (regardless of initial URL, to allow manual fetch retry)
-        if ((isAdmin && appointmentId) || isApproved) {
+        if (((isAdmin || isEngineer) && appointmentId) || isApproved) {
              // If failed or url missing but approved, we create the item
-             if (recordRes.success || isAdmin) {
+             if (recordRes.success || isAdmin || isEngineer) {
                  finalDocs.push({
                     id: 'ACTA_VISITA_ID',
                     fileName: 'Acta de Visita (PDF)',
@@ -638,7 +641,7 @@ export default function ValidationReviewModal({
                                                     {formatFileName(doc.fileName || doc.originalName) || 'Documento sin nombre'}
                                                 </p>
                                                 <div className="flex items-center gap-2 mt-0.5">
-                                                    {!readOnly && (
+                                                    {(!readOnly || (doc.isActa && isEngineerRole)) && (
                                                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border
                                                             ${doc.status === 'APROBADO' ? 'bg-green-50 text-green-700 border-green-200' : 
                                                               doc.status === 'RECHAZADO' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'}`
