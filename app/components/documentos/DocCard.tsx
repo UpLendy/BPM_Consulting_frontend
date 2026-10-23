@@ -21,6 +21,8 @@ interface DocCardProps {
   onSecondaryAction?: (e: React.MouseEvent) => void;
   secondaryActionLabel?: string;
   secondaryActionDisabled?: boolean;
+  onViewContent?: (e: React.MouseEvent) => void;
+  viewContentLabel?: string;
 }
 
 export default function DocCard({
@@ -43,7 +45,9 @@ export default function DocCard({
   actionDisabled,
   onSecondaryAction,
   secondaryActionLabel,
-  secondaryActionDisabled
+  secondaryActionDisabled,
+  onViewContent,
+  viewContentLabel
 }: DocCardProps) {
   return (
     <div 
@@ -130,8 +134,20 @@ export default function DocCard({
           </div>
         </div>
 
-        {(onAction && actionLabel) || (onSecondaryAction && secondaryActionLabel) ? (
-            <div className="mt-2 flex justify-end gap-3">
+        {(onAction && actionLabel) || (onSecondaryAction && secondaryActionLabel) || (onViewContent && viewContentLabel) ? (
+            <div className="mt-2 flex justify-between items-center gap-3">
+                {onViewContent && viewContentLabel ? (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onViewContent(e);
+                        }}
+                        className="px-3 py-2 rounded-lg text-sm font-medium text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                    >
+                        {viewContentLabel}
+                    </button>
+                ) : <span />}
+                <div className="flex gap-3">
                 {onSecondaryAction && secondaryActionLabel && (
                     <button
                         onClick={(e) => {
@@ -162,6 +178,7 @@ export default function DocCard({
                         {actionLabel}
                     </button>
                 )}
+                </div>
             </div>
         ) : null}
       </div>
