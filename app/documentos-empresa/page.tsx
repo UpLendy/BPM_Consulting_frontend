@@ -295,6 +295,11 @@ export default function DocumentosEmpresaPage() {
       setIsModalOpen(true);
   };
 
+  const handleViewContentClick = (doc: any) => {
+      setSelectedDoc(doc);
+      setIsReviewModalOpen(true);
+  };
+
   const handleCloseModal = () => {
       setIsModalOpen(false);
       setSelectedDoc(null);
@@ -520,6 +525,12 @@ export default function DocumentosEmpresaPage() {
                    : undefined
                }
                secondaryActionLabel="Cita sin documentos"
+               onViewContent={
+                   (currentUserRole !== 'admin' && doc.status && doc.status !== 'APROBADO' && doc.status !== 'COMPLETADO')
+                   ? () => handleViewContentClick(doc)
+                   : undefined
+               }
+               viewContentLabel="Ver contenido"
             />
           ))}
 
