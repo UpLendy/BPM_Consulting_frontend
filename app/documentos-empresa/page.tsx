@@ -11,6 +11,33 @@ import ValidationReviewModal from '@/app/components/modals/ValidationReviewModal
 import ConfirmationModal from '@/app/components/modals/ConfirmationModal';
 import { formatShortDate } from '@/app/utils/dateUtils';
 
+const TIPOS_CITA: Record<string, string> = {
+    ASESORIA: 'Asesoría',
+    AUDITORIA: 'Auditoría',
+    SEGUIMIENTO: 'Seguimiento',
+    CAPACITACION: 'Capacitación',
+};
+
+// Shared mapping from a ValidationsPaginatedResponseDto item (GET /validations) to the card shape.
+// Admin and Engineer hit the same endpoint/DTO; only the admin flow attaches actaStatus afterwards.
+// OJO: esta respuesta trae los campos PLANOS (companyName, engineerName, appointmentDate),
+// no anidados bajo val.appointment. La fecha mostrada es la de la VISITA, no la de la validación.
+const mapValidationToDoc = (val: any) => ({
+    id: val.id,
+    appointmentId: val.appointmentId || val.appointment?.id,
+    companyName: val.companyName || 'Empresa',
+    engineerName: val.engineerName || val.reviewedByName || 'Ingeniero',
+    date: formatShortDate(val.appointmentDate || val.updatedAt || val.createdAt),
+    // El estado ya se muestra en el badge de la tarjeta; acá va el tipo de visita,
+    // que de otro modo no se ve en ningún lado. 'message' no existe en esta respuesta.
+    description: TIPOS_CITA[val.appointmentType] || 'Validación de cita',
+    status: val.status,
+    title: val.title,
+    docCount: val.documentsCount || 0,
+    rawDate: val.appointmentDate || val.updatedAt || val.createdAt,
+    actaStatus: null as string | null,
+});
+
 export default function DocumentosEmpresaPage() {
   const router = useRouter();
   const [docs, setDocs] = useState<any[]>([]);
@@ -60,18 +87,6 @@ export default function DocumentosEmpresaPage() {
         try {
             const user = JSON.parse(userStr);
             const profileRes = await authService.getProfile();
-            
-            let targetId = user.id; 
-            
-            // The profileRes from getProfile() is the user data itself
-            const discoveredEngineerId = profileRes?.engineerId || profileRes?.user?.engineerId;
-            const discoveredUserId = profileRes?.id || profileRes?.user?.id;
-
-            if (discoveredEngineerId) {
-                targetId = discoveredEngineerId;
-            } else if (discoveredUserId) {
-                targetId = discoveredUserId;
-            }
 
             const rawRole = user.role?.name || user.role || profileRes?.role?.name || profileRes?.role || '';
             const role = String(rawRole).toLowerCase();
@@ -88,7 +103,7 @@ export default function DocumentosEmpresaPage() {
                              page,
                              limit: 100
                          });
-                         
+
                          if (valResponse.success && valResponse.data) {
                              const validationsData = valResponse.data;
                              const items = Array.isArray(validationsData) ? validationsData : (validationsData.data || []);
@@ -101,38 +116,22 @@ export default function DocumentosEmpresaPage() {
                              hasMore = false;
                          }
                      }
-                     
+
                      if (allValidations.length > 0) {
+                        // Admin additionally needs the Acta status, to know if a validation can be completed.
                         const mappedList = await Promise.all(allValidations.map(async (val: any) => {
-                             let actaStatus = null;
-                             // If validation is APPROVED, we check Acta status to know if we can complete
-                             if (val.status === 'APROBADO') {
-                                 const aptId = val.appointmentId || val.appointment?.id;
-                                 if (aptId) {
-                                     try {
-                                         const recordRes = await appointmentService.getAppointmentRecord(aptId);
-                                         if (recordRes.success && recordRes.data) {
-                                             actaStatus = recordRes.data.status;
-                                         }
-                                     } catch (e) {
-                                         console.error("Error fetching acta status for validation", val.id, e);
+                             const mapped = mapValidationToDoc(val);
+                             if (val.status === 'APROBADO' && mapped.appointmentId) {
+                                 try {
+                                     const recordRes = await appointmentService.getAppointmentRecord(mapped.appointmentId);
+                                     if (recordRes.success && recordRes.data) {
+                                         mapped.actaStatus = recordRes.data.status;
                                      }
+                                 } catch (e) {
+                                     console.error("Error fetching acta status for validation", val.id, e);
                                  }
                              }
-
-                             return {
-                                 id: val.id,
-                                 appointmentId: val.appointmentId || val.appointment?.id,
-                                 companyName: val.companyName || val.appointment?.companyName || 'Empresa', 
-                                 engineerName: val.reviewedByName || val.appointment?.engineerName || 'Ingeniero',
-                                 date: formatShortDate(val.updatedAt || val.createdAt),
-                                 description: val.message || 'Validación en Revisión',
-                                 status: val.status,
-                                 title: val.title,
-                                 docCount: val.documentsCount || 0,
-                                 rawDate: val.updatedAt || val.createdAt,
-                                 actaStatus: actaStatus
-                             };
+                             return mapped;
                          }));
 
                         // Sort by date (most recent first)
@@ -142,69 +141,40 @@ export default function DocumentosEmpresaPage() {
                  } catch (e) {
                      console.error('Admin fetch error', e);
                  }
-            } else {   
-                // Engineer fetch logic with pagination
-                if (!targetId) {
-                    setIsLoading(false);
-                    return;
-                }
+            } else {
+                // Engineer fetch logic: GET /validations resolves the engineer scope server-side
+                // from the auth token (ValidationService.getEngineerValidations), paginated.
+                try {
+                    let allValidations: any[] = [];
+                    let page = 1;
+                    let hasMore = true;
 
-                // Fetch ALL appointments with pagination
-                let allAppointments: any[] = [];
-                let page = 1;
-                let hasMore = true;
+                    while (hasMore && page <= 10) { // Max 10 pages
+                        const valResponse = await appointmentService.getAllValidations({
+                            page,
+                            limit: 100
+                        });
 
-                while (hasMore && page <= 10) { // Max 10 pages to prevent infinite loop
-                    const aptResponse = await appointmentService.getAppointmentsByEngineer(targetId, {
-                        page,
-                        limit: 100 // Fetch 100 per page to minimize requests
-                    });
-                    
-                    if (aptResponse.success && aptResponse.data) {
-                        const pageData = aptResponse.data.data || [];
-                        allAppointments = [...allAppointments, ...pageData];
-                        const meta = aptResponse.data.meta as any;
-                        hasMore = meta ? (page < (meta.pages || meta.totalPages || 1)) : false;
-                        page++;
-                    } else {
-                        hasMore = false;
-                    }
-                }
-                
-                if (allAppointments.length > 0) {
-                    const validationsList: any[] = [];
-                    
-                    const completedAppointments = allAppointments.filter((a: any) => a.status === 'COMPLETADA');
-                    
-                    await Promise.all(completedAppointments.map(async (apt) => {
-                        try {
-                            const valResponse = await appointmentService.getAppointmentValidation(apt.id);
-                            if (valResponse.success && valResponse.data) {
-                                const validation = valResponse.data;
-                                
-                                // Using documentsCount directly from validation object response
-                                const docCount = validation.documentsCount || 0;
-
-                                validationsList.push({
-                                    id: validation.id,
-                                    appointmentId: apt.id,
-                                    companyName: apt.companyName || user.companyName || 'Mi Empresa',
-                                    engineerName: validation.reviewedByName || apt.engineerName || 'Ingeniero Asignado',
-                                    date: formatShortDate(apt.date),
-                                    description: validation.message || (validation.status || '').replace(/_/g, ' ') || 'Validación de Cita',
-                                    status: validation.status,
-                                    title: validation.title,
-                                    docCount: docCount, 
-                                    rawDate: apt.date 
-                                });
-                            }
-                        } catch (err) {
-                            // Silent fallback
+                        if (valResponse.success && valResponse.data) {
+                            const validationsData = valResponse.data;
+                            const items = Array.isArray(validationsData) ? validationsData : (validationsData.data || []);
+                            allValidations = [...allValidations, ...items];
+                            const meta = validationsData.meta;
+                            hasMore = meta ? (page < (meta.pages || meta.totalPages || 1)) : false;
+                            page++;
+                        } else {
+                            hasMore = false;
                         }
-                    }));
+                    }
 
-                    validationsList.sort((a: any, b: any) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
-                    setDocs(validationsList);
+                    if (allValidations.length > 0) {
+                        const mappedList = allValidations.map(mapValidationToDoc);
+
+                        mappedList.sort((a, b) => new Date(b.rawDate).getTime() - new Date(a.rawDate).getTime());
+                        setDocs(mappedList);
+                    }
+                } catch (e) {
+                    console.error('Engineer fetch error', e);
                 }
             }
         } catch (error) {
@@ -308,8 +278,11 @@ export default function DocumentosEmpresaPage() {
   const handleCloseReviewModal = () => {
       setIsReviewModalOpen(false);
       setSelectedDoc(null);
-      // Force reload to update list state from backend (approvals/rejections change validation status)
-      window.location.reload();
+      // Refrescamos solo los datos, sin recargar la página: dentro del visor el admin puede
+      // aprobar o rechazar y eso cambia el estado de la validación.
+      // fetchData() no activa el estado de carga, así que la actualización es invisible:
+      // no hay parpadeo, no se pierde el scroll ni la página en la que estaba el usuario.
+      fetchData();
   };
 
   /* Trigger confirmation modal */
