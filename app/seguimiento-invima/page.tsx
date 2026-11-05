@@ -428,6 +428,12 @@ export default function InvimaDashboard() {
 
   // Fetch process details when selectedProduct changes
   useEffect(() => {
+    // Evita una condicion de carrera al cambiar rapido de tramite. Si el usuario
+    // selecciona otro antes de que lleguen estas respuestas, las del tramite anterior
+    // se descartan. Sin esta bandera, una respuesta lenta del tramite A sobrescribe
+    // descripcion, observacion, titular, radicado y llave del tramite B ya abierto.
+    let cancelled = false;
+
     if (selectedProduct?.id) {
       const fetchProcesoDetails = async () => {
         setIsLoadingProceso(true);
@@ -443,10 +449,13 @@ export default function InvimaDashboard() {
             solicitudService.getSolicitudById(selectedProduct.id).catch(() => null)
           ]);
           
+          // El usuario ya cambio de tramite: descartamos esta respuesta.
+          if (cancelled) return;
+
           if (!proc && fetchedProc) {
             proc = fetchedProc;
           }
-          
+
           setSelectedProceso(proc);
           
           // Extraer el titular si la solicitud detallada lo trae en observación
@@ -499,7 +508,8 @@ export default function InvimaDashboard() {
               try {
                 // Fetch stages
                 const stages = await procesoService.getEtapasByProcesoId(proc.id);
-                const verificacion = stages.find((s: any) => 
+                if (cancelled) return;
+                const verificacion = stages.find((s: any) =>
                   s.etapa?.nombre === "VERIFICACIÓN DOCUMENTAL" || 
                   s.nombre === "VERIFICACIÓN DOCUMENTAL" ||
                   s.etapaNombre === "VERIFICACIÓN DOCUMENTAL"
@@ -511,6 +521,7 @@ export default function InvimaDashboard() {
 
                 // Fetch observations
                 const obsRes = await observacionService.getObservacionesByProcesoId(proc.id);
+                if (cancelled) return;
                 const rawObs = Array.isArray(obsRes) ? obsRes : (obsRes?.data || []);
                 
                 const mappedHistory = rawObs.map((h: any) => ({
@@ -537,14 +548,17 @@ export default function InvimaDashboard() {
             }
           }
         } catch (err) {
+          if (cancelled) return;
           console.error("Error fetching process details", err);
           setSelectedProceso(null);
         } finally {
-          setIsLoadingProceso(false);
+          if (!cancelled) setIsLoadingProceso(false);
         }
       };
       fetchProcesoDetails();
     }
+
+    return () => { cancelled = true; };
   }, [selectedProduct?.id]);
 
   const saveReqDocs = async (reqDocs: string[]) => {
